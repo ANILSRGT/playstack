@@ -27,7 +27,7 @@ enum DeviceCapabilities {
       supportsHls: true,
       supportsDash: false,
       supportsDiskCache: false,
-      supportsMemorySource: false,
+      supportsMemorySource: true,
       supportsTrackSelection: false
     )
   }

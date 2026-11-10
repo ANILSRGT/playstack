@@ -44,6 +44,10 @@ enum ReelKitErrorCode {
   /// The decoder failed or no decoder was available.
   decoder,
 
+  /// The platform refused to start playback, for example a browser blocking
+  /// autoplay with sound before the user interacted with the page.
+  playbackNotAllowed,
+
   /// The operation did not complete within its time limit.
   timeout,
 

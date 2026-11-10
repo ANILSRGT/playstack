@@ -184,6 +184,27 @@ class ReelPlayerController extends ChangeNotifier
     await _applySettings();
   });
 
+  /// Gives the native player back to the pool without disposing the
+  /// controller, for example when a feed item scrolls far out of view. The
+  /// state returns to [ReelPlaybackStatus.idle] (video info is kept for
+  /// layout) and the next [initialize] or [play] prepares the video again.
+  Future<void> release() => _command(() async {
+    if (_lease == null) return;
+    _lease = null;
+    if (_priority == ReelPlayerPriority.active) {
+      _priority = ReelPlayerPriority.visible;
+    }
+    _update(
+      _value.copyWith(
+        status: ReelPlaybackStatus.idle,
+        isAttached: false,
+        isBuffering: false,
+        hasRenderedFirstFrame: false,
+      ),
+    );
+    await _host.pool.release(this);
+  });
+
   /// Reads the current playback and buffer position from the engine.
   ///
   /// Returns zero positions while the controller holds no native player.

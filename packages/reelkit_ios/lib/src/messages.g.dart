@@ -606,6 +606,10 @@ class PlatformStateEvent extends PlatformPlayerEvent {
   }
 }
 
+/// Playback was requested (`true`) or stopped being requested (`false`), for
+/// example by `play`, `pause`, reaching the end, or a system interruption.
+/// Stalls while playback is requested are reported as
+/// [PlatformPlaybackState.buffering], not as `isPlaying == false`.
 class PlatformIsPlayingEvent extends PlatformPlayerEvent {
   PlatformIsPlayingEvent({
     required this.playerId,
@@ -1044,6 +1048,27 @@ class ReelKitHostApi {
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
       <Object?>[playerId, source, generation],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Stops playback and detaches the current source, releasing its decoder
+  /// and buffers while keeping the player and its render target for reuse.
+  Future<void> clearSource(int playerId) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.clearSource$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId],
     );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
     _extractReplyValueOrThrow(

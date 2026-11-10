@@ -53,6 +53,13 @@ abstract class ReelKitPlatform extends PlatformInterface {
     throw UnimplementedError('setSource() has not been implemented.');
   }
 
+  /// Stops playback and detaches the current source so its decoder and
+  /// buffers are released. The player stays alive for reuse. Must succeed
+  /// for players without a source.
+  Future<void> clearSource(int playerId) {
+    throw UnimplementedError('clearSource() has not been implemented.');
+  }
+
   Future<void> play(int playerId) {
     throw UnimplementedError('play() has not been implemented.');
   }

@@ -6,13 +6,18 @@ import Foundation
 final class PlayerRegistry: ReelKitHostApi {
   private let textureRegistry: FlutterTextureRegistry
   private let events: PlayerEventDispatcher
+  private let sources: SourceResolver
   private var players: [Int64: NativePlayer] = [:]
   private var nextPlayerId: Int64 = 1
   private var capabilities: PlatformCapabilities?
 
-  init(textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher) {
+  init(
+    textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher,
+    assetLookup: @escaping (String, String?) -> String
+  ) {
     self.textureRegistry = textureRegistry
     self.events = events
+    sources = SourceResolver(assetLookup: assetLookup)
   }
 
   func initialize() throws -> PlatformCapabilities {
@@ -25,59 +30,65 @@ final class PlayerRegistry: ReelKitHostApi {
   func createPlayer(options: PlatformPlayerOptions) throws -> PlatformPlayerCreation {
     let id = nextPlayerId
     nextPlayerId += 1
-    let player = NativePlayer(id: id, options: options)
-    player.attach(to: textureRegistry)
+    let player = NativePlayer(
+      id: id, options: options, events: events, textureRegistry: textureRegistry)
     players[id] = player
     return PlatformPlayerCreation(playerId: id, textureId: player.textureId)
   }
 
   @MainActor
   func disposePlayer(playerId: Int64) async throws {
-    players.removeValue(forKey: playerId)?.release(from: textureRegistry)
+    players.removeValue(forKey: playerId)?.release()
   }
 
   func setSource(playerId: Int64, source: PlatformSource, generation: Int64) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("setSource")
+    let player = try requirePlayer(playerId)
+    player.setSource(try sources.resolve(source), generation: generation)
+  }
+
+  func clearSource(playerId: Int64) throws {
+    try requirePlayer(playerId).clearSource()
   }
 
   func play(playerId: Int64) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("play")
+    try requirePlayer(playerId).play()
   }
 
   func pause(playerId: Int64) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("pause")
+    try requirePlayer(playerId).pause()
   }
 
+  @MainActor
   func seekTo(playerId: Int64, positionMs: Int64) async throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("seekTo")
+    let player = try requirePlayer(playerId)
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      player.seek(toMilliseconds: positionMs) { continuation.resume() }
+    }
   }
 
   func setLooping(playerId: Int64, looping: Bool) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("setLooping")
+    try requirePlayer(playerId).setLooping(looping)
   }
 
   func setVolume(playerId: Int64, volume: Double) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("setVolume")
+    try requirePlayer(playerId).setVolume(volume)
   }
 
   func setPlaybackSpeed(playerId: Int64, speed: Double) throws {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("setPlaybackSpeed")
+    guard speed.isFinite, speed > 0 else {
+      throw PigeonError(
+        code: "invalidArgument", message: "Playback speed must be > 0, got \(speed).",
+        details: nil)
+    }
+    try requirePlayer(playerId).setPlaybackSpeed(speed)
   }
 
   func getPosition(playerId: Int64) throws -> PlatformPosition {
-    _ = try requirePlayer(playerId)
-    throw notImplemented("getPosition")
+    try requirePlayer(playerId).position()
   }
 
   func releaseAll() {
-    for player in players.values { player.release(from: textureRegistry) }
+    for player in players.values { player.release() }
     players.removeAll()
   }
 
@@ -87,13 +98,5 @@ final class PlayerRegistry: ReelKitHostApi {
         code: "playerNotFound", message: "No native player with id \(playerId).", details: nil)
     }
     return player
-  }
-
-  private func notImplemented(_ method: String) -> PigeonError {
-    PigeonError(
-      code: "notImplemented",
-      message: "\(method) is not implemented yet by the ReelKit iOS engine "
-        + "(scheduled for milestone 2: single native player).",
-      details: nil)
   }
 }

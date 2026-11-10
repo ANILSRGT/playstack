@@ -145,6 +145,14 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   }
 
   @override
+  Future<void> clearSource(int playerId) async {
+    calls.add('clearSource($playerId)');
+    _check('clearSource');
+    _requireLive(playerId);
+    generations.remove(playerId);
+  }
+
+  @override
   Future<void> play(int playerId) async {
     calls.add('play($playerId)');
     _check('play');

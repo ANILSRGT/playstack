@@ -2,6 +2,7 @@
 // ignore_for_file: discarded_futures
 
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit/src/pool/reel_player_pool.dart';
@@ -161,6 +162,34 @@ void main() {
       pool.dispose();
       async.flushMicrotasks();
     });
+  });
+
+  test('release detaches the source of the idle player', () async {
+    final pool = createPool();
+    final client = TestClient();
+    final player = await pool.acquire(client);
+    await pool.release(client);
+    expect(platform.calls, contains('clearSource(${player.playerId})'));
+    expect(platform.livePlayers, hasLength(1));
+    await pool.dispose();
+  });
+
+  test('a player that cannot be cleared is destroyed', () async {
+    final pool = createPool();
+    final client = TestClient();
+    await pool.acquire(client);
+    platform.throwOn['clearSource'] = const ReelKitException(
+      ReelKitErrorCode.playerNotFound,
+      'gone',
+    );
+    final errors = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    await pool.release(client);
+    FlutterError.onError = previous;
+    expect(errors, hasLength(1));
+    expect(platform.livePlayers, isEmpty);
+    await pool.dispose();
   });
 
   test('zero idle timeout destroys players on release', () async {

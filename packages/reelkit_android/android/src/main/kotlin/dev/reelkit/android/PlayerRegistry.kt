@@ -1,6 +1,7 @@
 package dev.reelkit.android
 
 import android.content.Context
+import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterAssets
 import io.flutter.view.TextureRegistry
 
 /**
@@ -10,9 +11,11 @@ import io.flutter.view.TextureRegistry
 internal class PlayerRegistry(
     private val context: Context,
     private val textureRegistry: TextureRegistry,
-    @Suppress("unused") private val events: PlayerEventDispatcher,
+    flutterAssets: FlutterAssets,
+    private val events: PlayerEventDispatcher,
 ) : ReelKitHostApi {
   private val players = HashMap<Long, NativePlayer>()
+  private val sources = MediaSourceBuilder(context, flutterAssets)
   private var nextPlayerId = 1L
   private var capabilities: PlatformCapabilities? = null
 
@@ -24,7 +27,7 @@ internal class PlayerRegistry(
     val producer = textureRegistry.createSurfaceProducer()
     val player =
         try {
-          NativePlayer(id, context, producer, options)
+          NativePlayer(id, context, producer, events, options)
         } catch (error: RuntimeException) {
           producer.release()
           throw FlutterError("playerCreationFailed", error.message, error.toString())
@@ -38,44 +41,33 @@ internal class PlayerRegistry(
   }
 
   override fun setSource(playerId: Long, source: PlatformSource, generation: Long) {
-    requirePlayer(playerId)
-    throw notImplemented("setSource")
+    val player = requirePlayer(playerId)
+    player.setSource(sources.build(source), generation)
   }
 
-  override fun play(playerId: Long) {
-    requirePlayer(playerId)
-    throw notImplemented("play")
-  }
+  override fun clearSource(playerId: Long) = requirePlayer(playerId).clearSource()
 
-  override fun pause(playerId: Long) {
-    requirePlayer(playerId)
-    throw notImplemented("pause")
-  }
+  override fun play(playerId: Long) = requirePlayer(playerId).play()
 
-  override suspend fun seekTo(playerId: Long, positionMs: Long) {
-    requirePlayer(playerId)
-    throw notImplemented("seekTo")
-  }
+  override fun pause(playerId: Long) = requirePlayer(playerId).pause()
 
-  override fun setLooping(playerId: Long, looping: Boolean) {
-    requirePlayer(playerId)
-    throw notImplemented("setLooping")
-  }
+  override suspend fun seekTo(playerId: Long, positionMs: Long) =
+      requirePlayer(playerId).seekTo(positionMs)
 
-  override fun setVolume(playerId: Long, volume: Double) {
-    requirePlayer(playerId)
-    throw notImplemented("setVolume")
-  }
+  override fun setLooping(playerId: Long, looping: Boolean) =
+      requirePlayer(playerId).setLooping(looping)
+
+  override fun setVolume(playerId: Long, volume: Double) =
+      requirePlayer(playerId).setVolume(volume)
 
   override fun setPlaybackSpeed(playerId: Long, speed: Double) {
-    requirePlayer(playerId)
-    throw notImplemented("setPlaybackSpeed")
+    if (!speed.isFinite() || speed <= 0) {
+      throw FlutterError("invalidArgument", "Playback speed must be > 0, got $speed.", null)
+    }
+    requirePlayer(playerId).setPlaybackSpeed(speed)
   }
 
-  override fun getPosition(playerId: Long): PlatformPosition {
-    requirePlayer(playerId)
-    throw notImplemented("getPosition")
-  }
+  override fun getPosition(playerId: Long): PlatformPosition = requirePlayer(playerId).position()
 
   fun releaseAll() {
     players.values.forEach { it.release() }
@@ -85,12 +77,4 @@ internal class PlayerRegistry(
   private fun requirePlayer(playerId: Long): NativePlayer =
       players[playerId]
           ?: throw FlutterError("playerNotFound", "No native player with id $playerId.", null)
-
-  private fun notImplemented(method: String) =
-      FlutterError(
-          "notImplemented",
-          "$method is not implemented yet by the ReelKit Android engine " +
-              "(scheduled for milestone 2: single native player).",
-          null,
-      )
 }

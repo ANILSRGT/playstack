@@ -621,6 +621,11 @@ struct PlatformStateEvent: PlatformPlayerEvent, Hashable, CustomStringConvertibl
   }
 }
 
+/// Playback was requested (`true`) or stopped being requested (`false`), for
+/// example by `play`, `pause`, reaching the end, or a system interruption.
+/// Stalls while playback is requested are reported as
+/// [PlatformPlaybackState.buffering], not as `isPlaying == false`.
+///
 /// Generated class from Pigeon that represents data sent in messages.
 struct PlatformIsPlayingEvent: PlatformPlayerEvent, Hashable, CustomStringConvertible {
   var playerId: Int64
@@ -953,6 +958,9 @@ protocol ReelKitHostApi {
   /// Replaces the player's source and starts preparing it. Completion of
   /// preparation is reported through [PlatformInitializedEvent].
   func setSource(playerId: Int64, source: PlatformSource, generation: Int64) throws
+  /// Stops playback and detaches the current source, releasing its decoder
+  /// and buffers while keeping the player and its render target for reuse.
+  func clearSource(playerId: Int64) throws
   func play(playerId: Int64) throws
   func pause(playerId: Int64) throws
   func seekTo(playerId: Int64, positionMs: Int64) async throws
@@ -1034,6 +1042,23 @@ class ReelKitHostApiSetup {
       }
     } else {
       setSourceChannel.setMessageHandler(nil)
+    }
+    /// Stops playback and detaches the current source, releasing its decoder
+    /// and buffers while keeping the player and its render target for reuse.
+    let clearSourceChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.clearSource\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearSourceChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg = args[0] as! Int64
+        do {
+          try api.clearSource(playerId: playerIdArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearSourceChannel.setMessageHandler(nil)
     }
     let playChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.play\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

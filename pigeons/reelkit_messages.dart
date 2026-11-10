@@ -129,6 +129,10 @@ abstract class ReelKitHostApi {
   /// preparation is reported through [PlatformInitializedEvent].
   void setSource(int playerId, PlatformSource source, int generation);
 
+  /// Stops playback and detaches the current source, releasing its decoder
+  /// and buffers while keeping the player and its render target for reuse.
+  void clearSource(int playerId);
+
   void play(int playerId);
 
   void pause(int playerId);
@@ -187,6 +191,10 @@ class PlatformStateEvent extends PlatformPlayerEvent {
   PlatformPlaybackState state;
 }
 
+/// Playback was requested (`true`) or stopped being requested (`false`), for
+/// example by `play`, `pause`, reaching the end, or a system interruption.
+/// Stalls while playback is requested are reported as
+/// [PlatformPlaybackState.buffering], not as `isPlaying == false`.
 class PlatformIsPlayingEvent extends PlatformPlayerEvent {
   PlatformIsPlayingEvent({
     required this.playerId,

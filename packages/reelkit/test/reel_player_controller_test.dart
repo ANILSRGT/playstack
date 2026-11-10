@@ -295,6 +295,40 @@ void main() {
     expect(await controller.getRemaining(), const Duration(seconds: 25));
   });
 
+  test('release returns the player and keeps the controller usable', () async {
+    final controller = manager.createController(source);
+    await controller.play();
+    await flush();
+    final id = platform.livePlayers.single;
+    await controller.release();
+    expect(controller.value.status, ReelPlaybackStatus.idle);
+    expect(controller.value.isAttached, isFalse);
+    expect(controller.value.videoInfo, isNotNull);
+    expect(manager.poolStats.leased, 0);
+    expect(platform.calls, contains('clearSource($id)'));
+
+    await controller.play();
+    await flush();
+    expect(controller.value.status, ReelPlaybackStatus.playing);
+    expect(platform.createCalls, 1, reason: 'the idle player was reused');
+  });
+
+  test('buffering while playing keeps the playing status', () async {
+    final controller = manager.createController(source);
+    await controller.play();
+    await flush();
+    final id = platform.livePlayers.single;
+    platform.emit(
+      ReelNativeStateEvent(
+        playerId: id,
+        generation: platform.generations[id]!,
+        state: ReelNativePlaybackState.buffering,
+      ),
+    );
+    expect(controller.value.status, ReelPlaybackStatus.playing);
+    expect(controller.value.isBuffering, isTrue);
+  });
+
   test('dispose releases the player and rejects later commands', () async {
     final controller = manager.createController(source);
     await controller.initialize();

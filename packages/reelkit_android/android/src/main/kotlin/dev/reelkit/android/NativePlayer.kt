@@ -1,33 +1,44 @@
 package dev.reelkit.android
 
 import android.content.Context
+import androidx.annotation.OptIn
+import androidx.media3.common.C
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.MediaSource
 import io.flutter.view.TextureRegistry
 
 /**
  * One Media3 [ExoPlayer] bound to one Flutter [TextureRegistry.SurfaceProducer].
  *
- * The surface producer may destroy and recreate its surface (for example when
- * the app is backgrounded on Impeller); the callback keeps ExoPlayer pointed
- * at the current surface instead of caching a stale one.
+ * Events are tagged with the generation of the current source. After
+ * [clearSource] no events are emitted until the next [setSource].
  */
+@OptIn(UnstableApi::class)
 internal class NativePlayer(
     val id: Long,
     context: Context,
     private val surfaceProducer: TextureRegistry.SurfaceProducer,
+    private val events: PlayerEventDispatcher,
     options: PlatformPlayerOptions,
-) {
+) : Player.Listener {
   private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
   private var released = false
+  private var generation = NO_SOURCE
+  private var initializedSent = false
 
   val textureId: Long
     get() = surfaceProducer.id()
 
   init {
-    exoPlayer.repeatMode = if (options.looping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-    exoPlayer.volume = options.volume.toFloat().coerceIn(0f, 1f)
-    exoPlayer.setPlaybackSpeed(options.playbackSpeed.toFloat())
+    setLooping(options.looping)
+    setVolume(options.volume)
+    setPlaybackSpeed(options.playbackSpeed)
+    exoPlayer.addListener(this)
 
     surfaceProducer.setCallback(
         object : TextureRegistry.SurfaceProducer.Callback {
@@ -42,12 +53,175 @@ internal class NativePlayer(
     exoPlayer.setVideoSurface(surfaceProducer.surface)
   }
 
+  fun setSource(mediaSource: MediaSource, generation: Long) {
+    // Silence the previous source before the new generation starts.
+    this.generation = NO_SOURCE
+    exoPlayer.playWhenReady = false
+    this.generation = generation
+    initializedSent = false
+    exoPlayer.setMediaSource(mediaSource, /* resetPosition= */ true)
+    exoPlayer.prepare()
+  }
+
+  fun clearSource() {
+    generation = NO_SOURCE
+    initializedSent = false
+    exoPlayer.playWhenReady = false
+    exoPlayer.stop()
+    exoPlayer.clearMediaItems()
+  }
+
+  fun play() = exoPlayer.play()
+
+  fun pause() = exoPlayer.pause()
+
+  fun seekTo(positionMs: Long) = exoPlayer.seekTo(positionMs)
+
+  fun setLooping(looping: Boolean) {
+    exoPlayer.repeatMode = if (looping) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+  }
+
+  fun setVolume(volume: Double) {
+    exoPlayer.volume = volume.toFloat().coerceIn(0f, 1f)
+  }
+
+  fun setPlaybackSpeed(speed: Double) {
+    exoPlayer.playbackParameters = PlaybackParameters(speed.toFloat())
+  }
+
+  fun position(): PlatformPosition =
+      PlatformPosition(
+          positionMs = exoPlayer.currentPosition, bufferedMs = exoPlayer.bufferedPosition)
+
   fun release() {
     if (released) return
     released = true
+    generation = NO_SOURCE
+    exoPlayer.removeListener(this)
     surfaceProducer.setCallback(null)
     exoPlayer.setVideoSurface(null)
     exoPlayer.release()
     surfaceProducer.release()
+  }
+
+  // Player.Listener ----------------------------------------------------------
+
+  override fun onPlaybackStateChanged(playbackState: Int) {
+    if (generation == NO_SOURCE) return
+    val state =
+        when (playbackState) {
+          Player.STATE_BUFFERING -> PlatformPlaybackState.BUFFERING
+          Player.STATE_READY -> {
+            if (!initializedSent) sendInitialized()
+            PlatformPlaybackState.READY
+          }
+          Player.STATE_ENDED -> PlatformPlaybackState.ENDED
+          else -> PlatformPlaybackState.IDLE
+        }
+    events.emit(PlatformStateEvent(playerId = id, generation = generation, state = state))
+    if (playbackState == Player.STATE_ENDED) {
+      // ExoPlayer keeps playWhenReady at the end. Clearing it reports the
+      // stop and lets the next play() start a new playback request.
+      exoPlayer.playWhenReady = false
+    }
+  }
+
+  override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+    if (generation == NO_SOURCE) return
+    events.emit(
+        PlatformIsPlayingEvent(playerId = id, generation = generation, isPlaying = playWhenReady))
+  }
+
+  override fun onVideoSizeChanged(videoSize: VideoSize) {
+    if (generation == NO_SOURCE || !initializedSent) return
+    val geometry = geometry()
+    if (geometry.width <= 0 || geometry.height <= 0) return
+    events.emit(
+        PlatformVideoSizeEvent(
+            playerId = id,
+            generation = generation,
+            width = geometry.width.toLong(),
+            height = geometry.height.toLong(),
+            rotationDegrees = geometry.rotationDegrees.toLong(),
+            pixelAspectRatio = geometry.pixelAspectRatio,
+        ))
+  }
+
+  override fun onRenderedFirstFrame() {
+    if (generation == NO_SOURCE) return
+    events.emit(PlatformFirstFrameEvent(playerId = id, generation = generation))
+  }
+
+  override fun onPlayerError(error: PlaybackException) {
+    if (generation == NO_SOURCE) return
+    events.emit(
+        PlatformErrorEvent(
+            playerId = id,
+            generation = generation,
+            code = PlaybackErrors.code(error),
+            message = error.message ?: error.errorCodeName,
+            details = error.errorCodeName,
+        ))
+  }
+
+  private fun sendInitialized() {
+    initializedSent = true
+    val geometry = geometry()
+    val duration = exoPlayer.duration
+    events.emit(
+        PlatformInitializedEvent(
+            playerId = id,
+            generation = generation,
+            durationMs = if (duration == C.TIME_UNSET) -1 else duration,
+            width = geometry.width.toLong(),
+            height = geometry.height.toLong(),
+            rotationDegrees = geometry.rotationDegrees.toLong(),
+            pixelAspectRatio = geometry.pixelAspectRatio,
+        ))
+  }
+
+  /**
+   * Size of the frames as they arrive in the Flutter texture, plus the
+   * rotation Flutter still has to apply.
+   *
+   * Media3 reports [VideoSize] upright, assuming the surface honours the
+   * decoder's rotation transform. The SurfaceTexture backend does; the
+   * ImageReader backend (`handlesCropAndRotation() == false`) does not, so
+   * its frames arrive unrotated and the rotation is reported to Flutter.
+   */
+  private fun geometry(): Geometry {
+    val format = exoPlayer.videoFormat
+    val rotation = ((format?.rotationDegrees ?: 0) % 360 + 360) % 360
+    val quarterTurn = rotation == 90 || rotation == 270
+    val handlesRotation = surfaceProducer.handlesCropAndRotation()
+    val size = exoPlayer.videoSize
+    if (size.width > 0 && size.height > 0) {
+      val ratio = size.pixelWidthHeightRatio.toDouble()
+      return when {
+        handlesRotation -> Geometry(size.width, size.height, 0, ratio)
+        quarterTurn -> Geometry(size.height, size.width, rotation, 1.0 / ratio)
+        else -> Geometry(size.width, size.height, rotation, ratio)
+      }
+    }
+    if (format != null && format.width > 0 && format.height > 0) {
+      val ratio = format.pixelWidthHeightRatio.toDouble()
+      return when {
+        handlesRotation && quarterTurn -> Geometry(format.height, format.width, 0, 1.0 / ratio)
+        handlesRotation -> Geometry(format.width, format.height, 0, ratio)
+        else -> Geometry(format.width, format.height, rotation, ratio)
+      }
+    }
+    return Geometry(0, 0, 0, 1.0)
+  }
+
+  private data class Geometry(
+      val width: Int,
+      val height: Int,
+      val rotationDegrees: Int,
+      val pixelAspectRatio: Double,
+  )
+
+  private companion object {
+    const val NO_SOURCE = -1L
   }
 }

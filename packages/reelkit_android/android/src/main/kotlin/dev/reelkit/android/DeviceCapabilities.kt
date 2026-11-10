@@ -51,7 +51,7 @@ internal object DeviceCapabilities {
         supportsHls = true,
         supportsDash = true,
         supportsDiskCache = false,
-        supportsMemorySource = false,
+        supportsMemorySource = true,
         supportsTrackSelection = false,
     )
   }

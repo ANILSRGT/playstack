@@ -14,7 +14,13 @@ public final class ReelKitPlugin: NSObject, FlutterPlugin {
   private init(registrar: FlutterPluginRegistrar) {
     messenger = registrar.messenger()
     events = PlayerEventDispatcher()
-    registry = PlayerRegistry(textureRegistry: registrar.textures(), events: events)
+    registry = PlayerRegistry(
+      textureRegistry: registrar.textures(), events: events,
+      assetLookup: { [weak registrar] name, package in
+        guard let registrar else { return name }
+        if let package { return registrar.lookupKey(forAsset: name, fromPackage: package) }
+        return registrar.lookupKey(forAsset: name)
+      })
     eventChannel = PlayerEventsStreamHandler.register(with: messenger, streamHandler: events)
     super.init()
     ReelKitHostApiSetup.setUp(binaryMessenger: messenger, api: registry)

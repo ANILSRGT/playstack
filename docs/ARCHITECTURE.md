@@ -95,18 +95,49 @@ and `dispose` run one at a time in call order. Commands still queued when
   on all platforms. Engines report the rotation still to be applied (0 when
   they already rotate frames).
 
+**Playback intent, not frame progress.** Engines report `isPlaying` as
+"playback is requested" (Android `playWhenReady`, iOS `rate != 0`, web
+`play`/`pause` events). Stalls are reported separately as `buffering`, so a
+buffering video stays `playing` with `isBuffering == true` instead of
+flickering to `paused`. Android clears `playWhenReady` at the end of a
+non-looping video so the next `play()` is a new request.
+
+**Rotation contract.** Engines report the size of the frames as they arrive
+in the render target plus the rotation Flutter must still apply.
+- Android: Media3 reports `VideoSize` upright because the decoder rotates
+  through the surface transform. Flutter's `SurfaceTexture` backend honours
+  that transform (`handlesCropAndRotation() == true`); the `ImageReader`
+  backend does not, so the engine un-swaps the size and reports
+  `Format.rotationDegrees`.
+- iOS: `AVPlayerItemVideoOutput` delivers unrotated frames; the rotation comes
+  from the track's `preferredTransform`.
+- Web: browsers rotate `<video>` themselves; rotation is always 0.
+Verified by screenshot on an Android 16 emulator and an iOS simulator
+against ffmpeg's auto-rotated reference frame.
+
+**iOS frame pump.** A `CADisplayLink` copies new pixel buffers only while
+playback is requested or a frame is expected (new source or seek). A paused,
+prepared player costs no per-frame work, yet still shows its first frame,
+which feeds need for videos prepared ahead.
+
+**Idle players hold nothing.** When a controller is released or disposed, the
+pool calls `clearSource` (Android `stop()` + `clearMediaItems()`, iOS
+`replaceCurrentItem(nil)`, web `removeAttribute('src')` + `load()`) before
+keeping the player for reuse. A player that cannot be cleared is destroyed.
+
 ## Platform risks
 
 | Risk | Platform | Mitigation |
 | --- | --- | --- |
 | Hardware decoder instances are limited and shared with other apps; `maxSupportedInstances` is an upper bound, not a guarantee. | Android | Conservative pool limit; decoder errors are typed (`decoder`) so the pool can shrink (milestone 4). |
 | `SurfaceProducer` surfaces can be destroyed on background and recreated. | Android | Callback re-binds `setVideoSurface`; never cache `surface`. |
-| Rotation handling differs between Flutter's Android texture backends. | Android | Engine reports the remaining rotation per video; verified on device in milestone 2. |
+| Rotation handling differs between Flutter's Android texture backends. | Android | Engine reports the remaining rotation per backend; verified on an API 36 emulator (ImageReader). The SurfaceTexture path (older devices) is not yet device-verified. |
 | No public API for concurrent decode sessions; many `AVPlayer`s with items increase memory and can fail silently. | iOS | Memory-based limit; items are detached from released players (milestone 2). |
-| `AVPlayerItemVideoOutput` + display link costs CPU if left running. | iOS | Display link only while playing; paused players keep the last buffer. |
+| `AVPlayerItemVideoOutput` + display link costs CPU if left running. | iOS | Display link only while playing or awaiting a frame; paused players keep the last buffer. |
+| HTTP headers use `AVURLAssetHTTPHeaderFieldsKey`, which is not in the public headers. | iOS | Widely used (also by `video_player`); revisit with `AVAssetResourceLoader` if Apple removes it. |
 | Audio session category belongs to the host app. | iOS | ReelKit will not change it unless configured (milestone 6). |
 | Autoplay with sound is blocked; only muted autoplay is allowed. | Web | Muted autoplay policy and typed errors (milestone 2/6). |
-| `<video>` cannot send custom HTTP headers; no disk cache guarantees; HLS only native on Safari. | Web | Reported through capabilities; HLS.js evaluated in milestone 2. |
+| `<video>` cannot send custom HTTP headers; no disk cache guarantees; HLS only native on Safari. | Web | Rejected with typed errors and reported through capabilities. HLS.js (MSE) integration is still open. |
 | Platform views are costlier than textures. | Web | Unavoidable; keep the pool small. |
 | Orientation and fullscreen APIs differ per platform and per window mode (iPad multitasking, Android large screens, browser fullscreen permission). | All | Explicit orientation coordination, restore registered policy (milestone 6). |
 

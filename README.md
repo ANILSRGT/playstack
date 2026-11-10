@@ -4,11 +4,12 @@ ReelKit is a video playback manager for Flutter, built for fast-scrolling video
 feeds and for single players. It handles native players, pooling, lifecycle and
 errors. You build the whole UI.
 
-> **Status: milestone 1 (foundation), development preview.** The architecture,
-> public Dart API, player pool, typed native bridge and native player
-> allocation work on Android, iOS and web. **Video playback itself is not
-> available yet.** `setSource`, `play` and the other playback commands report
-> `ReelKitErrorCode.notImplemented` from every engine until milestone 2.
+> **Status: milestone 2 (single native player), development preview.**
+> Playback works on Android (Media3), iOS (AVPlayer) and web
+> (`<video>`): network, asset, file and memory sources; play, pause, seek,
+> loop, volume, mute and speed; first-frame, buffering, completion and typed
+> error events; rotation-correct rendering. Feed preloading, caching,
+> fullscreen and audio sessions come in later milestones.
 
 ## Packages
 
@@ -56,7 +57,9 @@ Stack(
   ],
 );
 
-await controller.play();           // prepares on demand (milestone 2)
+await controller.play();           // prepares on demand
+final pos = await controller.getPosition(); // pulled, never pushed per frame
+await controller.release();        // give the native player back, keep controller
 await manager.dispose();           // releases every controller and player
 ```
 
@@ -72,6 +75,9 @@ await manager.dispose();           // releases every controller and player
   higher `priority` (`background < preload < visible < active`) can take the
   player of a lower one; that controller returns to `idle` and prepares again
   on its next `initialize` or `play`.
+- **`release()`** gives a controller's native player back to the pool
+  without disposing it; the pool detaches the source so the idle player
+  holds no decoder or network resources.
 - **`ReelVideoView`** renders frames with any `BoxFit`, `Alignment`,
   background color, clipping and border radius, plus optional poster,
   placeholder and error builders. No controls.
@@ -81,19 +87,33 @@ await manager.dispose();           // releases every controller and player
 | | Android | iOS | Web |
 | --- | --- | --- | --- |
 | Engine | Media3 1.11.1 ExoPlayer | AVPlayer | HTMLVideoElement |
-| Rendering | `SurfaceProducer` texture | `FlutterTexture` | Platform view |
-| Engine capabilities and adaptive pool size | Yes | Yes | Yes |
-| Native player allocation, reuse, release | Yes | Yes (verified on simulator) | Yes |
-| Source preparation and playback commands | Milestone 2 | Milestone 2 | Milestone 2 |
-| HLS | Engine supports | Engine supports | Safari only (native) |
-| DASH | Engine supports | No | No |
-| Custom HTTP headers | Milestone 2 | Milestone 2 | Not possible with `<video>` |
+| Rendering | `SurfaceProducer` texture | `FlutterTexture` (`AVPlayerItemVideoOutput`) | Platform view |
+| Play, pause, seek, loop, volume, mute, speed | Yes | Yes | Yes |
+| First frame while paused (preparing ahead) | Yes | Yes | Yes |
+| Rotation metadata | Yes | Yes | Applied by the browser |
+| `ReelSource.network` | Yes | Yes | Yes |
+| Custom HTTP headers | Yes | Yes (`AVURLAssetHTTPHeaderFieldsKey`) | No: `<video>` cannot send them; rejected with `invalidSource` |
+| `ReelSource.asset` | Yes | Yes | Yes |
+| `ReelSource.file` | Yes | Yes | No (`invalidSource`) |
+| `ReelSource.memory` | Yes (in memory) | Yes (staged to a temporary file) | Yes (Blob URL) |
+| HLS | Yes | Yes | Safari only; `unsupportedFormat` elsewhere |
+| DASH | Yes | No (`unsupportedFormat`) | No (`unsupportedFormat`) |
+| Autoplay with sound | Yes | Yes | Blocked by browsers until a user gesture (`playbackNotAllowed`); muted autoplay works |
 | Disk cache | Milestone 6 | Milestone 6 | Browser cache only, no guarantees |
-| `ReelSource.file` | Milestone 2 | Milestone 2 | Not available |
-| `ReelSource.memory` | Not yet | Not yet | Not yet |
+| Track selection | Milestone 3 | Milestone 3 | Not planned |
+| Audio session / focus | Milestone 6 (host app's settings apply) | Milestone 6 (host app's `AVAudioSession` applies) | n/a |
 
-`ReelPlatformCapabilities` reports these flags at runtime, and never claims a
+`ReelPlatformCapabilities` reports these flags at runtime and never claims a
 feature the engine does not provide.
+
+Verified on device: the integration suite in
+`packages/reelkit/example/integration_test` (13 tests: preparation, first
+frame while paused, rotation, completion and restart, pause, loop, seek,
+volume/mute/speed, memory source, missing source, pooled source switching,
+100-source churn) passes on an Android 16 emulator (API 36) and an iOS
+simulator. Rendering orientation was checked by screenshot against ffmpeg's
+reference frame on both. Web is compiled (JS and Wasm) but its integration
+suite has not been run yet (no chromedriver in the development setup).
 
 ## Errors
 
@@ -115,6 +135,9 @@ flutter test packages/reelkit/test packages/reelkit_platform_interface/test \
 ./tool/generate_pigeons.sh           # after editing pigeons/reelkit_messages.dart
 ```
 
+Adding Swift files to `reelkit_ios` requires `pod install` in the example's
+`ios` folder (CocoaPods snapshots the file list).
+
 Device integration tests:
 
 ```bash
@@ -126,8 +149,8 @@ flutter test integration_test -d <device-id>
 
 1. Foundation — **done**: workspace, federated plugin, public API, platform
    interface, Pigeon bridge, player pool, example, tests.
-2. Single native player on each platform: sources, play/pause/seek/loop,
-   events, first frame, rotation, errors.
+2. Single native player — **done**: sources, play/pause/seek/loop, volume,
+   speed, events, first frame, rotation, typed errors on all platforms.
 3. Complete player API: tracks, metadata, source replacement, lifecycle.
 4. Player manager: exclusive playback, decoder-failure-aware pool sizing.
 5. Feed manager and intelligent preloading.

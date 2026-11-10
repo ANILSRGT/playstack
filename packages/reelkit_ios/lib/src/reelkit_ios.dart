@@ -81,6 +81,10 @@ class ReelKitIOS extends ReelKitPlatform {
   }
 
   @override
+  Future<void> clearSource(int playerId) =>
+      _guard(() => _api.clearSource(playerId));
+
+  @override
   Future<void> play(int playerId) => _guard(() => _api.play(playerId));
 
   @override

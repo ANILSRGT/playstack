@@ -19,6 +19,7 @@ class ReelKitPlugin : FlutterPlugin {
         PlayerRegistry(
             context = binding.applicationContext,
             textureRegistry = binding.textureRegistry,
+            flutterAssets = binding.flutterAssets,
             events = dispatcher,
         )
     ReelKitHostApi.setUp(binding.binaryMessenger, playerRegistry)

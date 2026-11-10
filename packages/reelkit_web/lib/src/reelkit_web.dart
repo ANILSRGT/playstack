@@ -8,28 +8,45 @@ import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import 'package:web/web.dart' as web;
 
+import 'web_player.dart';
+
 /// Web implementation of [ReelKitPlatform].
 ///
 /// Each native player is an `HTMLVideoElement` shown through a Flutter
-/// platform view. Browsers do not expose decoder limits, so the recommended
-/// pool size is derived from `navigator.deviceMemory` where the browser
-/// provides it (Chromium-based browsers) and is conservative elsewhere.
+/// platform view. Browser limitations are reported, not hidden:
+///
+/// * `<video>` requests cannot carry custom HTTP headers; network sources
+///   with headers fail with [ReelKitErrorCode.invalidSource].
+/// * HLS plays only where the browser supports it natively (Safari); MPEG-DASH
+///   is not supported. Both fail with [ReelKitErrorCode.unsupportedFormat].
+/// * File paths do not exist in browsers; use network, asset or memory
+///   sources.
+/// * Browsers block autoplay with sound until the user interacts with the
+///   page; `play` then fails with [ReelKitErrorCode.playbackNotAllowed].
+///   Muted playback (volume 0) is allowed.
+/// * Browsers expose no decoder limits; the recommended pool size is derived
+///   from `navigator.deviceMemory` where available.
 class ReelKitWeb extends ReelKitPlatform {
   /// Registers this class as the default [ReelKitPlatform] implementation.
   static void registerWith(Registrar registrar) {
     ReelKitPlatform.instance = ReelKitWeb();
   }
 
-  final Map<int, web.HTMLVideoElement> _elements =
-      <int, web.HTMLVideoElement>{};
+  final Map<int, WebPlayer> _players = <int, WebPlayer>{};
+
   // Lives as long as the registered engine, which lives as long as the app.
   // ignore: close_sinks
   final StreamController<ReelPlatformEvent> _events =
       StreamController<ReelPlatformEvent>.broadcast();
   int _nextPlayerId = 1;
   ReelPlatformCapabilities? _capabilities;
+  bool? _nativeHls;
 
   static String _viewType(int playerId) => 'dev.reelkit.web.player.$playerId';
+
+  bool get _supportsNativeHls => _nativeHls ??= web.HTMLVideoElement()
+      .canPlayType('application/vnd.apple.mpegurl')
+      .isNotEmpty;
 
   @override
   Future<ReelPlatformCapabilities> initialize() async {
@@ -37,10 +54,6 @@ class ReelKitWeb extends ReelKitPlatform {
   }
 
   ReelPlatformCapabilities _readCapabilities() {
-    final probe = web.HTMLVideoElement();
-    final nativeHls = probe
-        .canPlayType('application/vnd.apple.mpegurl')
-        .isNotEmpty;
     final navigator = web.window.navigator;
     final hasDeviceMemory = (navigator as JSObject).has('deviceMemory');
     final deviceMemoryGib = hasDeviceMemory ? navigator.deviceMemory : null;
@@ -58,10 +71,10 @@ class ReelKitWeb extends ReelKitPlatform {
           ? null
           : (deviceMemoryGib * 1024 * 1024 * 1024).round(),
       isLowRamDevice: deviceMemoryGib != null && deviceMemoryGib < 2,
-      supportsHls: nativeHls,
+      supportsHls: _supportsNativeHls,
       supportsDash: false,
       supportsDiskCache: false,
-      supportsMemorySource: false,
+      supportsMemorySource: true,
       supportsTrackSelection: false,
     );
   }
@@ -71,110 +84,131 @@ class ReelKitWeb extends ReelKitPlatform {
     ReelNativePlayerOptions options,
   ) async {
     final playerId = _nextPlayerId++;
-    final element = web.HTMLVideoElement()
-      ..playsInline = true
-      ..preload = 'auto'
-      ..loop = options.looping
-      ..volume = options.volume.clamp(0.0, 1.0)
-      ..playbackRate = options.playbackSpeed
-      ..controls = false;
-    element.style
-      ..width = '100%'
-      ..height = '100%'
-      ..objectFit = 'fill'
-      ..pointerEvents = 'none'
-      ..backgroundColor = 'transparent';
-    _elements[playerId] = element;
+    final player = WebPlayer(playerId, options, _events.add);
+    _players[playerId] = player;
     ui_web.platformViewRegistry.registerViewFactory(
       _viewType(playerId),
-      (int viewId) => element,
+      (int viewId) => player.element,
     );
     return ReelNativePlayerHandle(playerId: playerId, textureId: -1);
   }
 
   @override
   Future<void> disposePlayer(int playerId) async {
-    final element = _elements.remove(playerId);
-    if (element == null) return;
-    element.pause();
-    // Detaching the source and calling load() releases the decoder and any
-    // buffered media held by the browser for this element.
-    element.removeAttribute('src');
-    element.load();
-    element.remove();
+    _players.remove(playerId)?.dispose();
   }
 
-  Never _notImplemented(String method) => throw ReelKitException(
-    ReelKitErrorCode.notImplemented,
-    '$method is not implemented yet by the ReelKit web engine '
-    '(scheduled for milestone 2: single native player).',
-  );
-
-  web.HTMLVideoElement _require(int playerId) {
-    final element = _elements[playerId];
-    if (element == null) {
+  WebPlayer _require(int playerId) {
+    final player = _players[playerId];
+    if (player == null) {
       throw ReelKitException(
         ReelKitErrorCode.playerNotFound,
         'No web player with id $playerId.',
       );
     }
-    return element;
+    return player;
   }
 
   @override
-  Future<void> setSource(int playerId, ReelSource source, int generation) {
-    _require(playerId);
-    _notImplemented('setSource');
+  Future<void> setSource(
+    int playerId,
+    ReelSource source,
+    int generation,
+  ) async {
+    final player = _require(playerId);
+    final format = source.resolvedFormat;
+    if (format == ReelVideoFormat.dash) {
+      throw const ReelKitException(
+        ReelKitErrorCode.unsupportedFormat,
+        'MPEG-DASH is not supported by the web engine.',
+      );
+    }
+    if (format == ReelVideoFormat.hls && !_supportsNativeHls) {
+      throw const ReelKitException(
+        ReelKitErrorCode.unsupportedFormat,
+        'This browser cannot play HLS natively. HLS on the web currently '
+        'requires Safari.',
+      );
+    }
+    switch (source) {
+      case ReelNetworkSource(:final url, :final headers):
+        if (headers.isNotEmpty) {
+          throw const ReelKitException(
+            ReelKitErrorCode.invalidSource,
+            'Browsers cannot attach custom HTTP headers to <video> requests. '
+            'Use signed URLs or cookies for authorization on the web.',
+          );
+        }
+        player.load(url, generation);
+      case ReelAssetSource(:final assetName, :final package):
+        final key = package == null
+            ? assetName
+            : 'packages/$package/$assetName';
+        player.load(ui_web.assetManager.getAssetUrl(key), generation);
+      case ReelMemorySource(:final bytes, :final mimeType):
+        final blob = web.Blob(
+          <JSUint8Array>[bytes.toJS].toJS,
+          web.BlobPropertyBag(type: mimeType),
+        );
+        player.load(
+          web.URL.createObjectURL(blob),
+          generation,
+          ownsObjectUrl: true,
+        );
+      case ReelFileSource(:final path):
+        throw ReelKitException(
+          ReelKitErrorCode.invalidSource,
+          'File paths are not available in browsers: $path',
+        );
+    }
   }
 
   @override
-  Future<void> play(int playerId) {
-    _require(playerId);
-    _notImplemented('play');
+  Future<void> clearSource(int playerId) async => _require(playerId).clear();
+
+  @override
+  Future<void> play(int playerId) => _require(playerId).play();
+
+  @override
+  Future<void> pause(int playerId) async => _require(playerId).element.pause();
+
+  @override
+  Future<void> seekTo(int playerId, Duration position) async {
+    _require(playerId).element.currentTime =
+        position.inMicroseconds / Duration.microsecondsPerSecond;
   }
 
   @override
-  Future<void> pause(int playerId) {
-    _require(playerId);
-    _notImplemented('pause');
+  Future<void> setLooping(int playerId, bool looping) async {
+    _require(playerId).element.loop = looping;
   }
 
   @override
-  Future<void> seekTo(int playerId, Duration position) {
-    _require(playerId);
-    _notImplemented('seekTo');
+  Future<void> setVolume(int playerId, double volume) async {
+    _require(playerId).setVolume(volume);
   }
 
   @override
-  Future<void> setLooping(int playerId, bool looping) {
-    _require(playerId);
-    _notImplemented('setLooping');
+  Future<void> setPlaybackSpeed(int playerId, double speed) async {
+    if (!speed.isFinite || speed <= 0) {
+      throw ReelKitException(
+        ReelKitErrorCode.invalidArgument,
+        'Playback speed must be > 0, got $speed.',
+      );
+    }
+    _require(playerId).element.playbackRate = speed;
   }
 
   @override
-  Future<void> setVolume(int playerId, double volume) {
-    _require(playerId);
-    _notImplemented('setVolume');
-  }
-
-  @override
-  Future<void> setPlaybackSpeed(int playerId, double speed) {
-    _require(playerId);
-    _notImplemented('setPlaybackSpeed');
-  }
-
-  @override
-  Future<ReelPositionSnapshot> getPosition(int playerId) {
-    _require(playerId);
-    _notImplemented('getPosition');
-  }
+  Future<ReelPositionSnapshot> getPosition(int playerId) async =>
+      _require(playerId).position();
 
   @override
   Stream<ReelPlatformEvent> get events => _events.stream;
 
   @override
   Widget buildView(int playerId) {
-    if (!_elements.containsKey(playerId)) return const SizedBox.shrink();
+    if (!_players.containsKey(playerId)) return const SizedBox.shrink();
     return HtmlElementView(viewType: _viewType(playerId));
   }
 }

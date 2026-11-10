@@ -242,8 +242,10 @@ class ReelPlayerPool {
     });
   }
 
-  /// Returns [client]'s player to the pool. The native player stays alive
-  /// for reuse until the idle timeout, unless the pool is above its limit.
+  /// Returns [client]'s player to the pool. Its source is detached so it
+  /// stops using decoder and network resources; the native player itself
+  /// stays alive for reuse until the idle timeout, unless the pool is above
+  /// its limit.
   Future<void> release(ReelPoolClient client) {
     return _lock.synchronized(() async {
       final player = leaseOf(client);
@@ -255,8 +257,10 @@ class ReelPlayerPool {
       if (_disposed) return;
       if (_players.length > _maxPlayers || _idleTimeout == Duration.zero) {
         await _destroy(player);
-      } else {
+      } else if (await _clear(player)) {
         _scheduleIdleDisposal(player);
+      } else {
+        await _destroy(player);
       }
     });
   }
@@ -363,6 +367,27 @@ class ReelPlayerPool {
         }),
       );
     });
+  }
+
+  /// Detaches the source of an idle player so it stops consuming decoder,
+  /// network and memory. Returns false when the player is unusable.
+  Future<bool> _clear(PooledPlayer player) async {
+    try {
+      await _platform.clearSource(player.playerId);
+      return true;
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'reelkit',
+          context: ErrorDescription(
+            'while clearing native player ${player.playerId}',
+          ),
+        ),
+      );
+      return false;
+    }
   }
 
   Future<void> _destroy(PooledPlayer player) async {

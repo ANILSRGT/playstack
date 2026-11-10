@@ -1,6 +1,6 @@
 name: reelkit_ios
 description: iOS implementation of ReelKit, built on AVFoundation AVPlayer.
-version: 0.1.0-dev.1
+version: 0.1.0-dev.2
 publish_to: none
 resolution: workspace
 

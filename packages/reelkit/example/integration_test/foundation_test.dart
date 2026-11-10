@@ -1,8 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
+import 'package:reelkit_example/samples.dart';
 
-/// Runs against the real native engine of the device or browser.
+/// Runs against the real engine of the device or browser.
 ///
 /// `flutter test integration_test -d <device>`
 void main() {
@@ -28,11 +29,10 @@ void main() {
 
     for (var round = 0; round < 10; round++) {
       final controller = manager.createController(
-        ReelSource.network('https://example.invalid/$round.mp4'),
+        const ReelSource.asset(landscapeAsset),
       );
-      // Allocates (or reuses) a real native player. Source preparation is
-      // implemented in milestone 2, so its outcome is not asserted here.
-      await controller.initialize().catchError((Object _) {});
+      await controller.initialize();
+      expect(controller.value.status, ReelPlaybackStatus.ready);
       expect(manager.poolStats.allocated, lessThanOrEqualTo(2));
       await controller.dispose();
     }

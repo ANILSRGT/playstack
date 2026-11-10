@@ -53,7 +53,11 @@ final class ReelNativeStateEvent extends ReelPlatformEvent {
   final ReelNativePlaybackState state;
 }
 
-/// Playback started or stopped advancing.
+/// Playback was requested (`true`) or stopped being requested (`false`), for
+/// example by play/pause, reaching the end, or a system interruption.
+///
+/// Stalls while playback is requested are reported as
+/// [ReelNativePlaybackState.buffering], not as `isPlaying == false`.
 final class ReelIsPlayingEvent extends ReelPlatformEvent {
   const ReelIsPlayingEvent({
     required super.playerId,

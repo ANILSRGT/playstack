@@ -646,7 +646,14 @@ data class PlatformStateEvent (
   }
 }
 
-/** Generated class from Pigeon that represents data sent in messages. */
+/**
+ * Playback was requested (`true`) or stopped being requested (`false`), for
+ * example by `play`, `pause`, reaching the end, or a system interruption.
+ * Stalls while playback is requested are reported as
+ * [PlatformPlaybackState.buffering], not as `isPlaying == false`.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
 data class PlatformIsPlayingEvent (
   val playerId: Long,
   val generation: Long,
@@ -1003,6 +1010,11 @@ interface ReelKitHostApi {
    * preparation is reported through [PlatformInitializedEvent].
    */
   fun setSource(playerId: Long, source: PlatformSource, generation: Long)
+  /**
+   * Stops playback and detaches the current source, releasing its decoder
+   * and buffers while keeping the player and its render target for reuse.
+   */
+  fun clearSource(playerId: Long)
   fun play(playerId: Long)
   fun pause(playerId: Long)
   suspend fun seekTo(playerId: Long, positionMs: Long)
@@ -1082,6 +1094,24 @@ interface ReelKitHostApi {
             val generationArg = args[2] as Long
             val wrapped: List<Any?> = try {
               api.setSource(playerIdArg, sourceArg, generationArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.clearSource$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              api.clearSource(playerIdArg)
               listOf(null)
             } catch (exception: Throwable) {
               MessagesPigeonUtils.wrapError(exception)
