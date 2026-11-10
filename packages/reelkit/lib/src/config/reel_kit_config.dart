@@ -8,6 +8,7 @@ class ReelKitConfig {
     this.pool = const ReelPoolConfig(),
     this.player = const ReelPlayerConfig(),
     this.lifecycle = const ReelLifecycleConfig(),
+    this.exclusivePlayback = true,
   });
 
   /// How native players are allocated and reused.
@@ -19,15 +20,26 @@ class ReelKitConfig {
   /// How playback reacts to the app moving to the background.
   final ReelLifecycleConfig lifecycle;
 
+  /// Whether at most one controller of the manager plays at a time.
+  ///
+  /// When true (the default), calling `play` on a controller pauses every
+  /// other playing controller of the same manager, and the most recent
+  /// `play` call wins when several are in flight. A `play` call that is
+  /// superseded before playback started completes without starting playback.
+  /// Set to false for layouts that intentionally play several videos at once,
+  /// such as a muted preview grid.
+  final bool exclusivePlayback;
+
   @override
   bool operator ==(Object other) =>
       other is ReelKitConfig &&
       other.pool == pool &&
       other.player == player &&
-      other.lifecycle == lifecycle;
+      other.lifecycle == lifecycle &&
+      other.exclusivePlayback == exclusivePlayback;
 
   @override
-  int get hashCode => Object.hash(pool, player, lifecycle);
+  int get hashCode => Object.hash(pool, player, lifecycle, exclusivePlayback);
 }
 
 /// Reaction to the application being hidden and shown again.
@@ -72,6 +84,7 @@ class ReelPoolConfig {
     this.maxPlayers,
     this.maxAdaptivePlayers = 4,
     this.idleTimeout = const Duration(seconds: 30),
+    this.adaptToDecoderFailures = true,
   }) : assert(maxPlayers == null || maxPlayers > 0),
        assert(maxAdaptivePlayers > 0);
 
@@ -89,6 +102,17 @@ class ReelPoolConfig {
   /// released.
   final Duration idleTimeout;
 
+  /// Whether the pool shrinks when a decoder cannot be allocated.
+  ///
+  /// Hardware decoder instances are shared with other apps, so the number a
+  /// device sustains is only known at run time. When preparing a video fails
+  /// with [ReelKitErrorCode.decoderUnavailable] while other players of the
+  /// pool hold prepared videos, the limit drops to the number of those
+  /// players and the preparation is retried once on a player taken from a
+  /// lower-priority controller. The lowered limit applies, also to a fixed
+  /// [maxPlayers], for the lifetime of the manager.
+  final bool adaptToDecoderFailures;
+
   /// The player limit for a device with [capabilities].
   int resolveMaxPlayers(ReelPlatformCapabilities capabilities) {
     final fixed = maxPlayers;
@@ -101,10 +125,16 @@ class ReelPoolConfig {
       other is ReelPoolConfig &&
       other.maxPlayers == maxPlayers &&
       other.maxAdaptivePlayers == maxAdaptivePlayers &&
-      other.idleTimeout == idleTimeout;
+      other.idleTimeout == idleTimeout &&
+      other.adaptToDecoderFailures == adaptToDecoderFailures;
 
   @override
-  int get hashCode => Object.hash(maxPlayers, maxAdaptivePlayers, idleTimeout);
+  int get hashCode => Object.hash(
+    maxPlayers,
+    maxAdaptivePlayers,
+    idleTimeout,
+    adaptToDecoderFailures,
+  );
 }
 
 /// Initial playback settings of a controller.

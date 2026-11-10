@@ -10,7 +10,9 @@ import '../samples.dart';
 /// Until the feed manager lands (milestone 5) the app coordinates the
 /// controllers itself: the current item plays, the next one is prepared
 /// with `preload` priority, and items further away give their native player
-/// back. The pool never holds more than three native players.
+/// back. The pool never holds more than three native players. Exclusive
+/// playback (the manager default) pauses the previous item when the current
+/// one starts.
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
 
@@ -59,10 +61,8 @@ class _FeedPageState extends State<FeedPage> {
         unawaited(controller.play().catchError((Object _) {}));
       } else if (distance == 1) {
         controller.priority = ReelPlayerPriority.preload;
-        unawaited(controller.pause().catchError((Object _) {}));
         unawaited(controller.initialize().catchError((Object _) {}));
       } else if (distance == -1) {
-        unawaited(controller.pause().catchError((Object _) {}));
         controller.priority = ReelPlayerPriority.background;
       } else if (controller.value.isAttached) {
         unawaited(controller.release());

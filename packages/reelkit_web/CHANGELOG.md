@@ -1,3 +1,8 @@
+## 0.1.0-dev.4
+
+* Milestone 4: version alignment; browsers do not report decoder
+  allocation failures separately.
+
 ## 0.1.0-dev.3
 
 * Milestone 3: audio/video/subtitle tracks with subtitle text events, video

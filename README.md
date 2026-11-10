@@ -4,12 +4,14 @@ ReelKit is a video playback manager for Flutter, built for fast-scrolling video
 feeds and for single players. It handles native players, pooling, lifecycle and
 errors. You build the whole UI.
 
-> **Status: milestone 3 (complete player API), development preview.**
+> **Status: milestone 4 (player manager), development preview.**
 > Playback works on Android (Media3), iOS (AVPlayer) and web (`<video>`):
 > network, asset, file and memory sources; play, pause, stop, seek, loop,
 > volume, mute and speed; source replacement; audio and subtitle tracks with
 > subtitle text delivered to your UI; video quality caps; video metadata; a
-> position stream; and pause/resume with the app lifecycle. Feed preloading,
+> position stream; and pause/resume with the app lifecycle. Many controllers
+> share a bounded, priority-based player pool with exclusive playback,
+> decoder-shortage handling and memory-pressure release. Feed preloading,
 > caching, fullscreen and audio sessions come in later milestones.
 
 ## Packages
@@ -77,6 +79,19 @@ await manager.dispose();           // releases every controller and player
   higher `priority` (`background < preload < visible < active`) can take the
   player of a lower one; that controller returns to `idle` and prepares again
   on its next `initialize` or `play`.
+- **Exclusive playback.** By default only one controller of a manager plays:
+  `play` pauses the others, and when several `play` calls overlap the most
+  recent one wins. `manager.activeController` tells which controller is
+  playing. Set `ReelKitConfig(exclusivePlayback: false)` to play several
+  videos at once (for example a muted preview grid).
+- **Decoder shortage.** Hardware decoders are shared with other apps, so the
+  number a device sustains is only known at run time. When a video fails with
+  `decoderUnavailable` while other players of the pool hold videos, the pool
+  limit drops to that number and the video is retried once on a player taken
+  from a lower-priority controller (`ReelPoolConfig.adaptToDecoderFailures`).
+  `poolStats.decoderLimitReductions` counts these events.
+- **Memory pressure** destroys idle native players and releases the players
+  of `background` controllers.
 - **`release()`** gives a controller's native player back to the pool
   without disposing it; the pool detaches the source so the idle player
   holds no decoder or network resources.
@@ -124,19 +139,22 @@ await manager.dispose();           // releases every controller and player
 feature the engine does not provide.
 
 Verified on device: the integration suite in
-`packages/reelkit/example/integration_test` (20 tests: preparation, first
+`packages/reelkit/example/integration_test` (24 tests: preparation, first
 frame while paused, rotation, completion and restart, pause, loop, seek,
 volume/mute/speed, memory source, missing source, pooled source switching,
 100-source churn, metadata, audio and subtitle track selection with subtitle
 text, source replacement, stop, position stream, quality limit, app
-lifecycle) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
-reference frame on both. Web is compiled (JS and Wasm) but its integration
+lifecycle, exclusive and concurrent playback, memory pressure, disposing a
+manager mid-preparation) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
+reference frame on both. The decoder-shortage retry is covered by unit tests
+only: emulators and simulators do not run out of decoders on demand, so it
+still needs a physical low-end device. Web is compiled (JS and Wasm) but its integration
 suite has not been run yet (no chromedriver in the development setup).
 
 ## Errors
 
 Every failure is a `ReelKitException` with a `ReelKitErrorCode`
-(`network`, `decoder`, `sourceNotFound`, `poolExhausted`, `timeout`,
+(`network`, `decoder`, `decoderUnavailable`, `sourceNotFound`, `poolExhausted`, `timeout`,
 `notImplemented`, ...). Preparation errors are also exposed in
 `controller.value.error`.
 
@@ -171,7 +189,9 @@ flutter test integration_test -d <device-id>
    speed, events, first frame, rotation, typed errors on all platforms.
 3. Complete player API — **done**: tracks and subtitles, quality limits,
    metadata, source replacement, stop, position stream, app lifecycle.
-4. Player manager: exclusive playback, decoder-failure-aware pool sizing.
+4. Player manager — **done**: exclusive playback and active controller,
+   decoder-shortage pool sizing with retry, memory-pressure release,
+   per-priority pool stats.
 5. Feed manager and intelligent preloading.
 6. Cache, fullscreen and orientation coordination, audio sessions, retry.
 7. Benchmarks, documentation, release.

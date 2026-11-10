@@ -40,7 +40,11 @@ enum PlaybackErrors {
     case .fileFormatNotRecognized?, .failedToParse?, .formatUnsupported?,
       .contentIsNotAuthorized?, .noCompatibleAlternatesForExternalDisplay?:
       return "unsupportedFormat"
-    case .decoderNotFound?, .decoderTemporarilyUnavailable?, .decodeFailed?:
+    case .decoderTemporarilyUnavailable?:
+      // The decoder exists but no instance could be allocated, typically
+      // because other players hold the available decode sessions.
+      return "decoderUnavailable"
+    case .decoderNotFound?, .decodeFailed?:
       return "decoder"
     case .contentIsUnavailable?, .noLongerPlayable?:
       return "sourceNotFound"

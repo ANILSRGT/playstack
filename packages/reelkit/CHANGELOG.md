@@ -1,3 +1,12 @@
+## 0.1.0-dev.4
+
+* Milestone 4: exclusive playback (`ReelKitConfig.exclusivePlayback`,
+  `ReelKitManager.activeController`), pool limit lowered and preparation
+  retried once when a decoder cannot be allocated
+  (`ReelPoolConfig.adaptToDecoderFailures`), memory pressure releases
+  `background` controllers, per-priority pool stats. Fixes a lease leak when
+  a controller was disposed while its native player was being created.
+
 ## 0.1.0-dev.3
 
 * Milestone 3: audio/video/subtitle tracks with subtitle text events, video

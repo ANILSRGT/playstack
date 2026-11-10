@@ -17,6 +17,15 @@ abstract interface class ReelControllerHost {
   ReelKitPlatform get platform;
   ReelPlayerPool get pool;
   void controllerDisposed(ReelPlayerController controller);
+
+  /// Called synchronously when `play` is called, before it is queued.
+  void playRequested(ReelPlayerController controller);
+
+  /// Whether the controller may start playback now (exclusive playback).
+  bool mayStartPlayback(ReelPlayerController controller);
+
+  /// Called when [ReelPlaybackState.isPlaying] changes.
+  void playingChanged(ReelPlayerController controller, bool isPlaying);
 }
 
 /// Controls playback of one video.
@@ -27,6 +36,9 @@ abstract interface class ReelControllerHost {
 /// higher [priority] needs a player while the pool is full, this controller
 /// can lose its player; its state then returns to [ReelPlaybackStatus.idle]
 /// and the next [initialize] or [play] prepares the video again.
+///
+/// When the manager uses exclusive playback (the default), [play] pauses the
+/// manager's other controllers; see `ReelKitConfig.exclusivePlayback`.
 ///
 /// Commands are executed one at a time, in call order. Commands that were
 /// still queued when [dispose] was called complete without effect; commands
@@ -68,6 +80,10 @@ class ReelPlayerController extends ChangeNotifier
   Completer<ReelVideoInfo>? _preparation;
   Future<void>? _pendingInitialize;
   bool _disposed = false;
+
+  /// Set by [play] and cleared by everything that ends the request (pause,
+  /// stop, completion, errors, losing the player).
+  bool _playbackRequested = false;
 
   /// The video this controller plays.
   ReelSource get source => _source;
@@ -120,33 +136,69 @@ class ReelPlayerController extends ChangeNotifier
 
   /// Starts or resumes playback, preparing the video first if needed.
   ///
-  /// Restarts from the beginning when the video had completed.
-  Future<void> play() => _command(() async {
-    _priority = ReelPlayerPriority.active;
-    await _prepareIfNeeded();
-    final lease = _lease;
-    if (_disposed || lease == null) return;
-    if (_value.status == ReelPlaybackStatus.completed) {
-      await _host.platform.seekTo(lease.playerId, Duration.zero);
-    }
-    await _host.platform.play(lease.playerId);
-  });
+  /// Restarts from the beginning when the video had completed. With
+  /// exclusive playback, other controllers of the manager are paused, and
+  /// this call completes without starting playback when another
+  /// controller's [play] was called after it but before playback started.
+  Future<void> play() {
+    if (_disposed) return Future<void>.error(_disposedError());
+    _playbackRequested = true;
+    _host.playRequested(this);
+    return _command(() async {
+      if (!_host.mayStartPlayback(this)) {
+        _endPlaybackRequest();
+        return;
+      }
+      _priority = ReelPlayerPriority.active;
+      await _prepareIfNeeded();
+      final lease = _lease;
+      if (_disposed || lease == null) return;
+      if (!_host.mayStartPlayback(this)) {
+        _endPlaybackRequest();
+        return;
+      }
+      if (_value.status == ReelPlaybackStatus.completed) {
+        await _host.platform.seekTo(lease.playerId, Duration.zero);
+      }
+      await _host.platform.play(lease.playerId);
+    });
+  }
 
   /// Pauses playback. Keeps the native player and its buffers.
-  Future<void> pause() => _command(() async {
-    if (_priority == ReelPlayerPriority.active) {
-      _priority = ReelPlayerPriority.visible;
-    }
+  Future<void> pause() => _command(_pauseNow);
+
+  /// Whether this controller plays or has a pending [play]. Used by the
+  /// manager's exclusive playback.
+  @internal
+  bool get wantsPlayback =>
+      !_disposed && (_playbackRequested || _value.isPlaying);
+
+  /// Pauses unless this controller has become the latest to request
+  /// playback again. Queued like any command, so it runs after a pending
+  /// [play] of this controller.
+  @internal
+  Future<void> yieldPlayback() => _command(() async {
+    if (_host.mayStartPlayback(this)) return;
+    await _pauseNow();
+  });
+
+  Future<void> _pauseNow() async {
+    _endPlaybackRequest();
     final lease = _lease;
     if (lease == null || !_value.isInitialized) return;
     await _host.platform.pause(lease.playerId);
-  });
+  }
 
-  /// Pauses and returns to the beginning. The video stays prepared.
-  Future<void> stop() => _command(() async {
+  void _endPlaybackRequest() {
+    _playbackRequested = false;
     if (_priority == ReelPlayerPriority.active) {
       _priority = ReelPlayerPriority.visible;
     }
+  }
+
+  /// Pauses and returns to the beginning. The video stays prepared.
+  Future<void> stop() => _command(() async {
+    _endPlaybackRequest();
     final lease = _lease;
     if (lease == null || !_value.isInitialized) return;
     await _host.platform.pause(lease.playerId);
@@ -244,7 +296,7 @@ class ReelPlayerController extends ChangeNotifier
     if (_lease == null) return;
     await _prepareIfNeeded();
     final lease = _lease;
-    if (resume && lease != null && !_disposed) {
+    if (resume && lease != null && !_disposed && _host.mayStartPlayback(this)) {
       await _host.platform.play(lease.playerId);
     }
   });
@@ -301,9 +353,7 @@ class ReelPlayerController extends ChangeNotifier
   Future<void> release() => _command(() async {
     if (_lease == null) return;
     _lease = null;
-    if (_priority == ReelPlayerPriority.active) {
-      _priority = ReelPlayerPriority.visible;
-    }
+    _endPlaybackRequest();
     _tracks.clear();
     _update(
       _value.copyWith(
@@ -346,6 +396,7 @@ class ReelPlayerController extends ChangeNotifier
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _playbackRequested = false;
     _failPreparation(
       const ReelKitException(
         ReelKitErrorCode.cancelled,
@@ -432,6 +483,7 @@ class ReelPlayerController extends ChangeNotifier
         if (preparation != null && !preparation.isCompleted) {
           preparation.completeError(error);
         } else {
+          _endPlaybackRequest();
           _update(
             _value.copyWith(
               status: ReelPlaybackStatus.error,
@@ -448,6 +500,7 @@ class ReelPlayerController extends ChangeNotifier
   void onPoolLeaseRevoked() {
     if (_lease == null) return;
     _lease = null;
+    _playbackRequested = false;
     _failPreparation(
       const ReelKitException(
         ReelKitErrorCode.cancelled,
@@ -491,30 +544,23 @@ class ReelPlayerController extends ChangeNotifier
         hasRenderedFirstFrame: false,
       ),
     );
-    final preparation = Completer<ReelVideoInfo>();
-    // The completer can fail (revocation, dispose) before it is awaited.
-    preparation.future.ignore();
-    _preparation = preparation;
     try {
-      // A held lease (retry after an error, or a new source) keeps its native
-      // player but gets a fresh generation, so late events of the previous
-      // attempt are discarded.
-      final lease =
-          await _host.pool.renew(this) ?? await _host.pool.acquire(this);
-      if (_disposed) return;
-      _lease = lease;
-      _update(_value.copyWith(isAttached: true));
-      await _applySettings();
-      await _host.platform.setSource(lease.playerId, _source, lease.generation);
-      final info = await preparation.future.timeout(
-        _initializeTimeout,
-        onTimeout: () => throw ReelKitException(
-          ReelKitErrorCode.timeout,
-          'Preparing ${_source.description} did not complete within '
-          '$_initializeTimeout.',
-        ),
-      );
-      if (_disposed || !identical(_lease, lease)) return;
+      ReelVideoInfo? info;
+      try {
+        info = await _prepareAttempt(freshPlayer: false);
+      } on ReelKitException catch (error) {
+        if (!await _releaseForDecoderRetry(error)) rethrow;
+        try {
+          info = await _prepareAttempt(freshPlayer: true);
+        } on ReelKitException catch (retryError) {
+          // No player could be taken for the retry; the decoder shortage is
+          // the meaningful error.
+          if (retryError.code == ReelKitErrorCode.poolExhausted) throw error;
+          rethrow;
+        }
+      }
+      final lease = _lease;
+      if (info == null || lease == null || _disposed) return;
       await _tracks.applyPreferences(lease.playerId);
       _update(
         _value.copyWith(status: ReelPlaybackStatus.ready, videoInfo: info),
@@ -522,6 +568,7 @@ class ReelPlayerController extends ChangeNotifier
       unawaited(_refreshTracks().catchError(_reportBackgroundError));
     } on ReelKitException catch (error) {
       if (_disposed) return;
+      _endPlaybackRequest();
       if (error.code == ReelKitErrorCode.cancelled && _lease == null) {
         // Lost the player to a higher-priority controller; the state is
         // already idle and the next initialize() or play() starts over.
@@ -535,9 +582,59 @@ class ReelPlayerController extends ChangeNotifier
         ),
       );
       rethrow;
+    }
+  }
+
+  /// One preparation attempt. Returns null when the attempt was superseded
+  /// (disposed, or the player was reassigned).
+  ///
+  /// Without [freshPlayer], a held lease (retry after an error, or a new
+  /// source) keeps its native player but gets a fresh generation, so late
+  /// events of the previous attempt are discarded.
+  Future<ReelVideoInfo?> _prepareAttempt({required bool freshPlayer}) async {
+    final preparation = Completer<ReelVideoInfo>();
+    // The completer can fail (revocation, dispose) before it is awaited.
+    preparation.future.ignore();
+    _preparation = preparation;
+    try {
+      final pool = _host.pool;
+      final lease = freshPlayer
+          ? await pool.acquire(this)
+          : await pool.renew(this) ?? await pool.acquire(this);
+      // Assigned before the disposed check so that dispose() returns it.
+      _lease = lease;
+      if (_disposed) return null;
+      _update(_value.copyWith(isAttached: true));
+      await _applySettings();
+      await _host.platform.setSource(lease.playerId, _source, lease.generation);
+      final info = await preparation.future.timeout(
+        _initializeTimeout,
+        onTimeout: () => throw ReelKitException(
+          ReelKitErrorCode.timeout,
+          'Preparing ${_source.description} did not complete within '
+          '$_initializeTimeout.',
+        ),
+      );
+      if (_disposed || !identical(_lease, lease)) return null;
+      return info;
     } finally {
       if (identical(_preparation, preparation)) _preparation = null;
     }
+  }
+
+  /// After [ReelKitErrorCode.decoderUnavailable], lets the pool lower its
+  /// limit and gives this controller's player back, so the retry takes a
+  /// player (and its decoder) from a lower-priority controller instead of
+  /// adding one. Returns whether to retry.
+  Future<bool> _releaseForDecoderRetry(ReelKitException error) async {
+    if (error.code != ReelKitErrorCode.decoderUnavailable) return false;
+    if (_disposed || _lease == null) return false;
+    if (!await _host.pool.reportDecoderUnavailable(this)) return false;
+    if (_disposed || _lease == null) return false;
+    _lease = null;
+    _update(_value.copyWith(isAttached: false));
+    await _host.pool.release(this);
+    return !_disposed;
   }
 
   /// Sends only the settings that differ from what the native player
@@ -570,6 +667,7 @@ class ReelPlayerController extends ChangeNotifier
         _update(_value.copyWith(isBuffering: false));
       case ReelNativePlaybackState.ended:
         if (_value.isLooping || !_value.isInitialized) return;
+        _endPlaybackRequest();
         _update(
           _value.copyWith(
             status: ReelPlaybackStatus.completed,
@@ -644,7 +742,11 @@ class ReelPlayerController extends ChangeNotifier
 
   void _update(ReelPlaybackState next) {
     if (next == _value) return;
+    final wasPlaying = _value.isPlaying;
     _value = next;
+    if (wasPlaying != next.isPlaying) {
+      _host.playingChanged(this, next.isPlaying);
+    }
     if (!_disposedNotifier) notifyListeners();
   }
 

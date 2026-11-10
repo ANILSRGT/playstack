@@ -41,8 +41,18 @@ enum ReelKitErrorCode {
   /// A network error occurred while loading media.
   network,
 
-  /// The decoder failed or no decoder was available.
+  /// The decoder failed while decoding, or no decoder exists for the media.
   decoder,
+
+  /// A decoder exists for the media but could not be allocated, typically
+  /// because other players (in this or another app) hold every available
+  /// hardware decoder instance. ReelKit reacts by lowering the pool limit
+  /// and retrying once (see `ReelPoolConfig.adaptToDecoderFailures`).
+  ///
+  /// Reported by Android (`ERROR_CODE_DECODER_INIT_FAILED`) and iOS
+  /// (`AVError.decoderTemporarilyUnavailable`). Browsers do not distinguish
+  /// this case.
+  decoderUnavailable,
 
   /// The platform refused to start playback, for example a browser blocking
   /// autoplay with sound before the user interacted with the page.

@@ -158,11 +158,22 @@ class _PoolCard extends StatelessWidget {
           'Pool: ${stats.allocated}/${stats.maxPlayers} native players '
           '(${stats.leased} leased, ${stats.idle} idle)\n'
           'created ${stats.created} · reused ${stats.reused} · '
-          'revoked ${stats.revoked} · disposed ${stats.disposed}',
+          'revoked ${stats.revoked} · disposed ${stats.disposed}\n'
+          'leased by priority: ${_byPriority(stats)}\n'
+          'decoder limit reductions: ${stats.decoderLimitReductions}',
         ),
       ),
     );
   }
+}
+
+String _byPriority(ReelPoolStats stats) {
+  if (stats.leasedByPriority.isEmpty) return 'none';
+  return [
+    for (final priority in ReelPlayerPriority.values.reversed)
+      if (stats.leasedByPriority[priority] case final count?)
+        '${priority.name} $count',
+  ].join(' · ');
 }
 
 class _ControllerTile extends StatelessWidget {

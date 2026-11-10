@@ -21,6 +21,10 @@ internal object PlaybackErrors {
         PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED,
         PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> "network"
         PlaybackException.ERROR_CODE_TIMEOUT -> "timeout"
+        // MediaCodec could not be configured. With several players alive this
+        // is almost always a shortage of hardware decoder instances
+        // (MediaCodec.CodecException ERROR_INSUFFICIENT_RESOURCE).
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "decoderUnavailable"
         PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
         PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> "unsupportedFormat"
         in PARSING_RANGE -> "unsupportedFormat"

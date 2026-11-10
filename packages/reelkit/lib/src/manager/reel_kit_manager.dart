@@ -7,6 +7,7 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import '../config/reel_kit_config.dart';
 import '../controller/reel_player_controller.dart';
 import '../pool/reel_player_pool.dart';
+import 'reel_playback_coordinator.dart';
 
 /// Entry point of ReelKit: owns the playback engine, the native player pool
 /// and every controller created through it.
@@ -28,11 +29,15 @@ class ReelKitManager implements ReelControllerHost {
   ReelKitManager({
     this.config = const ReelKitConfig(),
     @visibleForTesting ReelKitPlatform? platform,
-  }) : _platformOverride = platform;
+  }) : _platformOverride = platform,
+       _coordinator = ReelPlaybackCoordinator(
+         exclusive: config.exclusivePlayback,
+       );
 
   final ReelKitConfig config;
   final ReelKitPlatform? _platformOverride;
   final Set<ReelPlayerController> _controllers = <ReelPlayerController>{};
+  final ReelPlaybackCoordinator _coordinator;
 
   Future<void>? _initialization;
   ReelPlatformCapabilities? _capabilities;
@@ -70,6 +75,11 @@ class ReelKitManager implements ReelControllerHost {
   List<ReelPlayerController> get controllers =>
       List<ReelPlayerController>.unmodifiable(_controllers);
 
+  /// The playing controller that started most recently, or null when none
+  /// plays. With exclusive playback this is the only playing controller.
+  ValueListenable<ReelPlayerController?> get activeController =>
+      _coordinator.active;
+
   /// Starts the engine and sizes the player pool. Idempotent; concurrent
   /// calls share one initialization. A failed initialization can be retried.
   Future<void> initialize() {
@@ -96,6 +106,7 @@ class ReelKitManager implements ReelControllerHost {
       platform: platform,
       maxPlayers: config.pool.resolveMaxPlayers(capabilities),
       idleTimeout: config.pool.idleTimeout,
+      adaptToDecoderFailures: config.pool.adaptToDecoderFailures,
       playerOptions: ReelNativePlayerOptions(
         looping: playerConfig.looping,
         volume: playerConfig.muted ? 0 : playerConfig.volume,
@@ -171,6 +182,7 @@ class ReelKitManager implements ReelControllerHost {
     await _pool?.dispose();
     await _events?.cancel();
     _events = null;
+    _coordinator.dispose();
   }
 
   @override
@@ -178,6 +190,26 @@ class ReelKitManager implements ReelControllerHost {
   void controllerDisposed(ReelPlayerController controller) {
     _controllers.remove(controller);
     _pausedByLifecycle.remove(controller);
+    if (!_disposed) _coordinator.controllerDisposed(controller);
+  }
+
+  @override
+  @internal
+  void playRequested(ReelPlayerController controller) {
+    // A play request supersedes resuming after the app returns.
+    _pausedByLifecycle.remove(controller);
+    _coordinator.playRequested(controller, _controllers);
+  }
+
+  @override
+  @internal
+  bool mayStartPlayback(ReelPlayerController controller) =>
+      _coordinator.mayStartPlayback(controller);
+
+  @override
+  @internal
+  void playingChanged(ReelPlayerController controller, bool isPlaying) {
+    if (!_disposed) _coordinator.playingChanged(controller, isPlaying);
   }
 
   void _routeEvent(ReelPlatformEvent event) {
@@ -185,8 +217,33 @@ class ReelKitManager implements ReelControllerHost {
     if (owner is ReelPlayerController) owner.handlePlatformEvent(event);
   }
 
+  /// Destroys idle native players and takes the players of
+  /// [ReelPlayerPriority.background] controllers, which by definition are
+  /// kept only while nothing else needs them.
   void _onMemoryPressure() {
-    unawaited(trimIdlePlayers());
+    unawaited(_releaseForMemory().catchError(_reportMemoryError));
+  }
+
+  Future<void> _releaseForMemory() async {
+    await Future.wait([
+      for (final controller in List<ReelPlayerController>.of(_controllers))
+        if (controller.priority == ReelPlayerPriority.background &&
+            controller.value.isAttached)
+          controller.release(),
+    ]);
+    // After the releases, so their players are destroyed too.
+    await trimIdlePlayers();
+  }
+
+  void _reportMemoryError(Object error, StackTrace stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'reelkit',
+        context: ErrorDescription('while reacting to memory pressure'),
+      ),
+    );
   }
 
   void _onLifecycle(AppLifecycleState state) {

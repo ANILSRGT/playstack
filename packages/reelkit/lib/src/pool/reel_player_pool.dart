@@ -68,6 +68,9 @@ class PooledPlayer {
 
   ReelPoolClient? _owner;
   int _lastUsed = 0;
+
+  /// The pool's limit epoch when the current lease or attempt started.
+  int _limitEpoch = 0;
   Timer? _idleTimer;
 
   bool get isLeased => _owner != null;
@@ -84,6 +87,8 @@ class ReelPoolStats {
     required this.disposed,
     required this.reused,
     required this.revoked,
+    this.leasedByPriority = const <ReelPlayerPriority, int>{},
+    this.decoderLimitReductions = 0,
   });
 
   /// Current upper bound of native players.
@@ -110,6 +115,14 @@ class ReelPoolStats {
   /// Leases taken from a lower-priority controller.
   final int revoked;
 
+  /// Leased players per priority of their controller. Priorities without a
+  /// leased player are absent.
+  final Map<ReelPlayerPriority, int> leasedByPriority;
+
+  /// How often [maxPlayers] was lowered because a decoder could not be
+  /// allocated (see `ReelPoolConfig.adaptToDecoderFailures`).
+  final int decoderLimitReductions;
+
   @override
   bool operator ==(Object other) =>
       other is ReelPoolStats &&
@@ -119,7 +132,9 @@ class ReelPoolStats {
       other.created == created &&
       other.disposed == disposed &&
       other.reused == reused &&
-      other.revoked == revoked;
+      other.revoked == revoked &&
+      mapEquals(other.leasedByPriority, leasedByPriority) &&
+      other.decoderLimitReductions == decoderLimitReductions;
 
   @override
   int get hashCode => Object.hash(
@@ -130,13 +145,18 @@ class ReelPoolStats {
     disposed,
     reused,
     revoked,
+    Object.hashAllUnordered(
+      leasedByPriority.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    decoderLimitReductions,
   );
 
   @override
   String toString() =>
       'ReelPoolStats(max: $maxPlayers, allocated: $allocated, '
       'leased: $leased, idle: $idle, created: $created, '
-      'disposed: $disposed, reused: $reused, revoked: $revoked)';
+      'disposed: $disposed, reused: $reused, revoked: $revoked, '
+      'decoderLimitReductions: $decoderLimitReductions)';
 }
 
 /// Allocates, reuses and destroys native players under a hard upper bound.
@@ -154,12 +174,14 @@ class ReelPlayerPool {
     required int maxPlayers,
     required this._idleTimeout,
     this._playerOptions = const ReelNativePlayerOptions(),
+    this._adaptToDecoderFailures = true,
   }) : assert(maxPlayers > 0),
        _maxPlayers = maxPlayers;
 
   final ReelKitPlatform _platform;
   final Duration _idleTimeout;
   final ReelNativePlayerOptions _playerOptions;
+  final bool _adaptToDecoderFailures;
   final AsyncLock _lock = AsyncLock();
   final List<PooledPlayer> _players = <PooledPlayer>[];
 
@@ -172,6 +194,8 @@ class ReelPlayerPool {
   int _destroyed = 0;
   int _reused = 0;
   int _revoked = 0;
+  int _limitEpoch = 0;
+  int _decoderLimitReductions = 0;
 
   int get maxPlayers => _maxPlayers;
 
@@ -185,7 +209,21 @@ class ReelPlayerPool {
     disposed: _destroyed,
     reused: _reused,
     revoked: _revoked,
+    leasedByPriority: Map<ReelPlayerPriority, int>.unmodifiable(
+      _leasedByPriority(),
+    ),
+    decoderLimitReductions: _decoderLimitReductions,
   );
+
+  Map<ReelPlayerPriority, int> _leasedByPriority() {
+    final counts = <ReelPlayerPriority, int>{};
+    for (final player in _players) {
+      final owner = player._owner;
+      if (owner == null) continue;
+      counts.update(owner.poolPriority, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return counts;
+  }
 
   /// The player currently leased by [client], if any.
   PooledPlayer? leaseOf(ReelPoolClient client) {
@@ -251,8 +289,40 @@ class ReelPlayerPool {
       if (player == null) return null;
       player
         .._generation = _nextGeneration++
-        .._lastUsed = ++_clock;
+        .._lastUsed = ++_clock
+        .._limitEpoch = _limitEpoch;
       return player;
+    });
+  }
+
+  /// Reacts to [client] failing to allocate a decoder
+  /// ([ReelKitErrorCode.decoderUnavailable]) and returns whether retrying on
+  /// a different player is worthwhile.
+  ///
+  /// The failure is attributed to this pool only when other clients hold
+  /// leased (prepared or preparing) players. The limit then drops to the
+  /// number of those players, so the retry has to take a player from a
+  /// lower-priority client instead of adding one. Failures of attempts that
+  /// started before an earlier reduction do not lower the limit again,
+  /// because concurrent failures report the same shortage.
+  Future<bool> reportDecoderUnavailable(ReelPoolClient client) {
+    return _lock.synchronized(() async {
+      if (_disposed || !_adaptToDecoderFailures) return false;
+      var others = 0;
+      for (final player in _players) {
+        final owner = player._owner;
+        if (owner != null && !identical(owner, client)) others++;
+      }
+      if (others == 0) return false;
+      final lease = leaseOf(client);
+      final stale = lease != null && lease._limitEpoch < _limitEpoch;
+      if (!stale && others < _maxPlayers) {
+        _maxPlayers = others;
+        _limitEpoch++;
+        _decoderLimitReductions++;
+        await _destroyIdleAboveLimit();
+      }
+      return true;
     });
   }
 
@@ -286,13 +356,17 @@ class ReelPlayerPool {
     assert(maxPlayers > 0);
     return _lock.synchronized(() async {
       _maxPlayers = maxPlayers;
-      final excess = _players.length - maxPlayers;
-      if (excess <= 0) return;
-      final idle = _players.where((p) => !p.isLeased).take(excess).toList();
-      for (final player in idle) {
-        await _destroy(player);
-      }
+      await _destroyIdleAboveLimit();
     });
+  }
+
+  Future<void> _destroyIdleAboveLimit() async {
+    final excess = _players.length - _maxPlayers;
+    if (excess <= 0) return;
+    final idle = _players.where((p) => !p.isLeased).take(excess).toList();
+    for (final player in idle) {
+      await _destroy(player);
+    }
   }
 
   /// Destroys every idle native player, for example under memory pressure.
@@ -368,7 +442,8 @@ class ReelPlayerPool {
     player
       .._owner = client
       .._generation = _nextGeneration++
-      .._lastUsed = ++_clock;
+      .._lastUsed = ++_clock
+      .._limitEpoch = _limitEpoch;
   }
 
   void _scheduleIdleDisposal(PooledPlayer player) {

@@ -144,6 +144,34 @@ player causes no channel traffic.
 them; on `resumed` it resumes only those. `inactive` is ignored because it is
 transient (notification shade, incoming call banner).
 
+**Exclusive playback.** A `ReelPlaybackCoordinator` per manager decides who
+may play. `play` registers the request synchronously, before the command is
+queued, and asks every other controller that plays or has a pending `play`
+to yield. Yielding is itself a queued command that pauses only if that
+controller has not requested playback again since, and a queued `play` that
+has been superseded completes without starting playback. Ordering therefore
+follows call order, not preparation speed: a slow preparation cannot start
+over a later request. With `exclusivePlayback: false` the coordinator only
+tracks the active (most recently started) controller.
+
+**Decoder shortage.** Hardware decoder instances are shared device-wide, so
+`recommendedMaxPlayers` is only an estimate. Engines report a decoder that
+exists but cannot be allocated as `decoderUnavailable` (Android
+`ERROR_CODE_DECODER_INIT_FAILED`, iOS `decoderTemporarilyUnavailable`). The
+pool attributes the failure to itself only when other controllers hold
+leased players; it then lowers its limit to that number, the failing
+controller gives its player back (destroyed, being over the limit) and
+retries once by taking a player from a lower-priority controller. Each lease
+records the pool's limit epoch, so concurrent failures caused by the same
+shortage lower the limit once. The lowered limit lasts for the manager's
+lifetime. If no player can be taken, the original `decoderUnavailable` error
+is reported. Decoder failures during playback (after preparation) are
+reported, not retried.
+
+**Memory pressure.** Idle native players are destroyed and `background`
+controllers lose their players (they prepare again on demand). Releases are
+awaited before trimming so that their players are destroyed too.
+
 **Source replacement.** `setSource` keeps the controller's native player and
 renews the lease generation, so late events of the old source are dropped
 without a release/acquire round trip.
@@ -152,10 +180,10 @@ without a release/acquire round trip.
 
 | Risk | Platform | Mitigation |
 | --- | --- | --- |
-| Hardware decoder instances are limited and shared with other apps; `maxSupportedInstances` is an upper bound, not a guarantee. | Android | Conservative pool limit; decoder errors are typed (`decoder`) so the pool can shrink (milestone 4). |
+| Hardware decoder instances are limited and shared with other apps; `maxSupportedInstances` is an upper bound, not a guarantee. | Android | Conservative pool limit; `decoderUnavailable` lowers the limit and retries once on a lower-priority player. Unit-tested; not yet reproduced on a physical low-end device. `ERROR_CODE_DECODER_INIT_FAILED` can also mean an unsupported configuration; the retry is then wasted once. |
 | `SurfaceProducer` surfaces can be destroyed on background and recreated. | Android | Callback re-binds `setVideoSurface`; never cache `surface`. |
 | Rotation handling differs between Flutter's Android texture backends. | Android | Engine reports the remaining rotation per backend; verified on an API 36 emulator (ImageReader). The SurfaceTexture path (older devices) is not yet device-verified. |
-| No public API for concurrent decode sessions; many `AVPlayer`s with items increase memory and can fail silently. | iOS | Memory-based limit; items are detached from released players (milestone 2). |
+| No public API for concurrent decode sessions; many `AVPlayer`s with items increase memory and can fail silently. | iOS | Memory-based limit; items are detached from released players; `decoderTemporarilyUnavailable` triggers the decoder-shortage handling. |
 | `AVPlayerItemVideoOutput` + display link costs CPU if left running. | iOS | Display link only while playing or awaiting a frame; paused players keep the last buffer. |
 | HTTP headers use `AVURLAssetHTTPHeaderFieldsKey`, which is not in the public headers. | iOS | Widely used (also by `video_player`); revisit with `AVAssetResourceLoader` if Apple removes it. |
 | Audio session category belongs to the host app. | iOS | ReelKit will not change it unless configured (milestone 6). |

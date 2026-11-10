@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'pages/diagnostics_page.dart';
 import 'pages/feed_page.dart';
+import 'pages/grid_page.dart';
 import 'pages/player_page.dart';
 
 void main() => runApp(const ReelKitExampleApp());
@@ -43,6 +44,12 @@ class HomePage extends StatelessWidget {
             title: const Text('Vertical feed'),
             subtitle: const Text('PageView with a 3-player pool'),
             onTap: () => open(const FeedPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.grid_view),
+            title: const Text('Player grid'),
+            subtitle: const Text('Several controllers, exclusive or not'),
+            onTap: () => open(const GridPage()),
           ),
           ListTile(
             leading: const Icon(Icons.monitor_heart_outlined),

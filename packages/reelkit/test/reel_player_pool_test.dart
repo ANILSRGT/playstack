@@ -286,4 +286,89 @@ void main() {
     await pool.dispose();
     expect(platform.livePlayers, isEmpty);
   });
+
+  group('decoder failures', () {
+    test(
+      'lower the limit to the other leases and destroy idle players',
+      () async {
+        final pool = createPool(maxPlayers: 4);
+        final a = TestClient(ReelPlayerPriority.visible);
+        final b = TestClient(ReelPlayerPriority.preload);
+        final idle = TestClient();
+        final failing = TestClient(ReelPlayerPriority.active);
+        await pool.acquire(a);
+        await pool.acquire(b);
+        await pool.acquire(idle);
+        await pool.release(idle);
+        await pool.acquire(failing);
+        final idleCount = pool.stats.idle;
+
+        expect(await pool.reportDecoderUnavailable(failing), isTrue);
+
+        expect(pool.maxPlayers, 2);
+        expect(pool.stats.decoderLimitReductions, 1);
+        expect(idleCount, 0, reason: 'the idle player was reused');
+        await pool.release(failing);
+        expect(pool.stats.allocated, 2, reason: 'over the limit, destroyed');
+        final retry = await pool.acquire(failing);
+        expect(b.revocations, 1);
+        expect(pool.ownerOf(retry.playerId), same(failing));
+        await pool.dispose();
+      },
+    );
+
+    test('are not attributed to the pool without other leases', () async {
+      final pool = createPool();
+      final client = TestClient(ReelPlayerPriority.active);
+      await pool.acquire(client);
+      expect(await pool.reportDecoderUnavailable(client), isFalse);
+      expect(pool.maxPlayers, 3);
+      await pool.dispose();
+    });
+
+    test('are ignored when adaptation is disabled', () async {
+      final pool = ReelPlayerPool(
+        platform: platform,
+        maxPlayers: 3,
+        idleTimeout: const Duration(seconds: 30),
+        adaptToDecoderFailures: false,
+      );
+      final other = TestClient();
+      final client = TestClient(ReelPlayerPriority.active);
+      await pool.acquire(other);
+      await pool.acquire(client);
+      expect(await pool.reportDecoderUnavailable(client), isFalse);
+      expect(pool.maxPlayers, 3);
+      await pool.dispose();
+    });
+
+    test('concurrent failures lower the limit once', () async {
+      final pool = createPool(maxPlayers: 3);
+      final holder = TestClient(ReelPlayerPriority.visible);
+      final first = TestClient(ReelPlayerPriority.active);
+      final second = TestClient(ReelPlayerPriority.active);
+      await pool.acquire(holder);
+      await pool.acquire(first);
+      await pool.acquire(second);
+
+      expect(await pool.reportDecoderUnavailable(first), isTrue);
+      expect(pool.maxPlayers, 2);
+      expect(await pool.reportDecoderUnavailable(second), isTrue);
+      expect(pool.maxPlayers, 2, reason: 'same shortage, reported twice');
+      expect(pool.stats.decoderLimitReductions, 1);
+      await pool.dispose();
+    });
+  });
+
+  test('stats count leases per priority', () async {
+    final pool = createPool();
+    await pool.acquire(TestClient(ReelPlayerPriority.active));
+    await pool.acquire(TestClient(ReelPlayerPriority.preload));
+    await pool.acquire(TestClient(ReelPlayerPriority.preload));
+    expect(pool.stats.leasedByPriority, {
+      ReelPlayerPriority.active: 1,
+      ReelPlayerPriority.preload: 2,
+    });
+    await pool.dispose();
+  });
 }

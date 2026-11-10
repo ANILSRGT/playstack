@@ -28,6 +28,11 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   final Map<ReelSource, ReelKitException> failingSources =
       <ReelSource, ReelKitException>{};
 
+  /// Sources whose next preparation fails with this error; later attempts
+  /// succeed.
+  final Map<ReelSource, ReelKitException> failingOnce =
+      <ReelSource, ReelKitException>{};
+
   /// When set, every call of the named method throws this error.
   final Map<String, ReelKitException> throwOn = <String, ReelKitException>{};
 
@@ -121,7 +126,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     _requireLive(playerId);
     generations[playerId] = generation;
     positions[playerId] = Duration.zero;
-    final failure = failingSources[source];
+    final failure = failingSources[source] ?? failingOnce.remove(source);
     if (failure != null) {
       scheduleMicrotask(
         () => emit(
