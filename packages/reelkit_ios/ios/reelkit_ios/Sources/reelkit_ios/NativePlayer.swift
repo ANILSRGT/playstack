@@ -30,6 +30,13 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   private var videoOutput: AVPlayerItemVideoOutput?
   private var legibleOutput: AVPlayerItemLegibleOutput?
   private var temporaryFile: URL?
+  private var cacheLoader: CachingResourceLoader?
+  private let audioSession: AudioSessionCoordinator
+  private var sessionNotifications: [NSObjectProtocol] = []
+  /// Playback requested through `play()` and not ended by `pause()` or the
+  /// system; used to attribute interruptions.
+  private var playRequested = false
+  private var interrupted = false
   private var itemObservations: [NSKeyValueObservation] = []
   private var itemNotifications: [NSObjectProtocol] = []
   private var playerObservations: [NSKeyValueObservation] = []
@@ -51,8 +58,9 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
 
   init(
     id: Int64, options: PlatformPlayerOptions, events: PlayerEventDispatcher,
-    textureRegistry: FlutterTextureRegistry
+    textureRegistry: FlutterTextureRegistry, audioSession: AudioSessionCoordinator
   ) {
+    self.audioSession = audioSession
     self.id = id
     self.events = events
     self.textureRegistry = textureRegistry
@@ -63,6 +71,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     player.actionAtItemEnd = .pause
     textureId = textureRegistry.register(self)
     observePlayer()
+    observeAudioSession()
   }
 
   // MARK: Commands
@@ -71,6 +80,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     detachItem()
     self.generation = generation
     temporaryFile = resolved.temporaryFile
+    cacheLoader = resolved.loader
 
     let item = AVPlayerItem(asset: resolved.asset)
     let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
@@ -101,12 +111,17 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   }
 
   func play() {
+    playRequested = true
+    interrupted = false
+    audioSession.willPlay()
     // Playing uses AVFoundation's automatic buffering again.
     item?.preferredForwardBufferDuration = 0
     player.rate = playbackSpeed
   }
 
   func pause() {
+    playRequested = false
+    interrupted = false
     player.pause()
     if let item { applyBufferLimit(to: item) }
   }
@@ -206,6 +221,8 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     detachItem()
     playerObservations.forEach { $0.invalidate() }
     playerObservations.removeAll()
+    sessionNotifications.forEach { NotificationCenter.default.removeObserver($0) }
+    sessionNotifications.removeAll()
     stopDisplayLink()
     clearPixelBuffer()
     textureRegistry?.unregisterTexture(textureId)
@@ -233,6 +250,61 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
         DispatchQueue.main.async { self?.onTimeControlStatus(status) }
       },
     ]
+  }
+
+  /// Phone calls, alarms and Siri interrupt the session; AVPlayer pauses by
+  /// itself and the engine reports why. Unplugged headphones pause AVPlayer
+  /// as well (system behaviour, not configurable).
+  private func observeAudioSession() {
+    let center = NotificationCenter.default
+    sessionNotifications = [
+      center.addObserver(
+        forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+      ) { [weak self] note in self?.onInterruption(note) },
+      center.addObserver(
+        forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+      ) { [weak self] note in self?.onRouteChange(note) },
+    ]
+  }
+
+  private func onInterruption(_ note: Notification) {
+    guard generation != NativePlayer.noSource,
+      let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: raw)
+    else { return }
+    switch type {
+    case .began:
+      guard playRequested else { return }
+      interrupted = true
+      emitInterruption(.audioInterruption, ended: false)
+    case .ended:
+      guard interrupted else { return }
+      interrupted = false
+      emitInterruption(.audioInterruption, ended: true)
+      let rawOptions = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+      let options = AVAudioSession.InterruptionOptions(rawValue: rawOptions)
+      if options.contains(.shouldResume), audioSession.resumeAfterInterruption {
+        play()
+      } else {
+        playRequested = false
+      }
+    @unknown default:
+      break
+    }
+  }
+
+  private func onRouteChange(_ note: Notification) {
+    guard generation != NativePlayer.noSource, playRequested,
+      let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+      AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable
+    else { return }
+    playRequested = false
+    emitInterruption(.audioRouteLost, ended: false)
+  }
+
+  private func emitInterruption(_ type: PlatformInterruptionType, ended: Bool) {
+    events.emit(
+      PlatformInterruptionEvent(playerId: id, generation: generation, type: type, ended: ended))
   }
 
   private func observe(_ item: AVPlayerItem) {
@@ -411,6 +483,10 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     videoOutput = nil
     if let temporaryFile { try? FileManager.default.removeItem(at: temporaryFile) }
     temporaryFile = nil
+    cacheLoader?.close()
+    cacheLoader = nil
+    playRequested = false
+    interrupted = false
     updateDisplayLink()
   }
 

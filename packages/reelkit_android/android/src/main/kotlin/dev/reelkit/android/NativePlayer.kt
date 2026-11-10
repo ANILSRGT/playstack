@@ -2,6 +2,7 @@ package dev.reelkit.android
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -27,9 +28,17 @@ internal class NativePlayer(
     private val surfaceProducer: TextureRegistry.SurfaceProducer,
     private val events: PlayerEventDispatcher,
     options: PlatformPlayerOptions,
+    private val engineConfig: PlatformEngineConfig,
 ) : Player.Listener {
   private val loadControl = PreloadLoadControl()
-  private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).setLoadControl(loadControl).build()
+  private val exoPlayer: ExoPlayer =
+      ExoPlayer.Builder(context)
+          .setLoadControl(loadControl)
+          .setHandleAudioBecomingNoisy(engineConfig.pauseOnAudioRouteLoss)
+          .build()
+
+  /** Whether the player currently asks for audio focus (only when audible). */
+  private var requestsAudioFocus: Boolean? = null
   private val tracks = TrackSelection(exoPlayer)
   private var released = false
   private var generation = NO_SOURCE
@@ -100,7 +109,15 @@ internal class NativePlayer(
   }
 
   fun setVolume(volume: Double) {
-    exoPlayer.volume = volume.toFloat().coerceIn(0f, 1f)
+    val clamped = volume.toFloat().coerceIn(0f, 1f)
+    exoPlayer.volume = clamped
+    // A muted player (muted autoplay in a feed) must not take audio focus
+    // from music the user is listening to.
+    val wantsFocus = engineConfig.handleAudioFocus && clamped > 0f
+    if (wantsFocus != requestsAudioFocus) {
+      requestsAudioFocus = wantsFocus
+      exoPlayer.setAudioAttributes(MEDIA_AUDIO, wantsFocus)
+    }
   }
 
   fun setPlaybackSpeed(speed: Double) {
@@ -148,6 +165,36 @@ internal class NativePlayer(
     if (generation == NO_SOURCE) return
     events.emit(
         PlatformIsPlayingEvent(playerId = id, generation = generation, isPlaying = playWhenReady))
+    if (playWhenReady) return
+    when (reason) {
+      Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS ->
+          emitInterruption(PlatformInterruptionType.AUDIO_INTERRUPTION, ended = false)
+      Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY ->
+          emitInterruption(PlatformInterruptionType.AUDIO_ROUTE_LOST, ended = false)
+    }
+  }
+
+  override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+    if (generation == NO_SOURCE) return
+    // Transient focus loss (a notification sound, navigation prompt):
+    // ExoPlayer pauses output and resumes by itself afterwards.
+    val transient =
+        playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS
+    if (transient) {
+      suppressedByFocus = true
+      emitInterruption(PlatformInterruptionType.AUDIO_INTERRUPTION, ended = false)
+    } else if (suppressedByFocus) {
+      suppressedByFocus = false
+      emitInterruption(PlatformInterruptionType.AUDIO_INTERRUPTION, ended = true)
+    }
+  }
+
+  private var suppressedByFocus = false
+
+  private fun emitInterruption(type: PlatformInterruptionType, ended: Boolean) {
+    events.emit(
+        PlatformInterruptionEvent(
+            playerId = id, generation = generation, type = type, ended = ended))
   }
 
   override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -257,5 +304,11 @@ internal class NativePlayer(
 
   private companion object {
     const val NO_SOURCE = -1L
+
+    val MEDIA_AUDIO: AudioAttributes =
+        AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
   }
 }

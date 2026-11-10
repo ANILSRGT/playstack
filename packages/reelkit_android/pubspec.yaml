@@ -1,6 +1,6 @@
 name: reelkit_android
 description: Android implementation of ReelKit, built on AndroidX Media3 ExoPlayer.
-version: 0.1.0-dev.5
+version: 0.1.0-dev.6
 publish_to: none
 resolution: workspace
 

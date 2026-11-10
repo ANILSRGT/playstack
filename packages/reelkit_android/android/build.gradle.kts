@@ -1,5 +1,5 @@
 group = "dev.reelkit.android"
-version = "0.1.0-dev.5"
+version = "0.1.0-dev.6"
 
 buildscript {
     val kotlinVersion = "2.4.0"
@@ -59,6 +59,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-exoplayer-dash:$media3Version")
+    implementation("androidx.media3:media3-datasource:$media3Version")
+    implementation("androidx.media3:media3-database:$media3Version")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test")

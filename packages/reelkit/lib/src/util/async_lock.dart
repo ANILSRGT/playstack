@@ -6,7 +6,12 @@ import 'dart:async';
 /// issued in quick succession reach the engine in order) and pool mutations
 /// (so concurrent acquisitions can never exceed the player limit).
 class AsyncLock {
-  Future<void> _tail = Future<void>.value();
+  /// Completes when the last queued action finished; null while idle.
+  ///
+  /// Keeping no future while idle matters beyond saving a microtask: a
+  /// completed future schedules its listeners in the zone it was created
+  /// in, which may be a test zone that no longer runs.
+  Future<void>? _tail;
   int _pending = 0;
 
   /// Whether an action is running or queued.
@@ -16,10 +21,15 @@ class AsyncLock {
   Future<T> synchronized<T>(Future<T> Function() action) {
     final previous = _tail;
     final done = Completer<void>();
-    _tail = done.future;
+    final tail = done.future;
+    _tail = tail;
     _pending++;
-    return previous.then((_) => action()).whenComplete(() {
+    final run = previous == null
+        ? Future<T>.sync(action)
+        : previous.then((_) => action());
+    return run.whenComplete(() {
       _pending--;
+      if (identical(_tail, tail)) _tail = null;
       done.complete();
     });
   }

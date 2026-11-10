@@ -11,6 +11,7 @@ import androidx.media3.datasource.ByteArrayDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -22,6 +23,7 @@ import java.io.File
 internal class MediaSourceBuilder(
     private val context: Context,
     private val flutterAssets: FlutterAssets,
+    private val engineConfig: () -> PlatformEngineConfig?,
 ) {
   private val userAgent = Util.getUserAgent(context, "ReelKit")
 
@@ -46,8 +48,25 @@ internal class MediaSourceBuilder(
             .setMimeType(mimeType(source))
             .setCustomCacheKey(source.cacheKey)
             .build()
-    return DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http))
+    val direct = DefaultDataSource.Factory(context, http)
+    return DefaultMediaSourceFactory(cachingFactory(source, direct) ?: direct)
         .createMediaSource(item)
+  }
+
+  /** A data source factory that uses the disk cache, or null when off. */
+  private fun cachingFactory(
+      source: PlatformSource,
+      direct: DataSource.Factory,
+  ): DataSource.Factory? {
+    val config = engineConfig() ?: return null
+    if (!config.cacheEnabled || !source.useCache || config.cacheMaxBytes <= 0) return null
+    val cache = MediaCache.obtain(context, config.cacheMaxBytes)
+    val cached =
+        CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(direct)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    return ManifestBypassDataSource.Factory(cached, direct)
   }
 
   private fun file(source: PlatformSource): MediaSource {

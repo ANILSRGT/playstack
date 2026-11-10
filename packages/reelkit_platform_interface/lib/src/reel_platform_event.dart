@@ -112,6 +112,31 @@ final class ReelTracksChangedEvent extends ReelPlatformEvent {
   });
 }
 
+/// Why the system interrupted playback.
+enum ReelInterruptionType {
+  /// Another app took audio focus (Android) or the system interrupted the
+  /// audio session (iOS: phone call, alarm, Siri).
+  audioInterruption,
+
+  /// Headphones or another audio route went away; playback was paused.
+  audioRouteLost,
+}
+
+/// The system paused or resumed playback, not the app.
+final class ReelInterruptionEvent extends ReelPlatformEvent {
+  const ReelInterruptionEvent({
+    required super.playerId,
+    required super.generation,
+    required this.type,
+    required this.ended,
+  });
+
+  final ReelInterruptionType type;
+
+  /// False when the interruption began, true when it ended.
+  final bool ended;
+}
+
 /// The subtitle text to display changed. An empty list clears it.
 ///
 /// Engines deliver plain text; styling and positioning of the source format

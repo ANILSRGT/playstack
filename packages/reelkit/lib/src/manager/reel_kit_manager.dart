@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
+import '../cache/reel_cache_manager.dart';
 import '../config/reel_kit_config.dart';
 import '../controller/reel_player_controller.dart';
 import '../feed/reel_feed_config.dart';
 import '../feed/reel_feed_item.dart';
 import '../feed/reel_feed_manager.dart';
+import '../fullscreen/reel_fullscreen_manager.dart';
 import '../pool/reel_player_pool.dart';
 import 'reel_playback_coordinator.dart';
 
@@ -45,6 +47,8 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   final ValueNotifier<ReelNetworkStatus> _network =
       ValueNotifier<ReelNetworkStatus>(ReelNetworkStatus.unknown);
   StreamSubscription<ReelNetworkStatus>? _networkEvents;
+  ReelCacheManager? _cache;
+  ReelFullscreenManager? _fullscreen;
 
   Future<void>? _initialization;
   ReelPlatformCapabilities? _capabilities;
@@ -83,6 +87,13 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   List<ReelPlayerController> get controllers =>
       List<ReelPlayerController>.unmodifiable(_controllers);
 
+  /// The engine's disk cache. Available after [initialize].
+  ReelCacheManager get cache => _cache ?? (throw _notInitialized());
+
+  /// Fullscreen and orientation coordination. Available after [initialize].
+  ReelFullscreenManager get fullscreen =>
+      _fullscreen ?? (throw _notInitialized());
+
   /// Connectivity reported by the engine. [ReelNetworkStatus.unknown] on
   /// engines without network status (see
   /// [ReelPlatformCapabilities.supportsNetworkStatus]) and before
@@ -113,9 +124,23 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   }
 
   Future<void> _initialize() async {
-    final capabilities = await platform.initialize();
+    final cache = config.cache;
+    final audio = config.audio;
+    final capabilities = await platform.initialize(
+      ReelEngineConfig(
+        cacheEnabled: cache.enabled,
+        cacheMaxBytes: cache.maxBytes,
+        handleAudioFocus: audio.handleAudioFocus,
+        pauseOnAudioRouteLoss: audio.pauseOnAudioRouteLoss,
+        audioSessionCategory: audio.iosAudioSessionCategory,
+        mixWithOthers: audio.mixWithOthers,
+        resumeAfterInterruption: audio.resumeAfterInterruption,
+      ),
+    );
     if (_disposed) return;
     _capabilities = capabilities;
+    _cache = ReelCacheManager(platform, capabilities);
+    _fullscreen = ReelFullscreenManager(platform, config.fullscreen);
     final playerConfig = config.player;
     _pool = ReelPlayerPool(
       platform: platform,
@@ -216,6 +241,11 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
     _bindingObserver?.detach();
     _bindingObserver = null;
     _pausedByLifecycle.clear();
+    try {
+      await _fullscreen?.dispose();
+    } on Object catch (error, stack) {
+      _reportError(error, stack, 'while leaving fullscreen');
+    }
     for (final feed in List<ReelFeedManager>.of(_feeds)) {
       feed.dispose();
     }
@@ -241,11 +271,28 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
     }
     _networkEvents = platform.networkStatusChanges.listen(
       (status) {
-        if (!_disposed) _network.value = status;
+        if (_disposed) return;
+        final reconnected = status.isConnected && !_network.value.isConnected;
+        _network.value = status;
+        if (reconnected) _retryAfterReconnection();
       },
       onError: (Object error, StackTrace stack) =>
           _reportError(error, stack, 'while monitoring the network'),
     );
+  }
+
+  /// Controllers that failed for lack of network prepare again (and resume
+  /// where they failed) once the network is back.
+  void _retryAfterReconnection() {
+    for (final controller in List<ReelPlayerController>.of(_controllers)) {
+      final error = controller.value.error;
+      if (!controller.value.hasError || error == null) continue;
+      if (error.code != ReelKitErrorCode.network &&
+          error.code != ReelKitErrorCode.timeout) {
+        continue;
+      }
+      unawaited(controller.retry().catchError((Object _) {}));
+    }
   }
 
   void _reportError(Object error, StackTrace stack, String context) {

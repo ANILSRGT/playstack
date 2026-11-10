@@ -1,5 +1,15 @@
 import 'package:flutter/foundation.dart';
 
+/// Whether a network source uses the engine's disk cache.
+enum ReelCachePolicy {
+  /// Read from and write to the cache when caching is enabled.
+  cache,
+
+  /// Always load from the network, for example for private content that
+  /// must not be written to disk.
+  bypass,
+}
+
 /// Container or streaming format of a [ReelSource].
 enum ReelVideoFormat {
   /// Detect the format from the URI or path.
@@ -38,6 +48,7 @@ sealed class ReelSource {
     ReelVideoFormat formatHint,
     String? mimeType,
     String? cacheKey,
+    ReelCachePolicy cachePolicy,
     String? id,
   }) = ReelNetworkSource;
 
@@ -103,10 +114,14 @@ final class ReelNetworkSource extends ReelSource {
     super.formatHint,
     this.mimeType,
     this.cacheKey,
+    this.cachePolicy = ReelCachePolicy.cache,
     super.id,
   });
 
   final String url;
+
+  /// Whether this source uses the disk cache (when caching is enabled).
+  final ReelCachePolicy cachePolicy;
 
   /// HTTP headers sent with every media request, for example
   /// `Authorization`.
@@ -136,6 +151,7 @@ final class ReelNetworkSource extends ReelSource {
       other.formatHint == formatHint &&
       other.mimeType == mimeType &&
       other.cacheKey == cacheKey &&
+      other.cachePolicy == cachePolicy &&
       other.id == id;
 
   @override
@@ -147,6 +163,7 @@ final class ReelNetworkSource extends ReelSource {
     formatHint,
     mimeType,
     cacheKey,
+    cachePolicy,
     id,
   );
 

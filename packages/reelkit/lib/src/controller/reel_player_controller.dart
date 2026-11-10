@@ -12,6 +12,28 @@ import 'reel_player_metrics.dart';
 import 'reel_position_stream.dart';
 import 'reel_track_state.dart';
 
+/// A system interruption of playback, see
+/// [ReelPlayerController.interruptions].
+@immutable
+class ReelInterruption {
+  const ReelInterruption({required this.type, required this.ended});
+
+  final ReelInterruptionType type;
+
+  /// False when the interruption began, true when it ended.
+  final bool ended;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReelInterruption && other.type == type && other.ended == ended;
+
+  @override
+  int get hashCode => Object.hash(type, ended);
+
+  @override
+  String toString() => 'ReelInterruption(${type.name}, ended: $ended)';
+}
+
 /// Services a controller needs from its manager.
 @internal
 abstract interface class ReelControllerHost {
@@ -58,6 +80,7 @@ class ReelPlayerController extends ChangeNotifier
     required ReelPlayerConfig config,
   }) : _initializeTimeout = config.initializeTimeout,
        _preloadBufferDuration = config.preloadBufferDuration,
+       _retry = config.retry,
        _value = ReelPlaybackState(
          isLooping: config.looping,
          volume: config.volume,
@@ -70,6 +93,14 @@ class ReelPlayerController extends ChangeNotifier
   final ReelControllerHost _host;
   final Duration _initializeTimeout;
   final Duration? _preloadBufferDuration;
+  final ReelRetryConfig _retry;
+  final StreamController<ReelInterruption> _interruptions =
+      StreamController<ReelInterruption>.broadcast();
+  Completer<void>? _retryWait;
+  Timer? _retryTimer;
+  Timer? _recoveryTimer;
+  int _playbackRetries = 0;
+  bool _resumeAfterError = false;
   final AsyncLock _commands = AsyncLock();
 
   late final ReelTrackState _tracks;
@@ -130,6 +161,11 @@ class ReelPlayerController extends ChangeNotifier
       unawaited(_command(_applySettings).catchError(_reportBackgroundError));
     }
   }
+
+  /// Playback paused or resumed by the system: audio focus taken by another
+  /// app, a phone call, headphones unplugged. The playback state changes as
+  /// usual; this stream says why.
+  Stream<ReelInterruption> get interruptions => _interruptions.stream;
 
   /// Timing of the latest preparation and playback start.
   ReelPlayerMetrics get metrics => _metrics;
@@ -382,7 +418,24 @@ class ReelPlayerController extends ChangeNotifier
         'The controller was released while preparing.',
       ),
     );
+    _cancelRetries();
     return _command(_releaseNow);
+  }
+
+  /// Prepares the video again after an error, seeks back to where it failed
+  /// and resumes if it was playing. Does nothing unless the state is
+  /// [ReelPlaybackStatus.error]. Automatic retries ([ReelRetryConfig]) use
+  /// the same path.
+  Future<void> retry() => _command(() => _recover(_resumeAfterError));
+
+  /// Gives the native player back and prepares the source from the
+  /// beginning, for example after the app changed network settings.
+  Future<void> reinitialize() {
+    _cancelRetries();
+    return _command(() async {
+      await _releaseNow();
+      await _prepareIfNeeded();
+    });
   }
 
   Future<void> _releaseNow() async {
@@ -432,6 +485,7 @@ class ReelPlayerController extends ChangeNotifier
     if (_disposed) return;
     _disposed = true;
     _playbackRequested = false;
+    _cancelRetries();
     _failPreparation(
       const ReelKitException(
         ReelKitErrorCode.cancelled,
@@ -458,6 +512,7 @@ class ReelPlayerController extends ChangeNotifier
     _positionStreams.clear();
     _tracks.dispose();
     _positionChanges.dispose();
+    unawaited(_interruptions.close());
     _disposedNotifier = true;
     super.dispose();
   }
@@ -524,6 +579,7 @@ class ReelPlayerController extends ChangeNotifier
         if (preparation != null && !preparation.isCompleted) {
           preparation.completeError(error);
         } else {
+          _resumeAfterError = _playbackRequested || _value.isPlaying;
           _endPlaybackRequest();
           _update(
             _value.copyWith(
@@ -532,7 +588,10 @@ class ReelPlayerController extends ChangeNotifier
               isBuffering: false,
             ),
           );
+          _scheduleRecovery(error);
         }
+      case ReelInterruptionEvent(:final type, :final ended):
+        _interruptions.add(ReelInterruption(type: type, ended: ended));
     }
   }
 
@@ -591,17 +650,17 @@ class ReelPlayerController extends ChangeNotifier
     _metrics = _metrics.copyWith(preparations: _metrics.preparations + 1);
     try {
       ReelVideoInfo? info;
-      try {
-        info = await _prepareAttempt(freshPlayer: false);
-      } on ReelKitException catch (error) {
-        if (!await _releaseForDecoderRetry(error)) rethrow;
+      for (var attempt = 0; ; attempt++) {
         try {
-          info = await _prepareAttempt(freshPlayer: true);
-        } on ReelKitException catch (retryError) {
-          // No player could be taken for the retry; the decoder shortage is
-          // the meaningful error.
-          if (retryError.code == ReelKitErrorCode.poolExhausted) throw error;
-          rethrow;
+          info = await _prepareOnce();
+          break;
+        } on ReelKitException catch (error) {
+          if (_disposed ||
+              attempt >= _retry.maxAttempts ||
+              !_retry.isRetryable(error.code)) {
+            rethrow;
+          }
+          await _waitForRetry(_retry.delayFor(attempt + 1));
         }
       }
       final lease = _lease;
@@ -639,6 +698,101 @@ class ReelPlayerController extends ChangeNotifier
         ),
       );
       rethrow;
+    }
+  }
+
+  /// One preparation attempt, plus one more on a different player after a
+  /// decoder shortage.
+  Future<ReelVideoInfo?> _prepareOnce() async {
+    try {
+      return await _prepareAttempt(freshPlayer: false);
+    } on ReelKitException catch (error) {
+      if (!await _releaseForDecoderRetry(error)) rethrow;
+      try {
+        return await _prepareAttempt(freshPlayer: true);
+      } on ReelKitException catch (retryError) {
+        // No player could be taken for the retry; the decoder shortage is
+        // the meaningful error.
+        if (retryError.code == ReelKitErrorCode.poolExhausted) throw error;
+        rethrow;
+      }
+    }
+  }
+
+  /// Waits before an automatic retry. Throws `cancelled` when the
+  /// controller is released or disposed meanwhile.
+  Future<void> _waitForRetry(Duration delay) async {
+    final wait = Completer<void>();
+    _retryWait = wait;
+    _retryTimer = Timer(delay, () {
+      if (!wait.isCompleted) wait.complete();
+    });
+    try {
+      await wait.future;
+    } finally {
+      if (identical(_retryWait, wait)) {
+        _retryWait = null;
+        _retryTimer = null;
+      }
+    }
+  }
+
+  void _cancelRetries() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = null;
+    final wait = _retryWait;
+    _retryWait = null;
+    if (wait != null && !wait.isCompleted) {
+      wait.completeError(
+        const ReelKitException(
+          ReelKitErrorCode.cancelled,
+          'The controller was released while waiting to retry.',
+        ),
+      );
+    }
+  }
+
+  /// Schedules an automatic recovery from a playback error.
+  void _scheduleRecovery(ReelKitException error) {
+    if (!_retry.isRetryable(error.code) ||
+        _playbackRetries >= _retry.maxAttempts) {
+      return;
+    }
+    _playbackRetries++;
+    _recoveryTimer?.cancel();
+    _recoveryTimer = Timer(_retry.delayFor(_playbackRetries), () {
+      _recoveryTimer = null;
+      unawaited(retry().catchError(_ignoreRecoveryError));
+    });
+  }
+
+  static void _ignoreRecoveryError(Object _) {}
+
+  /// Prepares again after an error and restores position and playback.
+  Future<void> _recover(bool resume) async {
+    if (_disposed || _value.status != ReelPlaybackStatus.error) return;
+    var resumeAt = Duration.zero;
+    final failed = _lease;
+    if (failed != null && _value.videoInfo?.isLive != true) {
+      try {
+        resumeAt = (await _host.platform.getPosition(failed.playerId)).position;
+      } on Object {
+        // The engine may not know the position after the failure.
+      }
+    }
+    await _prepareIfNeeded();
+    final lease = _lease;
+    if (_disposed || lease == null || !_value.isInitialized) return;
+    if (resumeAt > Duration.zero) {
+      await _host.platform.seekTo(lease.playerId, _clampToDuration(resumeAt));
+    }
+    if (resume && _host.mayStartPlayback(this)) {
+      _playbackRequested = true;
+      _priority = ReelPlayerPriority.active;
+      await _applySettings();
+      await _host.platform.play(lease.playerId);
     }
   }
 
@@ -755,6 +909,7 @@ class ReelPlayerController extends ChangeNotifier
 
   void _onIsPlaying(bool isPlaying) {
     if (!_value.isInitialized) return;
+    if (isPlaying) _playbackRetries = 0;
     if (isPlaying && _startClock.isRunning) {
       _metrics = _metrics.copyWith(lastStartLatency: _startClock.elapsed);
       _startClock.stop();

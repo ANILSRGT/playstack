@@ -172,7 +172,10 @@ void main() {
       async.flushMicrotasks();
       final controller = slowManager.createController(
         source,
-        config: const ReelPlayerConfig(initializeTimeout: Duration(seconds: 5)),
+        config: const ReelPlayerConfig(
+          initializeTimeout: Duration(seconds: 5),
+          retry: ReelRetryConfig.none,
+        ),
       );
       Object? error;
       controller.initialize().catchError((Object e) => error = e);

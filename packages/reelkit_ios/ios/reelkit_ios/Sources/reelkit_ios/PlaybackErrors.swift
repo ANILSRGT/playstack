@@ -11,6 +11,7 @@ enum PlaybackErrors {
     while let nsError = current {
       if let code = specificCode(for: nsError) { return code }
       if nsError.domain == AVFoundationErrorDomain { fallback = avFoundationCode(nsError.code) }
+      if nsError.domain == NSURLErrorDomain, fallback == "unknown" { fallback = "network" }
       current = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
     }
     return fallback
@@ -20,7 +21,12 @@ enum PlaybackErrors {
     switch error.domain {
     case NSURLErrorDomain:
       switch error.code {
-      case NSURLErrorFileDoesNotExist, NSURLErrorResourceUnavailable: return "sourceNotFound"
+      case NSURLErrorFileDoesNotExist: return "sourceNotFound"
+      // AVFoundation reports every failed HTTP status (503 as well as 404)
+      // as "resource unavailable"; the underlying CoreMedia error, when
+      // present, says which. Without it the failure is treated as a network
+      // error, which is retried.
+      case NSURLErrorResourceUnavailable: return nil
       case NSURLErrorTimedOut: return "timeout"
       default: return "network"
       }

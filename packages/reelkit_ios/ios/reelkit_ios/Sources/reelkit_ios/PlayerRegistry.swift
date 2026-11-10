@@ -11,6 +11,8 @@ final class PlayerRegistry: ReelKitHostApi {
   private var players: [Int64: NativePlayer] = [:]
   private var nextPlayerId: Int64 = 1
   private var capabilities: PlatformCapabilities?
+  private var engineConfig: PlatformEngineConfig?
+  private var audioSession: AudioSessionCoordinator?
 
   init(
     textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher,
@@ -23,7 +25,13 @@ final class PlayerRegistry: ReelKitHostApi {
     sources = SourceResolver(assetLookup: assetLookup)
   }
 
-  func initialize() throws -> PlatformCapabilities {
+  /// The first call configures the engine; later calls share it.
+  func initialize(config: PlatformEngineConfig) throws -> PlatformCapabilities {
+    if engineConfig == nil {
+      engineConfig = config
+      audioSession = AudioSessionCoordinator(config: config)
+      if config.cacheEnabled { MediaCacheStore.shared.configure(maxBytes: config.cacheMaxBytes) }
+    }
     if let capabilities { return capabilities }
     let read = DeviceCapabilities.read()
     capabilities = read
@@ -33,8 +41,13 @@ final class PlayerRegistry: ReelKitHostApi {
   func createPlayer(options: PlatformPlayerOptions) throws -> PlatformPlayerCreation {
     let id = nextPlayerId
     nextPlayerId += 1
+    guard let audioSession else {
+      throw PigeonError(
+        code: "notInitialized", message: "Call initialize() before createPlayer().", details: nil)
+    }
     let player = NativePlayer(
-      id: id, options: options, events: events, textureRegistry: textureRegistry)
+      id: id, options: options, events: events, textureRegistry: textureRegistry,
+      audioSession: audioSession)
     players[id] = player
     return PlatformPlayerCreation(playerId: id, textureId: player.textureId)
   }
@@ -46,7 +59,7 @@ final class PlayerRegistry: ReelKitHostApi {
 
   func setSource(playerId: Int64, source: PlatformSource, generation: Int64) throws {
     let player = try requirePlayer(playerId)
-    player.setSource(try sources.resolve(source), generation: generation)
+    player.setSource(try sources.resolve(source, cacheEnabled: engineConfig?.cacheEnabled == true), generation: generation)
   }
 
   func clearSource(playerId: Int64) throws {
@@ -80,6 +93,29 @@ final class PlayerRegistry: ReelKitHostApi {
 
   func getNetworkStatus() throws -> PlatformNetworkStatus {
     network.current()
+  }
+
+  @MainActor
+  func getCacheInfo() async throws -> PlatformCacheInfo {
+    let enabled = engineConfig?.cacheEnabled == true
+    return await Task.detached(priority: .utility) {
+      let store = MediaCacheStore.shared
+      return PlatformCacheInfo(
+        enabled: enabled, usedBytes: store.usedBytes(), maxBytes: enabled ? store.limit : 0)
+    }.value
+  }
+
+  func clearCache() async throws {
+    await Task.detached(priority: .utility) { MediaCacheStore.shared.clear() }.value
+  }
+
+  func removeCached(cacheKey: String) async throws {
+    await Task.detached(priority: .utility) { MediaCacheStore.shared.remove(cacheKey) }.value
+  }
+
+  func getCachedBytes(cacheKey: String) async throws -> Int64 {
+    await Task.detached(priority: .utility) { MediaCacheStore.shared.cachedBytes(cacheKey) }
+      .value
   }
 
   func setLooping(playerId: Int64, looping: Bool) throws {

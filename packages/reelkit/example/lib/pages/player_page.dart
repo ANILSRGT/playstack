@@ -139,6 +139,16 @@ class _PlayerPageState extends State<PlayerPage> {
                     controller: controller,
                     state: state,
                     position: _position,
+                    onFullscreen: () => unawaited(
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _FullscreenPage(
+                            manager: _manager,
+                            controller: controller,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -220,13 +230,60 @@ class _TracksMenu extends StatelessWidget {
   }
 }
 
+/// The app's own fullscreen screen. ReelKit only hides the system UI, locks
+/// the orientation to the video's and restores the app policy afterwards.
+class _FullscreenPage extends StatefulWidget {
+  const _FullscreenPage({required this.manager, required this.controller});
+
+  final ReelKitManager manager;
+  final ReelPlayerController controller;
+
+  @override
+  State<_FullscreenPage> createState() => _FullscreenPageState();
+}
+
+class _FullscreenPageState extends State<_FullscreenPage> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      widget.manager.fullscreen
+          .enter(
+            orientation: ReelFullscreenOrientation.matchVideo,
+            controller: widget.controller,
+          )
+          .catchError((Object _) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    // Also covers the system back gesture.
+    unawaited(widget.manager.fullscreen.exit());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: ReelVideoView(controller: widget.controller),
+      ),
+    );
+  }
+}
+
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.controller,
     required this.state,
     required this.position,
+    required this.onFullscreen,
   });
 
+  final VoidCallback onFullscreen;
   final ReelPlayerController controller;
   final ReelPlaybackState state;
   final ReelPositionSnapshot position;
@@ -291,6 +348,11 @@ class _Controls extends StatelessWidget {
                 ),
                 onPressed: () =>
                     unawaited(controller.setLooping(!state.isLooping)),
+              ),
+              IconButton(
+                tooltip: 'Fullscreen',
+                icon: const Icon(Icons.fullscreen),
+                onPressed: state.isInitialized ? onFullscreen : null,
               ),
               PopupMenuButton<double>(
                 tooltip: 'Speed',

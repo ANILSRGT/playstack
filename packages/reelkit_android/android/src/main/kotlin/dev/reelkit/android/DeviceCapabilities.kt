@@ -50,7 +50,7 @@ internal object DeviceCapabilities {
         isLowRamDevice = isLowRam,
         supportsHls = true,
         supportsDash = true,
-        supportsDiskCache = false,
+        supportsDiskCache = true,
         supportsMemorySource = true,
         supportsTrackSelection = true,
         supportsVideoTrackSelection = true,

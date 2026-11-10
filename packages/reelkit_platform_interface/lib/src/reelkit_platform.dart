@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'reel_engine_config.dart';
+import 'reel_fullscreen.dart';
 import 'reel_kit_exception.dart';
 import 'reel_native_player.dart';
 import 'reel_network_status.dart';
@@ -34,7 +36,9 @@ abstract class ReelKitPlatform extends PlatformInterface {
   }
 
   /// Initializes the engine. Must be idempotent.
-  Future<ReelPlatformCapabilities> initialize() {
+  Future<ReelPlatformCapabilities> initialize([
+    ReelEngineConfig config = const ReelEngineConfig(),
+  ]) {
     throw UnimplementedError('initialize() has not been implemented.');
   }
 
@@ -130,6 +134,44 @@ abstract class ReelKitPlatform extends PlatformInterface {
     throw UnimplementedError('networkStatusChanges has not been implemented.');
   }
 
+  /// Usage of the disk cache. See
+  /// [ReelPlatformCapabilities.supportsDiskCache].
+  Future<ReelCacheInfo> getCacheInfo() {
+    throw UnimplementedError('getCacheInfo() has not been implemented.');
+  }
+
+  /// Deletes every cached entry that is not being read right now.
+  Future<void> clearCache() {
+    throw UnimplementedError('clearCache() has not been implemented.');
+  }
+
+  /// Deletes the cached data of the source with [cacheKey].
+  Future<void> removeCached(String cacheKey) {
+    throw UnimplementedError('removeCached() has not been implemented.');
+  }
+
+  /// Bytes of the source with [cacheKey] available in the cache.
+  Future<int> getCachedBytes(String cacheKey) {
+    throw UnimplementedError('getCachedBytes() has not been implemented.');
+  }
+
+  /// Hides system UI and applies the requested orientation policy (mobile),
+  /// or requests browser fullscreen (web).
+  Future<void> enterFullscreen(ReelFullscreenRequest request) {
+    throw UnimplementedError('enterFullscreen() has not been implemented.');
+  }
+
+  /// Restores system UI and the application's orientation policy.
+  Future<void> exitFullscreen(ReelFullscreenRestore restore) {
+    throw UnimplementedError('exitFullscreen() has not been implemented.');
+  }
+
+  /// Fullscreen changes made outside ReelKit, for example the user pressing
+  /// Escape in a browser. Mobile engines report none.
+  Stream<bool> get fullscreenChanges {
+    throw UnimplementedError('fullscreenChanges has not been implemented.');
+  }
+
   /// Events of all native players of this engine.
   Stream<ReelPlatformEvent> get events {
     throw UnimplementedError('events has not been implemented.');
@@ -151,7 +193,9 @@ class _UnregisteredReelKitPlatform extends ReelKitPlatform {
   );
 
   @override
-  Future<ReelPlatformCapabilities> initialize() async => _fail();
+  Future<ReelPlatformCapabilities> initialize([
+    ReelEngineConfig config = const ReelEngineConfig(),
+  ]) async => _fail();
 
   @override
   Future<ReelNativePlayerHandle> createPlayer(

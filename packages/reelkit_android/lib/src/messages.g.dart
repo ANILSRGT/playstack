@@ -109,6 +109,160 @@ enum PlatformTrackType { audio, video, text }
 
 enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
 
+/// iOS `AVAudioSession` category ReelKit sets, or `unmanaged` to leave the
+/// host app's session alone.
+enum PlatformAudioSessionCategory { unmanaged, ambient, playback }
+
+enum PlatformInterruptionType {
+  /// Another app took audio focus (Android) or the system interrupted the
+  /// audio session (iOS: call, alarm, Siri).
+  audioInterruption,
+
+  /// Headphones or another audio route went away; playback was paused.
+  audioRouteLost,
+}
+
+/// Engine-wide settings, applied by the first `initialize` call.
+class PlatformEngineConfig {
+  PlatformEngineConfig({
+    required this.cacheEnabled,
+    required this.cacheMaxBytes,
+    required this.handleAudioFocus,
+    required this.pauseOnAudioRouteLoss,
+    required this.audioSessionCategory,
+    required this.mixWithOthers,
+    required this.resumeAfterInterruption,
+  });
+
+  bool cacheEnabled;
+
+  int cacheMaxBytes;
+
+  /// Android: request audio focus while playing audibly and pause on loss.
+  bool handleAudioFocus;
+
+  /// Pause when headphones are disconnected (Android "becoming noisy"; iOS
+  /// AVPlayer already pauses and the engine reports it).
+  bool pauseOnAudioRouteLoss;
+
+  PlatformAudioSessionCategory audioSessionCategory;
+
+  bool mixWithOthers;
+
+  /// iOS: resume when an interruption ends with `shouldResume`.
+  bool resumeAfterInterruption;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      cacheEnabled,
+      cacheMaxBytes,
+      handleAudioFocus,
+      pauseOnAudioRouteLoss,
+      audioSessionCategory,
+      mixWithOthers,
+      resumeAfterInterruption,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformEngineConfig decode(Object result) {
+    result as List<Object?>;
+    return PlatformEngineConfig(
+      cacheEnabled: result[0]! as bool,
+      cacheMaxBytes: result[1]! as int,
+      handleAudioFocus: result[2]! as bool,
+      pauseOnAudioRouteLoss: result[3]! as bool,
+      audioSessionCategory: result[4]! as PlatformAudioSessionCategory,
+      mixWithOthers: result[5]! as bool,
+      resumeAfterInterruption: result[6]! as bool,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformEngineConfig || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(cacheEnabled, other.cacheEnabled) &&
+        _deepEquals(cacheMaxBytes, other.cacheMaxBytes) &&
+        _deepEquals(handleAudioFocus, other.handleAudioFocus) &&
+        _deepEquals(pauseOnAudioRouteLoss, other.pauseOnAudioRouteLoss) &&
+        _deepEquals(audioSessionCategory, other.audioSessionCategory) &&
+        _deepEquals(mixWithOthers, other.mixWithOthers) &&
+        _deepEquals(resumeAfterInterruption, other.resumeAfterInterruption);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformEngineConfig(cacheEnabled: $cacheEnabled, cacheMaxBytes: $cacheMaxBytes, handleAudioFocus: $handleAudioFocus, pauseOnAudioRouteLoss: $pauseOnAudioRouteLoss, audioSessionCategory: $audioSessionCategory, mixWithOthers: $mixWithOthers, resumeAfterInterruption: $resumeAfterInterruption)';
+  }
+}
+
+class PlatformCacheInfo {
+  PlatformCacheInfo({
+    required this.enabled,
+    required this.usedBytes,
+    required this.maxBytes,
+  });
+
+  bool enabled;
+
+  int usedBytes;
+
+  int maxBytes;
+
+  List<Object?> _toList() {
+    return <Object?>[enabled, usedBytes, maxBytes];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformCacheInfo decode(Object result) {
+    result as List<Object?>;
+    return PlatformCacheInfo(
+      enabled: result[0]! as bool,
+      usedBytes: result[1]! as int,
+      maxBytes: result[2]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformCacheInfo || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(enabled, other.enabled) &&
+        _deepEquals(usedBytes, other.usedBytes) &&
+        _deepEquals(maxBytes, other.maxBytes);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformCacheInfo(enabled: $enabled, usedBytes: $usedBytes, maxBytes: $maxBytes)';
+  }
+}
+
 /// Connectivity as seen by the operating system.
 class PlatformNetworkStatus {
   PlatformNetworkStatus({
@@ -292,6 +446,7 @@ class PlatformSource {
     required this.formatHint,
     required this.httpHeaders,
     this.cacheKey,
+    required this.useCache,
   });
 
   PlatformSourceType type;
@@ -317,6 +472,9 @@ class PlatformSource {
   /// Stable key used by the native cache. Defaults to the URI when null.
   String? cacheKey;
 
+  /// Whether this source may be read from and written to the disk cache.
+  bool useCache;
+
   List<Object?> _toList() {
     return <Object?>[
       type,
@@ -328,6 +486,7 @@ class PlatformSource {
       formatHint,
       httpHeaders,
       cacheKey,
+      useCache,
     ];
   }
 
@@ -347,6 +506,7 @@ class PlatformSource {
       formatHint: result[6]! as PlatformVideoFormat,
       httpHeaders: (result[7]! as Map<Object?, Object?>).cast<String, String>(),
       cacheKey: result[8] as String?,
+      useCache: result[9]! as bool,
     );
   }
 
@@ -367,7 +527,8 @@ class PlatformSource {
         _deepEquals(mimeType, other.mimeType) &&
         _deepEquals(formatHint, other.formatHint) &&
         _deepEquals(httpHeaders, other.httpHeaders) &&
-        _deepEquals(cacheKey, other.cacheKey);
+        _deepEquals(cacheKey, other.cacheKey) &&
+        _deepEquals(useCache, other.useCache);
   }
 
   @override
@@ -376,7 +537,7 @@ class PlatformSource {
 
   @override
   String toString() {
-    return 'PlatformSource(type: $type, uri: $uri, assetName: $assetName, assetPackage: $assetPackage, bytes: $bytes, mimeType: $mimeType, formatHint: $formatHint, httpHeaders: $httpHeaders, cacheKey: $cacheKey)';
+    return 'PlatformSource(type: $type, uri: $uri, assetName: $assetName, assetPackage: $assetPackage, bytes: $bytes, mimeType: $mimeType, formatHint: $formatHint, httpHeaders: $httpHeaders, cacheKey: $cacheKey, useCache: $useCache)';
   }
 }
 
@@ -1201,6 +1362,68 @@ class PlatformCuesEvent extends PlatformPlayerEvent {
   }
 }
 
+/// Playback was paused (or resumed) by the system rather than by the app.
+class PlatformInterruptionEvent extends PlatformPlayerEvent {
+  PlatformInterruptionEvent({
+    required this.playerId,
+    required this.generation,
+    required this.type,
+    required this.ended,
+  });
+
+  int playerId;
+
+  int generation;
+
+  PlatformInterruptionType type;
+
+  /// False when the interruption began, true when it ended.
+  bool ended;
+
+  List<Object?> _toList() {
+    return <Object?>[playerId, generation, type, ended];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformInterruptionEvent decode(Object result) {
+    result as List<Object?>;
+    return PlatformInterruptionEvent(
+      playerId: result[0]! as int,
+      generation: result[1]! as int,
+      type: result[2]! as PlatformInterruptionType,
+      ended: result[3]! as bool,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformInterruptionEvent ||
+        other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(playerId, other.playerId) &&
+        _deepEquals(generation, other.generation) &&
+        _deepEquals(type, other.type) &&
+        _deepEquals(ended, other.ended);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformInterruptionEvent(playerId: $playerId, generation: $generation, type: $type, ended: $ended)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -1223,50 +1446,65 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformNetworkType) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    } else if (value is PlatformNetworkStatus) {
+    } else if (value is PlatformAudioSessionCategory) {
       buffer.putUint8(134);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformTrack) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformInterruptionType) {
       buffer.putUint8(135);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformEngineConfig) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformCacheInfo) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(148);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformFirstFrameEvent) {
+      buffer.putUint8(149);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformErrorEvent) {
+      buffer.putUint8(150);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformTracksChangedEvent) {
+      buffer.putUint8(151);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(152);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformInterruptionEvent) {
+      buffer.putUint8(153);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1292,35 +1530,49 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformNetworkType.values[value];
       case 134:
-        return PlatformNetworkStatus.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null
+            ? null
+            : PlatformAudioSessionCategory.values[value];
       case 135:
-        return PlatformTrack.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformInterruptionType.values[value];
       case 136:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 137:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformCacheInfo.decode(readValue(buffer)!);
       case 138:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 139:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 140:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 141:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 142:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 143:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 144:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 145:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 146:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 147:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 148:
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+      case 149:
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+      case 150:
+        return PlatformErrorEvent.decode(readValue(buffer)!);
+      case 151:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 152:
         return PlatformCuesEvent.decode(readValue(buffer)!);
+      case 153:
+        return PlatformInterruptionEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -1349,7 +1601,7 @@ class ReelKitHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   /// Idempotent. Returns device and engine capabilities.
-  Future<PlatformCapabilities> initialize() async {
+  Future<PlatformCapabilities> initialize(PlatformEngineConfig config) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.reelkit_android.ReelKitHostApi.initialize$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -1357,7 +1609,9 @@ class ReelKitHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[config],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
       pigeonVar_replyList,
@@ -1698,6 +1952,83 @@ class ReelKitHostApi {
       isNullValid: false,
     );
     return pigeonVar_replyValue! as PlatformNetworkStatus;
+  }
+
+  Future<PlatformCacheInfo> getCacheInfo() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getCacheInfo$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as PlatformCacheInfo;
+  }
+
+  /// Deletes every cached entry that is not being read right now.
+  Future<void> clearCache() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_android.ReelKitHostApi.clearCache$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Deletes the cached data of one source (its cache key or URL).
+  Future<void> removeCached(String cacheKey) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_android.ReelKitHostApi.removeCached$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[cacheKey],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Bytes of one source available in the cache.
+  Future<int> getCachedBytes(String cacheKey) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getCachedBytes$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[cacheKey],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as int;
   }
 }
 

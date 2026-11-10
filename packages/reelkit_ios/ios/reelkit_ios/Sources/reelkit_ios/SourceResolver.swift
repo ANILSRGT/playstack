@@ -11,9 +11,14 @@ struct SourceResolver {
     /// Temporary file owned by this source, deleted when the source is
     /// detached.
     let temporaryFile: URL?
+    /// Cache loader that must live as long as the asset and be closed when
+    /// the source is detached.
+    var loader: CachingResourceLoader? = nil
   }
 
-  func resolve(_ source: PlatformSource) throws -> Resolved {
+  /// With [cacheEnabled], progressive network sources go through the disk
+  /// cache.
+  func resolve(_ source: PlatformSource, cacheEnabled: Bool) throws -> Resolved {
     if source.formatHint == .dash {
       throw PigeonError(
         code: "unsupportedFormat", message: "AVFoundation does not play MPEG-DASH.", details: nil)
@@ -22,6 +27,12 @@ struct SourceResolver {
     case .network:
       guard let string = source.uri, let url = URL(string: string), url.scheme != nil else {
         throw invalid("Invalid network URL: \(source.uri ?? "nil").")
+      }
+      if cacheEnabled, source.useCache, Self.isCacheable(source, url: url) {
+        let loader = CachingResourceLoader(
+          url: url, cacheKey: source.cacheKey ?? string, headers: source.httpHeaders,
+          store: .shared)
+        return Resolved(asset: loader.makeAsset(), temporaryFile: nil, loader: loader)
       }
       var options: [String: Any] = [:]
       if !source.httpHeaders.isEmpty {
@@ -59,6 +70,18 @@ struct SourceResolver {
       }
       return Resolved(asset: AVURLAsset(url: url), temporaryFile: url)
     }
+  }
+
+  /// Progressive HTTP(S) files only: HLS is left to AVFoundation.
+  private static func isCacheable(_ source: PlatformSource, url: URL) -> Bool {
+    guard let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else {
+      return false
+    }
+    if source.formatHint == .hls { return false }
+    let path = url.path.lowercased()
+    if path.hasSuffix(".m3u8") || path.hasSuffix(".m3u") { return false }
+    let mime = source.mimeType?.lowercased() ?? ""
+    return !mime.contains("mpegurl")
   }
 
   private static func fileExtension(for mimeType: String?) -> String {

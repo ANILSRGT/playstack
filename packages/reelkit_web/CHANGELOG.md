@@ -1,3 +1,9 @@
+## 0.1.0-dev.6
+
+* Milestone 6: HLS through HLS.js when the app loads it, Fullscreen API with
+  orientation lock where supported; cache methods report the browser cache
+  as unmanaged.
+
 ## 0.1.0-dev.5
 
 * Milestone 5: network status from `navigator.onLine` and

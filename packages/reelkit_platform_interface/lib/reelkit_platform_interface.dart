@@ -3,6 +3,8 @@
 /// Application code should depend on `package:reelkit` instead.
 library;
 
+export 'src/reel_engine_config.dart';
+export 'src/reel_fullscreen.dart';
 export 'src/reel_kit_exception.dart';
 export 'src/reel_native_player.dart';
 export 'src/reel_network_status.dart';

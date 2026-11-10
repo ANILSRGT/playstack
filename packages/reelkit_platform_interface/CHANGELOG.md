@@ -1,3 +1,9 @@
+## 0.1.0-dev.6
+
+* Milestone 6: `ReelEngineConfig` passed to `initialize`, cache methods,
+  `ReelCachePolicy`, fullscreen methods with the `SystemChromeFullscreen`
+  mixin, `ReelInterruptionEvent`, `ReelKitErrorCode.notAllowed`.
+
 ## 0.1.0-dev.5
 
 * Milestone 5: `setPreloadBufferLimit`, `getNetworkStatus`,

@@ -1,3 +1,9 @@
+## 0.1.0-dev.6
+
+* Milestone 6: progressive disk cache through `AVAssetResourceLoader`,
+  optional `AVAudioSession` category, interruption and route-change events,
+  resume after interruptions, SystemChrome fullscreen.
+
 ## 0.1.0-dev.5
 
 * Milestone 5: preload buffer preference through

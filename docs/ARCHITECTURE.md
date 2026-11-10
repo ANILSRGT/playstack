@@ -203,6 +203,50 @@ status can be read synchronously; web reads `navigator.onLine` and
 `navigator.connection`. Unsupported values are reported as unknown, never
 guessed.
 
+**Disk cache.** Android uses one process-wide Media3 `SimpleCache` (it locks
+its directory) with an LRU evictor. A `ManifestBypassDataSource` sends
+`.m3u8`/`.mpd` requests to the network and everything else through
+`CacheDataSource`: live manifests change under the same URL, while segment
+URLs are immutable. iOS has no cache for progressive downloads, so the
+engine rewrites the URL scheme, answers `AVAssetResourceLoader` requests
+from a sparse file plus a list of valid byte ranges, and downloads (and
+stores) only the missing part of each request. Entries in use are never
+evicted; the index is written when an entry is released. HLS stays with
+AVFoundation on iOS. The first manager's configuration sizes the cache for
+the whole process.
+
+**Fullscreen and orientation.** Flutter cannot read the preferred
+orientations an app set, so restoring "what was there" is impossible
+without help. ReelKit therefore restores an explicit, registered policy
+(`ReelFullscreenConfig`, updatable with `setAppPolicy`), and leaves the
+orientation untouched unless fullscreen asks for one. When it did lock the
+orientation, exit first locks to the orientation the view had before
+(portrait or landscape, from the view size) for a moment and then applies
+the policy: unlocking alone leaves the interface sideways on iOS until the
+device moves. Enter/exit calls are serialized. On web the same API maps to
+the Fullscreen API and `screen.orientation.lock`, whose failures outside
+supporting browsers are ignored rather than faked.
+
+**Audio.** Android players take audio focus only while audible, so muted
+autoplay never stops the user's music, and `setHandleAudioBecomingNoisy`
+pauses on unplugged headphones. Focus losses and transient suppression are
+reported as interruption events. iOS leaves `AVAudioSession` to the host
+unless a category is configured, applied lazily before the first `play`;
+interruption and route-change notifications are attributed to players that
+were asked to play.
+
+**Retry.** Retries live in the controller, not the engines: a preparation
+loop with exponential backoff for `network` and `timeout`, cancellable by
+`release`/`dispose`; recovery from a playback error re-prepares on the same
+lease, seeks to the failed position and resumes. The manager retries
+controllers that failed offline when the network returns.
+
+**Zones and idle futures.** `AsyncLock` keeps no future while idle: a
+completed future schedules listeners in the zone that created it, which
+deadlocked controllers created in one test zone and disposed from another.
+Manager disposal does not await subscription cancellation for the same
+reason.
+
 **Source replacement.** `setSource` keeps the controller's native player and
 renews the lease generation, so late events of the old source are dropped
 without a release/acquire round trip.

@@ -235,7 +235,12 @@ void main() {
 
   test('an active item that failed offline restarts on reconnection', () async {
     await start();
-    final feed = manager.createFeed(_items(3));
+    final feed = manager.createFeed(
+      _items(3),
+      config: const ReelFeedConfig(
+        player: ReelPlayerConfig(retry: ReelRetryConfig.none),
+      ),
+    );
     platform.failingOnce[_source(0)] = const ReelKitException(
       ReelKitErrorCode.network,
       'offline',

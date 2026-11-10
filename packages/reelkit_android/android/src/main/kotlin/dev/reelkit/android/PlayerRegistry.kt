@@ -3,6 +3,8 @@ package dev.reelkit.android
 import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin.FlutterAssets
 import io.flutter.view.TextureRegistry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Implements the ReelKit host API and owns every native player of one Flutter
@@ -16,19 +18,24 @@ internal class PlayerRegistry(
     private val network: NetworkMonitor,
 ) : ReelKitHostApi {
   private val players = HashMap<Long, NativePlayer>()
-  private val sources = MediaSourceBuilder(context, flutterAssets)
+  private var engineConfig: PlatformEngineConfig? = null
+  private val sources = MediaSourceBuilder(context, flutterAssets) { engineConfig }
   private var nextPlayerId = 1L
   private var capabilities: PlatformCapabilities? = null
 
-  override fun initialize(): PlatformCapabilities =
-      capabilities ?: DeviceCapabilities.read(context).also { capabilities = it }
+  /** The first call configures the engine; later calls share it. */
+  override fun initialize(config: PlatformEngineConfig): PlatformCapabilities {
+    if (engineConfig == null) engineConfig = config
+    return capabilities ?: DeviceCapabilities.read(context).also { capabilities = it }
+  }
 
   override fun createPlayer(options: PlatformPlayerOptions): PlatformPlayerCreation {
+    val config = requireConfig()
     val id = nextPlayerId++
     val producer = textureRegistry.createSurfaceProducer()
     val player =
         try {
-          NativePlayer(id, context, producer, events, options)
+          NativePlayer(id, context, producer, events, options, config)
         } catch (error: RuntimeException) {
           producer.release()
           throw FlutterError("playerCreationFailed", error.message, error.toString())
@@ -90,6 +97,31 @@ internal class PlayerRegistry(
   }
 
   override fun getNetworkStatus(): PlatformNetworkStatus = network.current()
+
+  override suspend fun getCacheInfo(): PlatformCacheInfo =
+      withContext(Dispatchers.IO) {
+        val config = engineConfig
+        val enabled = config?.cacheEnabled == true
+        PlatformCacheInfo(
+            enabled = enabled,
+            usedBytes = MediaCache.usedBytes(),
+            maxBytes =
+                if (MediaCache.existing() != null) MediaCache.configuredMaxBytes
+                else if (enabled) config!!.cacheMaxBytes else 0,
+        )
+      }
+
+  override suspend fun clearCache() = withContext(Dispatchers.IO) { MediaCache.clear() }
+
+  override suspend fun removeCached(cacheKey: String) =
+      withContext(Dispatchers.IO) { MediaCache.remove(cacheKey) }
+
+  override suspend fun getCachedBytes(cacheKey: String): Long =
+      withContext(Dispatchers.IO) { MediaCache.cachedBytes(cacheKey) }
+
+  private fun requireConfig(): PlatformEngineConfig =
+      engineConfig
+          ?: throw FlutterError("notInitialized", "Call initialize() before createPlayer().", null)
 
   fun releaseAll() {
     players.values.forEach { it.release() }

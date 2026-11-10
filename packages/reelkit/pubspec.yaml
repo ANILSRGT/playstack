@@ -2,7 +2,7 @@ name: reelkit
 description: >-
   A native video playback manager for Flutter: player pooling, preloading and
   lifecycle management for feeds and single players, with a UI you fully own.
-version: 0.1.0-dev.5
+version: 0.1.0-dev.6
 publish_to: none
 resolution: workspace
 

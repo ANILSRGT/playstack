@@ -27,6 +27,60 @@ enum PlatformTrackType { audio, video, text }
 
 enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
 
+/// iOS `AVAudioSession` category ReelKit sets, or `unmanaged` to leave the
+/// host app's session alone.
+enum PlatformAudioSessionCategory { unmanaged, ambient, playback }
+
+enum PlatformInterruptionType {
+  /// Another app took audio focus (Android) or the system interrupted the
+  /// audio session (iOS: call, alarm, Siri).
+  audioInterruption,
+
+  /// Headphones or another audio route went away; playback was paused.
+  audioRouteLost,
+}
+
+/// Engine-wide settings, applied by the first `initialize` call.
+class PlatformEngineConfig {
+  PlatformEngineConfig({
+    required this.cacheEnabled,
+    required this.cacheMaxBytes,
+    required this.handleAudioFocus,
+    required this.pauseOnAudioRouteLoss,
+    required this.audioSessionCategory,
+    required this.mixWithOthers,
+    required this.resumeAfterInterruption,
+  });
+
+  bool cacheEnabled;
+  int cacheMaxBytes;
+
+  /// Android: request audio focus while playing audibly and pause on loss.
+  bool handleAudioFocus;
+
+  /// Pause when headphones are disconnected (Android "becoming noisy"; iOS
+  /// AVPlayer already pauses and the engine reports it).
+  bool pauseOnAudioRouteLoss;
+
+  PlatformAudioSessionCategory audioSessionCategory;
+  bool mixWithOthers;
+
+  /// iOS: resume when an interruption ends with `shouldResume`.
+  bool resumeAfterInterruption;
+}
+
+class PlatformCacheInfo {
+  PlatformCacheInfo({
+    required this.enabled,
+    required this.usedBytes,
+    required this.maxBytes,
+  });
+
+  bool enabled;
+  int usedBytes;
+  int maxBytes;
+}
+
 /// Connectivity as seen by the operating system.
 class PlatformNetworkStatus {
   PlatformNetworkStatus({
@@ -78,6 +132,7 @@ class PlatformSource {
     required this.type,
     required this.formatHint,
     required this.httpHeaders,
+    required this.useCache,
   });
 
   PlatformSourceType type;
@@ -102,6 +157,9 @@ class PlatformSource {
 
   /// Stable key used by the native cache. Defaults to the URI when null.
   String? cacheKey;
+
+  /// Whether this source may be read from and written to the disk cache.
+  bool useCache;
 }
 
 class PlatformPlayerOptions {
@@ -184,7 +242,7 @@ class PlatformPosition {
 @HostApi()
 abstract class ReelKitHostApi {
   /// Idempotent. Returns device and engine capabilities.
-  PlatformCapabilities initialize();
+  PlatformCapabilities initialize(PlatformEngineConfig config);
 
   /// Allocates a native player and its render target.
   PlatformPlayerCreation createPlayer(PlatformPlayerOptions options);
@@ -236,6 +294,21 @@ abstract class ReelKitHostApi {
   void setPreloadBufferLimit(int playerId, int? maxBufferMs);
 
   PlatformNetworkStatus getNetworkStatus();
+
+  @async
+  PlatformCacheInfo getCacheInfo();
+
+  /// Deletes every cached entry that is not being read right now.
+  @async
+  void clearCache();
+
+  /// Deletes the cached data of one source (its cache key or URL).
+  @async
+  void removeCached(String cacheKey);
+
+  /// Bytes of one source available in the cache.
+  @async
+  int getCachedBytes(String cacheKey);
 }
 
 sealed class PlatformPlayerEvent {}
@@ -376,6 +449,23 @@ class PlatformCuesEvent extends PlatformPlayerEvent {
   int playerId;
   int generation;
   List<String> texts;
+}
+
+/// Playback was paused (or resumed) by the system rather than by the app.
+class PlatformInterruptionEvent extends PlatformPlayerEvent {
+  PlatformInterruptionEvent({
+    required this.playerId,
+    required this.generation,
+    required this.type,
+    required this.ended,
+  });
+
+  int playerId;
+  int generation;
+  PlatformInterruptionType type;
+
+  /// False when the interruption began, true when it ended.
+  bool ended;
 }
 
 @EventChannelApi()

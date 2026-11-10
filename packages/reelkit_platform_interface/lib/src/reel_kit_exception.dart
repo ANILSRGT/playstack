@@ -58,6 +58,10 @@ enum ReelKitErrorCode {
   /// autoplay with sound before the user interacted with the page.
   playbackNotAllowed,
 
+  /// The platform refused a request that needs user activation or a
+  /// permission, for example browser fullscreen outside a user gesture.
+  notAllowed,
+
   /// The operation did not complete within its time limit.
   timeout,
 

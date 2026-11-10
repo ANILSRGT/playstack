@@ -4,6 +4,8 @@ import 'dart:js_interop_unsafe';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import 'package:web/web.dart' as web;
 
+import 'hls_js.dart';
+
 /// One `HTMLVideoElement` and the media events it reports.
 ///
 /// Listeners are attached once per element and tag events with the current
@@ -53,6 +55,7 @@ class WebPlayer {
   bool _initializedSent = false;
   bool _firstFrameSent = false;
   String? _objectUrl;
+  HlsJsSession? _hls;
   web.TextTrack? _subtitleTrack;
   JSFunction? _cueListener;
 
@@ -65,7 +68,29 @@ class WebPlayer {
       ..load();
   }
 
+  /// Plays HLS through HLS.js (browsers without native HLS).
+  void loadHls(String url, int generation) {
+    clear();
+    _generation = generation;
+    _hls = HlsJsSession.attach(
+      element,
+      url,
+      onFatalError: (error) {
+        if (!_hasSource) return;
+        _emit(
+          ReelErrorEvent(
+            playerId: playerId,
+            generation: _generation,
+            error: error,
+          ),
+        );
+      },
+    );
+  }
+
   void clear() {
+    _hls?.destroy();
+    _hls = null;
     _detachCueListener();
     _generation = _noSource;
     _initializedSent = false;

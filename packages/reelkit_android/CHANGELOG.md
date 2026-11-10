@@ -1,3 +1,9 @@
+## 0.1.0-dev.6
+
+* Milestone 6: Media3 `SimpleCache` with manifest bypass, audio focus only
+  while audible, pause on headphones unplugged, interruption events,
+  SystemChrome fullscreen.
+
 ## 0.1.0-dev.5
 
 * Milestone 5: preload buffer cap through a wrapping `LoadControl`; network

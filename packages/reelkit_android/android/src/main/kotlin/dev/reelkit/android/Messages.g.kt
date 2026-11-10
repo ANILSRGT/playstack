@@ -279,6 +279,158 @@ enum class PlatformNetworkType(val raw: Int) {
 }
 
 /**
+ * iOS `AVAudioSession` category ReelKit sets, or `unmanaged` to leave the
+ * host app's session alone.
+ */
+enum class PlatformAudioSessionCategory(val raw: Int) {
+  UNMANAGED(0),
+  AMBIENT(1),
+  PLAYBACK(2);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformAudioSessionCategory? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
+enum class PlatformInterruptionType(val raw: Int) {
+  /**
+   * Another app took audio focus (Android) or the system interrupted the
+   * audio session (iOS: call, alarm, Siri).
+   */
+  AUDIO_INTERRUPTION(0),
+  /** Headphones or another audio route went away; playback was paused. */
+  AUDIO_ROUTE_LOST(1);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformInterruptionType? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
+/**
+ * Engine-wide settings, applied by the first `initialize` call.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformEngineConfig (
+  val cacheEnabled: Boolean,
+  val cacheMaxBytes: Long,
+  /** Android: request audio focus while playing audibly and pause on loss. */
+  val handleAudioFocus: Boolean,
+  /**
+   * Pause when headphones are disconnected (Android "becoming noisy"; iOS
+   * AVPlayer already pauses and the engine reports it).
+   */
+  val pauseOnAudioRouteLoss: Boolean,
+  val audioSessionCategory: PlatformAudioSessionCategory,
+  val mixWithOthers: Boolean,
+  /** iOS: resume when an interruption ends with `shouldResume`. */
+  val resumeAfterInterruption: Boolean
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformEngineConfig {
+      val cacheEnabled = pigeonVar_list[0] as Boolean
+      val cacheMaxBytes = pigeonVar_list[1] as Long
+      val handleAudioFocus = pigeonVar_list[2] as Boolean
+      val pauseOnAudioRouteLoss = pigeonVar_list[3] as Boolean
+      val audioSessionCategory = pigeonVar_list[4] as PlatformAudioSessionCategory
+      val mixWithOthers = pigeonVar_list[5] as Boolean
+      val resumeAfterInterruption = pigeonVar_list[6] as Boolean
+      return PlatformEngineConfig(cacheEnabled, cacheMaxBytes, handleAudioFocus, pauseOnAudioRouteLoss, audioSessionCategory, mixWithOthers, resumeAfterInterruption)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      cacheEnabled,
+      cacheMaxBytes,
+      handleAudioFocus,
+      pauseOnAudioRouteLoss,
+      audioSessionCategory,
+      mixWithOthers,
+      resumeAfterInterruption,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformEngineConfig
+    return MessagesPigeonUtils.deepEquals(this.cacheEnabled, other.cacheEnabled) && MessagesPigeonUtils.deepEquals(this.cacheMaxBytes, other.cacheMaxBytes) && MessagesPigeonUtils.deepEquals(this.handleAudioFocus, other.handleAudioFocus) && MessagesPigeonUtils.deepEquals(this.pauseOnAudioRouteLoss, other.pauseOnAudioRouteLoss) && MessagesPigeonUtils.deepEquals(this.audioSessionCategory, other.audioSessionCategory) && MessagesPigeonUtils.deepEquals(this.mixWithOthers, other.mixWithOthers) && MessagesPigeonUtils.deepEquals(this.resumeAfterInterruption, other.resumeAfterInterruption)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.cacheEnabled)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.cacheMaxBytes)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.handleAudioFocus)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.pauseOnAudioRouteLoss)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.audioSessionCategory)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.mixWithOthers)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.resumeAfterInterruption)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformEngineConfig(cacheEnabled=$cacheEnabled, cacheMaxBytes=$cacheMaxBytes, handleAudioFocus=$handleAudioFocus, pauseOnAudioRouteLoss=$pauseOnAudioRouteLoss, audioSessionCategory=$audioSessionCategory, mixWithOthers=$mixWithOthers, resumeAfterInterruption=$resumeAfterInterruption)"
+  }
+}
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class PlatformCacheInfo (
+  val enabled: Boolean,
+  val usedBytes: Long,
+  val maxBytes: Long
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformCacheInfo {
+      val enabled = pigeonVar_list[0] as Boolean
+      val usedBytes = pigeonVar_list[1] as Long
+      val maxBytes = pigeonVar_list[2] as Long
+      return PlatformCacheInfo(enabled, usedBytes, maxBytes)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      enabled,
+      usedBytes,
+      maxBytes,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformCacheInfo
+    return MessagesPigeonUtils.deepEquals(this.enabled, other.enabled) && MessagesPigeonUtils.deepEquals(this.usedBytes, other.usedBytes) && MessagesPigeonUtils.deepEquals(this.maxBytes, other.maxBytes)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.enabled)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.usedBytes)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.maxBytes)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformCacheInfo(enabled=$enabled, usedBytes=$usedBytes, maxBytes=$maxBytes)"
+  }
+}
+
+/**
  * Connectivity as seen by the operating system.
  *
  * Generated class from Pigeon that represents data sent in messages.
@@ -432,7 +584,9 @@ data class PlatformSource (
   val formatHint: PlatformVideoFormat,
   val httpHeaders: Map<String, String>,
   /** Stable key used by the native cache. Defaults to the URI when null. */
-  val cacheKey: String? = null
+  val cacheKey: String? = null,
+  /** Whether this source may be read from and written to the disk cache. */
+  val useCache: Boolean
 )
  {
   companion object {
@@ -446,7 +600,8 @@ data class PlatformSource (
       val formatHint = pigeonVar_list[6] as PlatformVideoFormat
       val httpHeaders = pigeonVar_list[7] as Map<String, String>
       val cacheKey = pigeonVar_list[8] as String?
-      return PlatformSource(type, uri, assetName, assetPackage, bytes, mimeType, formatHint, httpHeaders, cacheKey)
+      val useCache = pigeonVar_list[9] as Boolean
+      return PlatformSource(type, uri, assetName, assetPackage, bytes, mimeType, formatHint, httpHeaders, cacheKey, useCache)
     }
   }
   fun toList(): List<Any?> {
@@ -460,6 +615,7 @@ data class PlatformSource (
       formatHint,
       httpHeaders,
       cacheKey,
+      useCache,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -470,7 +626,7 @@ data class PlatformSource (
       return true
     }
     val other = other as PlatformSource
-    return MessagesPigeonUtils.deepEquals(this.type, other.type) && MessagesPigeonUtils.deepEquals(this.uri, other.uri) && MessagesPigeonUtils.deepEquals(this.assetName, other.assetName) && MessagesPigeonUtils.deepEquals(this.assetPackage, other.assetPackage) && MessagesPigeonUtils.deepEquals(this.bytes, other.bytes) && MessagesPigeonUtils.deepEquals(this.mimeType, other.mimeType) && MessagesPigeonUtils.deepEquals(this.formatHint, other.formatHint) && MessagesPigeonUtils.deepEquals(this.httpHeaders, other.httpHeaders) && MessagesPigeonUtils.deepEquals(this.cacheKey, other.cacheKey)
+    return MessagesPigeonUtils.deepEquals(this.type, other.type) && MessagesPigeonUtils.deepEquals(this.uri, other.uri) && MessagesPigeonUtils.deepEquals(this.assetName, other.assetName) && MessagesPigeonUtils.deepEquals(this.assetPackage, other.assetPackage) && MessagesPigeonUtils.deepEquals(this.bytes, other.bytes) && MessagesPigeonUtils.deepEquals(this.mimeType, other.mimeType) && MessagesPigeonUtils.deepEquals(this.formatHint, other.formatHint) && MessagesPigeonUtils.deepEquals(this.httpHeaders, other.httpHeaders) && MessagesPigeonUtils.deepEquals(this.cacheKey, other.cacheKey) && MessagesPigeonUtils.deepEquals(this.useCache, other.useCache)
   }
 
   override fun hashCode(): Int {
@@ -484,10 +640,11 @@ data class PlatformSource (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.formatHint)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.httpHeaders)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.cacheKey)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.useCache)
     return result
   }
   override fun toString(): String {
-    return "PlatformSource(type=$type, uri=$uri, assetName=$assetName, assetPackage=$assetPackage, bytes=${bytes?.contentToString()}, mimeType=$mimeType, formatHint=$formatHint, httpHeaders=$httpHeaders, cacheKey=$cacheKey)"
+    return "PlatformSource(type=$type, uri=$uri, assetName=$assetName, assetPackage=$assetPackage, bytes=${bytes?.contentToString()}, mimeType=$mimeType, formatHint=$formatHint, httpHeaders=$httpHeaders, cacheKey=$cacheKey, useCache=$useCache)"
   }
 }
 
@@ -1158,6 +1315,60 @@ data class PlatformCuesEvent (
     return "PlatformCuesEvent(playerId=$playerId, generation=$generation, texts=$texts)"
   }
 }
+
+/**
+ * Playback was paused (or resumed) by the system rather than by the app.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformInterruptionEvent (
+  val playerId: Long,
+  val generation: Long,
+  val type: PlatformInterruptionType,
+  /** False when the interruption began, true when it ended. */
+  val ended: Boolean
+) : PlatformPlayerEvent()
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformInterruptionEvent {
+      val playerId = pigeonVar_list[0] as Long
+      val generation = pigeonVar_list[1] as Long
+      val type = pigeonVar_list[2] as PlatformInterruptionType
+      val ended = pigeonVar_list[3] as Boolean
+      return PlatformInterruptionEvent(playerId, generation, type, ended)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      playerId,
+      generation,
+      type,
+      ended,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformInterruptionEvent
+    return MessagesPigeonUtils.deepEquals(this.playerId, other.playerId) && MessagesPigeonUtils.deepEquals(this.generation, other.generation) && MessagesPigeonUtils.deepEquals(this.type, other.type) && MessagesPigeonUtils.deepEquals(this.ended, other.ended)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.playerId)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.generation)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.type)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.ended)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformInterruptionEvent(playerId=$playerId, generation=$generation, type=$type, ended=$ended)"
+  }
+}
 private open class MessagesPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -1187,78 +1398,103 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         }
       }
       134.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformNetworkStatus.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformAudioSessionCategory.ofRaw(it.toInt())
         }
       }
       135.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTrack.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformInterruptionType.ofRaw(it.toInt())
         }
       }
       136.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSource.fromList(it)
+          PlatformEngineConfig.fromList(it)
         }
       }
       137.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerOptions.fromList(it)
+          PlatformCacheInfo.fromList(it)
         }
       }
       138.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerCreation.fromList(it)
+          PlatformNetworkStatus.fromList(it)
         }
       }
       139.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCapabilities.fromList(it)
+          PlatformTrack.fromList(it)
         }
       }
       140.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPosition.fromList(it)
+          PlatformSource.fromList(it)
         }
       }
       141.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformInitializedEvent.fromList(it)
+          PlatformPlayerOptions.fromList(it)
         }
       }
       142.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformStateEvent.fromList(it)
+          PlatformPlayerCreation.fromList(it)
         }
       }
       143.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformIsPlayingEvent.fromList(it)
+          PlatformCapabilities.fromList(it)
         }
       }
       144.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformVideoSizeEvent.fromList(it)
+          PlatformPosition.fromList(it)
         }
       }
       145.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformFirstFrameEvent.fromList(it)
+          PlatformInitializedEvent.fromList(it)
         }
       }
       146.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformErrorEvent.fromList(it)
+          PlatformStateEvent.fromList(it)
         }
       }
       147.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTracksChangedEvent.fromList(it)
+          PlatformIsPlayingEvent.fromList(it)
         }
       }
       148.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
+          PlatformVideoSizeEvent.fromList(it)
+        }
+      }
+      149.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformFirstFrameEvent.fromList(it)
+        }
+      }
+      150.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformErrorEvent.fromList(it)
+        }
+      }
+      151.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformTracksChangedEvent.fromList(it)
+        }
+      }
+      152.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
           PlatformCuesEvent.fromList(it)
+        }
+      }
+      153.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformInterruptionEvent.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -1286,64 +1522,84 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(133)
         writeValue(stream, value.raw.toLong())
       }
-      is PlatformNetworkStatus -> {
+      is PlatformAudioSessionCategory -> {
         stream.write(134)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformTrack -> {
+      is PlatformInterruptionType -> {
         stream.write(135)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformSource -> {
+      is PlatformEngineConfig -> {
         stream.write(136)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerOptions -> {
+      is PlatformCacheInfo -> {
         stream.write(137)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerCreation -> {
+      is PlatformNetworkStatus -> {
         stream.write(138)
         writeValue(stream, value.toList())
       }
-      is PlatformCapabilities -> {
+      is PlatformTrack -> {
         stream.write(139)
         writeValue(stream, value.toList())
       }
-      is PlatformPosition -> {
+      is PlatformSource -> {
         stream.write(140)
         writeValue(stream, value.toList())
       }
-      is PlatformInitializedEvent -> {
+      is PlatformPlayerOptions -> {
         stream.write(141)
         writeValue(stream, value.toList())
       }
-      is PlatformStateEvent -> {
+      is PlatformPlayerCreation -> {
         stream.write(142)
         writeValue(stream, value.toList())
       }
-      is PlatformIsPlayingEvent -> {
+      is PlatformCapabilities -> {
         stream.write(143)
         writeValue(stream, value.toList())
       }
-      is PlatformVideoSizeEvent -> {
+      is PlatformPosition -> {
         stream.write(144)
         writeValue(stream, value.toList())
       }
-      is PlatformFirstFrameEvent -> {
+      is PlatformInitializedEvent -> {
         stream.write(145)
         writeValue(stream, value.toList())
       }
-      is PlatformErrorEvent -> {
+      is PlatformStateEvent -> {
         stream.write(146)
         writeValue(stream, value.toList())
       }
-      is PlatformTracksChangedEvent -> {
+      is PlatformIsPlayingEvent -> {
         stream.write(147)
         writeValue(stream, value.toList())
       }
-      is PlatformCuesEvent -> {
+      is PlatformVideoSizeEvent -> {
         stream.write(148)
+        writeValue(stream, value.toList())
+      }
+      is PlatformFirstFrameEvent -> {
+        stream.write(149)
+        writeValue(stream, value.toList())
+      }
+      is PlatformErrorEvent -> {
+        stream.write(150)
+        writeValue(stream, value.toList())
+      }
+      is PlatformTracksChangedEvent -> {
+        stream.write(151)
+        writeValue(stream, value.toList())
+      }
+      is PlatformCuesEvent -> {
+        stream.write(152)
+        writeValue(stream, value.toList())
+      }
+      is PlatformInterruptionEvent -> {
+        stream.write(153)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1357,7 +1613,7 @@ val MessagesPigeonMethodCodec = StandardMethodCodec(MessagesPigeonCodec())
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface ReelKitHostApi {
   /** Idempotent. Returns device and engine capabilities. */
-  fun initialize(): PlatformCapabilities
+  fun initialize(config: PlatformEngineConfig): PlatformCapabilities
   /** Allocates a native player and its render target. */
   fun createPlayer(options: PlatformPlayerOptions): PlatformPlayerCreation
   /** Releases the native player, its decoder and its render target. */
@@ -1394,6 +1650,13 @@ interface ReelKitHostApi {
    */
   fun setPreloadBufferLimit(playerId: Long, maxBufferMs: Long?)
   fun getNetworkStatus(): PlatformNetworkStatus
+  suspend fun getCacheInfo(): PlatformCacheInfo
+  /** Deletes every cached entry that is not being read right now. */
+  suspend fun clearCache()
+  /** Deletes the cached data of one source (its cache key or URL). */
+  suspend fun removeCached(cacheKey: String)
+  /** Bytes of one source available in the cache. */
+  suspend fun getCachedBytes(cacheKey: String): Long
 
   companion object {
     /** The codec used by ReelKitHostApi. */
@@ -1407,9 +1670,11 @@ interface ReelKitHostApi {
       run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.initialize$separatedMessageChannelSuffix", codec)
         if (api != null) {
-          channel.setMessageHandler { _, reply ->
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val configArg = args[0] as PlatformEngineConfig
             val wrapped: List<Any?> = try {
-              listOf(api.initialize())
+              listOf(api.initialize(configArg))
             } catch (exception: Throwable) {
               MessagesPigeonUtils.wrapError(exception)
             }
@@ -1712,6 +1977,80 @@ interface ReelKitHostApi {
               MessagesPigeonUtils.wrapError(exception)
             }
             reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getCacheInfo$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.getCacheInfo())
+              } catch (exception: Throwable) {
+                MessagesPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.clearCache$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.clearCache()
+                listOf(null)
+              } catch (exception: Throwable) {
+                MessagesPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.removeCached$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val cacheKeyArg = args[0] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                api.removeCached(cacheKeyArg)
+                listOf(null)
+              } catch (exception: Throwable) {
+                MessagesPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getCachedBytes$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val cacheKeyArg = args[0] as String
+            CoroutineScope(Dispatchers.Main).launch {
+              val wrapped: List<Any?> = try {
+                listOf(api.getCachedBytes(cacheKeyArg))
+              } catch (exception: Throwable) {
+                MessagesPigeonUtils.wrapError(exception)
+              }
+              reply.reply(wrapped)
+            }
           }
         } else {
           channel.setMessageHandler(null)

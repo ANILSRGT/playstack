@@ -1,3 +1,13 @@
+## 0.1.0-dev.6
+
+* Milestone 6: disk cache (`ReelCacheConfig`, `ReelKitManager.cache`),
+  fullscreen with orientation restoration (`ReelKitManager.fullscreen`,
+  `ReelFullscreenConfig`), audio configuration (`ReelAudioConfig`) and
+  `ReelPlayerController.interruptions`, automatic retry (`ReelRetryConfig`)
+  plus `retry()` and `reinitialize()`, retry of offline failures on
+  reconnection. `AsyncLock` keeps no future while idle (fixes a cross-zone
+  deadlock on dispose).
+
 ## 0.1.0-dev.5
 
 * Milestone 5: `ReelFeedManager` (`ReelKitManager.createFeed`) with a

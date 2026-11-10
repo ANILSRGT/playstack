@@ -222,6 +222,138 @@ enum PlatformNetworkType: Int, CaseIterable {
   case unknown = 5
 }
 
+/// iOS `AVAudioSession` category ReelKit sets, or `unmanaged` to leave the
+/// host app's session alone.
+enum PlatformAudioSessionCategory: Int, CaseIterable {
+  case unmanaged = 0
+  case ambient = 1
+  case playback = 2
+}
+
+enum PlatformInterruptionType: Int, CaseIterable {
+  /// Another app took audio focus (Android) or the system interrupted the
+  /// audio session (iOS: call, alarm, Siri).
+  case audioInterruption = 0
+  /// Headphones or another audio route went away; playback was paused.
+  case audioRouteLost = 1
+}
+
+/// Engine-wide settings, applied by the first `initialize` call.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformEngineConfig: Hashable, CustomStringConvertible {
+  var cacheEnabled: Bool
+  var cacheMaxBytes: Int64
+  /// Android: request audio focus while playing audibly and pause on loss.
+  var handleAudioFocus: Bool
+  /// Pause when headphones are disconnected (Android "becoming noisy"; iOS
+  /// AVPlayer already pauses and the engine reports it).
+  var pauseOnAudioRouteLoss: Bool
+  var audioSessionCategory: PlatformAudioSessionCategory
+  var mixWithOthers: Bool
+  /// iOS: resume when an interruption ends with `shouldResume`.
+  var resumeAfterInterruption: Bool
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformEngineConfig? {
+    let cacheEnabled = pigeonVar_list[0] as! Bool
+    let cacheMaxBytes = pigeonVar_list[1] as! Int64
+    let handleAudioFocus = pigeonVar_list[2] as! Bool
+    let pauseOnAudioRouteLoss = pigeonVar_list[3] as! Bool
+    let audioSessionCategory = pigeonVar_list[4] as! PlatformAudioSessionCategory
+    let mixWithOthers = pigeonVar_list[5] as! Bool
+    let resumeAfterInterruption = pigeonVar_list[6] as! Bool
+
+    return PlatformEngineConfig(
+      cacheEnabled: cacheEnabled,
+      cacheMaxBytes: cacheMaxBytes,
+      handleAudioFocus: handleAudioFocus,
+      pauseOnAudioRouteLoss: pauseOnAudioRouteLoss,
+      audioSessionCategory: audioSessionCategory,
+      mixWithOthers: mixWithOthers,
+      resumeAfterInterruption: resumeAfterInterruption
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      cacheEnabled,
+      cacheMaxBytes,
+      handleAudioFocus,
+      pauseOnAudioRouteLoss,
+      audioSessionCategory,
+      mixWithOthers,
+      resumeAfterInterruption,
+    ]
+  }
+  static func == (lhs: PlatformEngineConfig, rhs: PlatformEngineConfig) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.cacheEnabled, rhs.cacheEnabled) && MessagesPigeonInternal.deepEquals(lhs.cacheMaxBytes, rhs.cacheMaxBytes) && MessagesPigeonInternal.deepEquals(lhs.handleAudioFocus, rhs.handleAudioFocus) && MessagesPigeonInternal.deepEquals(lhs.pauseOnAudioRouteLoss, rhs.pauseOnAudioRouteLoss) && MessagesPigeonInternal.deepEquals(lhs.audioSessionCategory, rhs.audioSessionCategory) && MessagesPigeonInternal.deepEquals(lhs.mixWithOthers, rhs.mixWithOthers) && MessagesPigeonInternal.deepEquals(lhs.resumeAfterInterruption, rhs.resumeAfterInterruption)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformEngineConfig")
+    MessagesPigeonInternal.deepHash(value: cacheEnabled, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: cacheMaxBytes, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: handleAudioFocus, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: pauseOnAudioRouteLoss, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: audioSessionCategory, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: mixWithOthers, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: resumeAfterInterruption, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformEngineConfig(cacheEnabled: \(String(describing: cacheEnabled)), cacheMaxBytes: \(String(describing: cacheMaxBytes)), handleAudioFocus: \(String(describing: handleAudioFocus)), pauseOnAudioRouteLoss: \(String(describing: pauseOnAudioRouteLoss)), audioSessionCategory: \(String(describing: audioSessionCategory)), mixWithOthers: \(String(describing: mixWithOthers)), resumeAfterInterruption: \(String(describing: resumeAfterInterruption)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformCacheInfo: Hashable, CustomStringConvertible {
+  var enabled: Bool
+  var usedBytes: Int64
+  var maxBytes: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformCacheInfo? {
+    let enabled = pigeonVar_list[0] as! Bool
+    let usedBytes = pigeonVar_list[1] as! Int64
+    let maxBytes = pigeonVar_list[2] as! Int64
+
+    return PlatformCacheInfo(
+      enabled: enabled,
+      usedBytes: usedBytes,
+      maxBytes: maxBytes
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      enabled,
+      usedBytes,
+      maxBytes,
+    ]
+  }
+  static func == (lhs: PlatformCacheInfo, rhs: PlatformCacheInfo) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.enabled, rhs.enabled) && MessagesPigeonInternal.deepEquals(lhs.usedBytes, rhs.usedBytes) && MessagesPigeonInternal.deepEquals(lhs.maxBytes, rhs.maxBytes)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformCacheInfo")
+    MessagesPigeonInternal.deepHash(value: enabled, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: usedBytes, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: maxBytes, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformCacheInfo(enabled: \(String(describing: enabled)), usedBytes: \(String(describing: usedBytes)), maxBytes: \(String(describing: maxBytes)))"
+  }
+}
+
 /// Connectivity as seen by the operating system.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
@@ -382,6 +514,8 @@ struct PlatformSource: Hashable, CustomStringConvertible {
   var httpHeaders: [String: String]
   /// Stable key used by the native cache. Defaults to the URI when null.
   var cacheKey: String? = nil
+  /// Whether this source may be read from and written to the disk cache.
+  var useCache: Bool
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -395,6 +529,7 @@ struct PlatformSource: Hashable, CustomStringConvertible {
     let formatHint = pigeonVar_list[6] as! PlatformVideoFormat
     let httpHeaders = pigeonVar_list[7] as! [String: String]
     let cacheKey: String? = nilOrValue(pigeonVar_list[8])
+    let useCache = pigeonVar_list[9] as! Bool
 
     return PlatformSource(
       type: type,
@@ -405,7 +540,8 @@ struct PlatformSource: Hashable, CustomStringConvertible {
       mimeType: mimeType,
       formatHint: formatHint,
       httpHeaders: httpHeaders,
-      cacheKey: cacheKey
+      cacheKey: cacheKey,
+      useCache: useCache
     )
   }
   func toList() -> [Any?] {
@@ -419,13 +555,14 @@ struct PlatformSource: Hashable, CustomStringConvertible {
       formatHint,
       httpHeaders,
       cacheKey,
+      useCache,
     ]
   }
   static func == (lhs: PlatformSource, rhs: PlatformSource) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.uri, rhs.uri) && MessagesPigeonInternal.deepEquals(lhs.assetName, rhs.assetName) && MessagesPigeonInternal.deepEquals(lhs.assetPackage, rhs.assetPackage) && MessagesPigeonInternal.deepEquals(lhs.bytes, rhs.bytes) && MessagesPigeonInternal.deepEquals(lhs.mimeType, rhs.mimeType) && MessagesPigeonInternal.deepEquals(lhs.formatHint, rhs.formatHint) && MessagesPigeonInternal.deepEquals(lhs.httpHeaders, rhs.httpHeaders) && MessagesPigeonInternal.deepEquals(lhs.cacheKey, rhs.cacheKey)
+    return MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.uri, rhs.uri) && MessagesPigeonInternal.deepEquals(lhs.assetName, rhs.assetName) && MessagesPigeonInternal.deepEquals(lhs.assetPackage, rhs.assetPackage) && MessagesPigeonInternal.deepEquals(lhs.bytes, rhs.bytes) && MessagesPigeonInternal.deepEquals(lhs.mimeType, rhs.mimeType) && MessagesPigeonInternal.deepEquals(lhs.formatHint, rhs.formatHint) && MessagesPigeonInternal.deepEquals(lhs.httpHeaders, rhs.httpHeaders) && MessagesPigeonInternal.deepEquals(lhs.cacheKey, rhs.cacheKey) && MessagesPigeonInternal.deepEquals(lhs.useCache, rhs.useCache)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -439,10 +576,11 @@ struct PlatformSource: Hashable, CustomStringConvertible {
     MessagesPigeonInternal.deepHash(value: formatHint, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: httpHeaders, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: cacheKey, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: useCache, hasher: &hasher)
   }
 
   public var description: String {
-    return "PlatformSource(type: \(String(describing: type)), uri: \(String(describing: uri)), assetName: \(String(describing: assetName)), assetPackage: \(String(describing: assetPackage)), bytes: \(String(describing: bytes)), mimeType: \(String(describing: mimeType)), formatHint: \(String(describing: formatHint)), httpHeaders: \(String(describing: httpHeaders)), cacheKey: \(String(describing: cacheKey)))"
+    return "PlatformSource(type: \(String(describing: type)), uri: \(String(describing: uri)), assetName: \(String(describing: assetName)), assetPackage: \(String(describing: assetPackage)), bytes: \(String(describing: bytes)), mimeType: \(String(describing: mimeType)), formatHint: \(String(describing: formatHint)), httpHeaders: \(String(describing: httpHeaders)), cacheKey: \(String(describing: cacheKey)), useCache: \(String(describing: useCache)))"
   }
 }
 
@@ -1126,6 +1264,59 @@ struct PlatformCuesEvent: PlatformPlayerEvent, Hashable, CustomStringConvertible
   }
 }
 
+/// Playback was paused (or resumed) by the system rather than by the app.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformInterruptionEvent: PlatformPlayerEvent, Hashable, CustomStringConvertible {
+  var playerId: Int64
+  var generation: Int64
+  var type: PlatformInterruptionType
+  /// False when the interruption began, true when it ended.
+  var ended: Bool
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformInterruptionEvent? {
+    let playerId = pigeonVar_list[0] as! Int64
+    let generation = pigeonVar_list[1] as! Int64
+    let type = pigeonVar_list[2] as! PlatformInterruptionType
+    let ended = pigeonVar_list[3] as! Bool
+
+    return PlatformInterruptionEvent(
+      playerId: playerId,
+      generation: generation,
+      type: type,
+      ended: ended
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      playerId,
+      generation,
+      type,
+      ended,
+    ]
+  }
+  static func == (lhs: PlatformInterruptionEvent, rhs: PlatformInterruptionEvent) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.playerId, rhs.playerId) && MessagesPigeonInternal.deepEquals(lhs.generation, rhs.generation) && MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.ended, rhs.ended)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformInterruptionEvent")
+    MessagesPigeonInternal.deepHash(value: playerId, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: generation, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: type, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: ended, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformInterruptionEvent(playerId: \(String(describing: playerId)), generation: \(String(describing: generation)), type: \(String(describing: type)), ended: \(String(describing: ended)))"
+  }
+}
+
 private class MessagesPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -1160,35 +1351,53 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 134:
-      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformAudioSessionCategory(rawValue: enumResultAsInt)
+      }
+      return nil
     case 135:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformInterruptionType(rawValue: enumResultAsInt)
+      }
+      return nil
     case 136:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
     case 137:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
     case 138:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 139:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 148:
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+    case 149:
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+    case 150:
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+    case 151:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 152:
       return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+    case 153:
+      return PlatformInterruptionEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -1212,50 +1421,65 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformNetworkType {
       super.writeByte(133)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformNetworkStatus {
+    } else if let value = value as? PlatformAudioSessionCategory {
       super.writeByte(134)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformTrack {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformInterruptionType {
       super.writeByte(135)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformEngineConfig {
       super.writeByte(136)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformCacheInfo {
       super.writeByte(137)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformSource {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(148)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformFirstFrameEvent {
+      super.writeByte(149)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformErrorEvent {
+      super.writeByte(150)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformTracksChangedEvent {
+      super.writeByte(151)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(152)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformInterruptionEvent {
+      super.writeByte(153)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1283,7 +1507,7 @@ var messagesPigeonMethodCodec = FlutterStandardMethodCodec(readerWriter: Message
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol ReelKitHostApi {
   /// Idempotent. Returns device and engine capabilities.
-  func initialize() throws -> PlatformCapabilities
+  func initialize(config: PlatformEngineConfig) throws -> PlatformCapabilities
   /// Allocates a native player and its render target.
   func createPlayer(options: PlatformPlayerOptions) throws -> PlatformPlayerCreation
   /// Releases the native player, its decoder and its render target.
@@ -1312,6 +1536,13 @@ protocol ReelKitHostApi {
   /// time so they do not download whole videos the user may never watch.
   func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws
   func getNetworkStatus() throws -> PlatformNetworkStatus
+  func getCacheInfo() async throws -> PlatformCacheInfo
+  /// Deletes every cached entry that is not being read right now.
+  func clearCache() async throws
+  /// Deletes the cached data of one source (its cache key or URL).
+  func removeCached(cacheKey: String) async throws
+  /// Bytes of one source available in the cache.
+  func getCachedBytes(cacheKey: String) async throws -> Int64
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -1323,9 +1554,11 @@ class ReelKitHostApiSetup {
     /// Idempotent. Returns device and engine capabilities.
     let initializeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.initialize\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
-      initializeChannel.setMessageHandler { _, reply in
+      initializeChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let configArg = args[0] as! PlatformEngineConfig
         do {
-          let result = try api.initialize()
+          let result = try api.initialize(config: configArg)
           reply(wrapResult(result))
         } catch {
           reply(wrapError(error))
@@ -1599,6 +1832,73 @@ class ReelKitHostApiSetup {
       }
     } else {
       getNetworkStatusChannel.setMessageHandler(nil)
+    }
+    let getCacheInfoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.getCacheInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getCacheInfoChannel.setMessageHandler { _, reply in
+        Task { @MainActor in
+          do {
+            let result = try await api.getCacheInfo()
+            reply(wrapResult(result))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getCacheInfoChannel.setMessageHandler(nil)
+    }
+    /// Deletes every cached entry that is not being read right now.
+    let clearCacheChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.clearCache\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearCacheChannel.setMessageHandler { _, reply in
+        Task { @MainActor in
+          do {
+            try await api.clearCache()
+            reply(wrapResult(nil))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      clearCacheChannel.setMessageHandler(nil)
+    }
+    /// Deletes the cached data of one source (its cache key or URL).
+    let removeCachedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.removeCached\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      removeCachedChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let cacheKeyArg = args[0] as! String
+        Task { @MainActor in
+          do {
+            try await api.removeCached(cacheKey: cacheKeyArg)
+            reply(wrapResult(nil))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      removeCachedChannel.setMessageHandler(nil)
+    }
+    /// Bytes of one source available in the cache.
+    let getCachedBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.getCachedBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getCachedBytesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let cacheKeyArg = args[0] as! String
+        Task { @MainActor in
+          do {
+            let result = try await api.getCachedBytes(cacheKey: cacheKeyArg)
+            reply(wrapResult(result))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getCachedBytesChannel.setMessageHandler(nil)
     }
   }
 }

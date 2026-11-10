@@ -3,11 +3,13 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:ui_web' as ui_web;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import 'package:web/web.dart' as web;
 
+import 'hls_js.dart';
 import 'web_player.dart';
 
 /// Web implementation of [ReelKitPlatform].
@@ -17,8 +19,14 @@ import 'web_player.dart';
 ///
 /// * `<video>` requests cannot carry custom HTTP headers; network sources
 ///   with headers fail with [ReelKitErrorCode.invalidSource].
-/// * HLS plays only where the browser supports it natively (Safari); MPEG-DASH
-///   is not supported. Both fail with [ReelKitErrorCode.unsupportedFormat].
+/// * HLS plays natively in Safari and through HLS.js elsewhere when the app
+///   loads HLS.js (`window.Hls`); MPEG-DASH is not supported. Unplayable
+///   formats fail with [ReelKitErrorCode.unsupportedFormat].
+/// * No ReelKit disk cache: the browser's HTTP cache applies, which ReelKit
+///   can neither size, inspect nor clear.
+/// * Fullscreen uses the Fullscreen API and needs a user gesture; orientation
+///   locking works only where the browser allows it (Chrome on Android) and
+///   is ignored elsewhere.
 /// * File paths do not exist in browsers; use network, asset or memory
 ///   sources.
 /// * Browsers block autoplay with sound until the user interacts with the
@@ -53,7 +61,9 @@ class ReelKitWeb extends ReelKitPlatform {
       .isNotEmpty;
 
   @override
-  Future<ReelPlatformCapabilities> initialize() async {
+  Future<ReelPlatformCapabilities> initialize([
+    ReelEngineConfig config = const ReelEngineConfig(),
+  ]) async {
     return _capabilities ??= _readCapabilities();
   }
 
@@ -75,7 +85,7 @@ class ReelKitWeb extends ReelKitPlatform {
           ? null
           : (deviceMemoryGib * 1024 * 1024 * 1024).round(),
       isLowRamDevice: deviceMemoryGib != null && deviceMemoryGib < 2,
-      supportsHls: _supportsNativeHls,
+      supportsHls: _supportsNativeHls || HlsJsSession.isAvailable,
       supportsDash: false,
       supportsDiskCache: false,
       supportsMemorySource: true,
@@ -130,11 +140,12 @@ class ReelKitWeb extends ReelKitPlatform {
         'MPEG-DASH is not supported by the web engine.',
       );
     }
-    if (format == ReelVideoFormat.hls && !_supportsNativeHls) {
+    final useHlsJs = format == ReelVideoFormat.hls && !_supportsNativeHls;
+    if (useHlsJs && !HlsJsSession.isAvailable) {
       throw const ReelKitException(
         ReelKitErrorCode.unsupportedFormat,
-        'This browser cannot play HLS natively. HLS on the web currently '
-        'requires Safari.',
+        'This browser cannot play HLS natively. Add HLS.js to web/index.html '
+        'to play HLS outside Safari.',
       );
     }
     switch (source) {
@@ -146,7 +157,11 @@ class ReelKitWeb extends ReelKitPlatform {
             'Use signed URLs or cookies for authorization on the web.',
           );
         }
-        player.load(url, generation);
+        if (useHlsJs) {
+          player.loadHls(url, generation);
+        } else {
+          player.load(url, generation);
+        }
       case ReelAssetSource(:final assetName, :final package):
         final key = package == null
             ? assetName
@@ -248,6 +263,97 @@ class ReelKitWeb extends ReelKitPlatform {
 
   @override
   Future<ReelNetworkStatus> getNetworkStatus() async => _readNetwork();
+
+  static const _noCache = ReelKitException(
+    ReelKitErrorCode.notImplemented,
+    'The web engine has no disk cache; the browser HTTP cache applies.',
+  );
+
+  @override
+  Future<ReelCacheInfo> getCacheInfo() async => ReelCacheInfo.disabled;
+
+  @override
+  Future<void> clearCache() async => throw _noCache;
+
+  @override
+  Future<void> removeCached(String cacheKey) async => throw _noCache;
+
+  @override
+  Future<int> getCachedBytes(String cacheKey) async => throw _noCache;
+
+  @override
+  Future<void> enterFullscreen(ReelFullscreenRequest request) async {
+    final document = web.document;
+    if (document.fullscreenElement == null) {
+      final root = document.documentElement;
+      if (root == null) return;
+      try {
+        await root.requestFullscreen().toDart;
+      } catch (error) {
+        throw ReelKitException(
+          ReelKitErrorCode.notAllowed,
+          'The browser refused fullscreen. Call it from a user gesture '
+          '(tap or click).',
+          details: '$error',
+        );
+      }
+    }
+    final type = _orientationLockType(request.orientations);
+    if (type == null) return;
+    try {
+      await web.window.screen.orientation.lock(type).toDart;
+    } catch (_) {
+      // Most desktop and iOS browsers cannot lock the orientation; the
+      // request is a preference there, not an error.
+    }
+  }
+
+  @override
+  Future<void> exitFullscreen(ReelFullscreenRestore restore) async {
+    try {
+      web.window.screen.orientation.unlock();
+    } catch (_) {
+      // Not locked or not supported.
+    }
+    final document = web.document;
+    if (document.fullscreenElement == null) return;
+    try {
+      await document.exitFullscreen().toDart;
+    } catch (_) {
+      // Already left (for example with Escape).
+    }
+  }
+
+  @override
+  Stream<bool> get fullscreenChanges => _fullscreen.stream;
+
+  // Lives as long as the registered engine; the document listener is
+  // attached only while the stream has a listener.
+  // ignore: close_sinks
+  late final StreamController<bool> _fullscreen =
+      StreamController<bool>.broadcast(
+        onListen: () => web.document.addEventListener(
+          'fullscreenchange',
+          _fullscreenListener,
+        ),
+        onCancel: () => web.document.removeEventListener(
+          'fullscreenchange',
+          _fullscreenListener,
+        ),
+      );
+  late final JSFunction _fullscreenListener = ((web.Event _) => _fullscreen.add(
+    web.document.fullscreenElement != null,
+  )).toJS;
+
+  static String? _orientationLockType(List<DeviceOrientation>? orientations) {
+    if (orientations == null || orientations.isEmpty) return null;
+    bool isLandscape(DeviceOrientation o) =>
+        o == DeviceOrientation.landscapeLeft ||
+        o == DeviceOrientation.landscapeRight;
+    if (orientations.every(isLandscape)) return 'landscape';
+    if (orientations.every((o) => !isLandscape(o))) return 'portrait';
+    return null;
+  }
 
   @override
   Stream<ReelNetworkStatus> get networkStatusChanges => _network.stream;

@@ -26,7 +26,7 @@ enum DeviceCapabilities {
       isLowRamDevice: totalMemory < 2 * gib,
       supportsHls: true,
       supportsDash: false,
-      supportsDiskCache: false,
+      supportsDiskCache: true,
       supportsMemorySource: true,
       supportsTrackSelection: true,
       supportsVideoTrackSelection: false,

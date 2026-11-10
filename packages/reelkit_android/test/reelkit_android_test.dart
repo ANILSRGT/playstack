@@ -11,8 +11,11 @@ class _FakeHostApi extends ReelKitHostApi {
   final List<Object?> calls = <Object?>[];
   PlatformException? failure;
 
+  PlatformEngineConfig? config;
+
   @override
-  Future<PlatformCapabilities> initialize() async {
+  Future<PlatformCapabilities> initialize(PlatformEngineConfig config) async {
+    this.config = config;
     return PlatformCapabilities(
       engineName: 'engine',
       engineVersion: '1.2.3',

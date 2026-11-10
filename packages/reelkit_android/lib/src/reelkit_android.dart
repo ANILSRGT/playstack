@@ -10,7 +10,7 @@ import 'messages.g.dart';
 ///
 /// Video frames are rendered into a Flutter `SurfaceProducer` texture by the
 /// native engine; only commands and state transitions cross the channel.
-class ReelKitAndroid extends ReelKitPlatform {
+class ReelKitAndroid extends ReelKitPlatform with SystemChromeFullscreen {
   /// Creates the Android engine. [api] and [eventStream] exist for tests.
   ReelKitAndroid({
     @visibleForTesting ReelKitHostApi? api,
@@ -32,8 +32,29 @@ class ReelKitAndroid extends ReelKitPlatform {
   Stream<ReelPlatformEvent>? _events;
 
   @override
-  Future<ReelPlatformCapabilities> initialize() async {
-    final caps = await _guard(_api.initialize);
+  Future<ReelPlatformCapabilities> initialize([
+    ReelEngineConfig config = const ReelEngineConfig(),
+  ]) async {
+    final caps = await _guard(
+      () => _api.initialize(
+        PlatformEngineConfig(
+          cacheEnabled: config.cacheEnabled,
+          cacheMaxBytes: config.cacheMaxBytes,
+          handleAudioFocus: config.handleAudioFocus,
+          pauseOnAudioRouteLoss: config.pauseOnAudioRouteLoss,
+          audioSessionCategory: switch (config.audioSessionCategory) {
+            ReelAudioSessionCategory.unmanaged =>
+              PlatformAudioSessionCategory.unmanaged,
+            ReelAudioSessionCategory.ambient =>
+              PlatformAudioSessionCategory.ambient,
+            ReelAudioSessionCategory.playback =>
+              PlatformAudioSessionCategory.playback,
+          },
+          mixWithOthers: config.mixWithOthers,
+          resumeAfterInterruption: config.resumeAfterInterruption,
+        ),
+      ),
+    );
     return ReelPlatformCapabilities(
       engineName: caps.engineName,
       engineVersion: caps.engineVersion,
@@ -162,6 +183,27 @@ class ReelKitAndroid extends ReelKitPlatform {
   );
 
   @override
+  Future<ReelCacheInfo> getCacheInfo() async {
+    final info = await _guard(_api.getCacheInfo);
+    return ReelCacheInfo(
+      enabled: info.enabled,
+      usedBytes: info.usedBytes,
+      maxBytes: info.maxBytes,
+    );
+  }
+
+  @override
+  Future<void> clearCache() => _guard(_api.clearCache);
+
+  @override
+  Future<void> removeCached(String cacheKey) =>
+      _guard(() => _api.removeCached(cacheKey));
+
+  @override
+  Future<int> getCachedBytes(String cacheKey) =>
+      _guard(() => _api.getCachedBytes(cacheKey));
+
+  @override
   Future<void> setPreloadBufferLimit(int playerId, Duration? limit) =>
       _guard(() => _api.setPreloadBufferLimit(playerId, limit?.inMilliseconds));
 
@@ -236,12 +278,14 @@ class ReelKitAndroid extends ReelKitPlatform {
         formatHint: format,
         httpHeaders: source.headers,
         cacheKey: source.effectiveCacheKey,
+        useCache: source.cachePolicy == ReelCachePolicy.cache,
       ),
       ReelFileSource() => PlatformSource(
         type: PlatformSourceType.file,
         uri: source.path,
         formatHint: format,
         httpHeaders: const <String, String>{},
+        useCache: false,
       ),
       ReelAssetSource() => PlatformSource(
         type: PlatformSourceType.asset,
@@ -249,6 +293,7 @@ class ReelKitAndroid extends ReelKitPlatform {
         assetPackage: source.package,
         formatHint: format,
         httpHeaders: const <String, String>{},
+        useCache: false,
       ),
       ReelMemorySource() => PlatformSource(
         type: PlatformSourceType.memory,
@@ -256,6 +301,7 @@ class ReelKitAndroid extends ReelKitPlatform {
         mimeType: source.mimeType,
         formatHint: format,
         httpHeaders: const <String, String>{},
+        useCache: false,
       ),
     };
   }
@@ -288,6 +334,17 @@ class ReelKitAndroid extends ReelKitPlatform {
           PlatformPlaybackState.ready => ReelNativePlaybackState.ready,
           PlatformPlaybackState.ended => ReelNativePlaybackState.ended,
         },
+      ),
+      PlatformInterruptionEvent() => ReelInterruptionEvent(
+        playerId: event.playerId,
+        generation: event.generation,
+        type: switch (event.type) {
+          PlatformInterruptionType.audioInterruption =>
+            ReelInterruptionType.audioInterruption,
+          PlatformInterruptionType.audioRouteLost =>
+            ReelInterruptionType.audioRouteLost,
+        },
+        ended: event.ended,
       ),
       PlatformIsPlayingEvent() => ReelIsPlayingEvent(
         playerId: event.playerId,

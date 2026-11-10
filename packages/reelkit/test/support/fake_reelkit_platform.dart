@@ -12,6 +12,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     this.autoPrepare = true,
     this.isLowRamDevice = false,
     this.supportsNetworkStatus = true,
+    this.supportsDiskCache = false,
     this.videoInfo = const ReelVideoInfo(
       width: 1080,
       height: 1920,
@@ -22,6 +23,19 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   final int recommendedMaxPlayers;
   final bool isLowRamDevice;
   final bool supportsNetworkStatus;
+  final bool supportsDiskCache;
+
+  /// Cached bytes per cache key.
+  final Map<String, int> cache = <String, int>{};
+
+  final List<ReelFullscreenRequest> fullscreenRequests =
+      <ReelFullscreenRequest>[];
+  final List<ReelFullscreenRestore> fullscreenRestores =
+      <ReelFullscreenRestore>[];
+  // Closed with the test process.
+  // ignore: close_sinks
+  final StreamController<bool> fullscreenEvents =
+      StreamController<bool>.broadcast(sync: true);
 
   /// Reported by getNetworkStatus; change with [setNetwork].
   ReelNetworkStatus network = const ReelNetworkStatus(
@@ -91,8 +105,13 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     if (error != null) throw error;
   }
 
+  ReelEngineConfig? engineConfig;
+
   @override
-  Future<ReelPlatformCapabilities> initialize() async {
+  Future<ReelPlatformCapabilities> initialize([
+    ReelEngineConfig config = const ReelEngineConfig(),
+  ]) async {
+    engineConfig = config;
     initializeCalls++;
     _check('initialize');
     return ReelPlatformCapabilities(
@@ -102,7 +121,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
       isLowRamDevice: isLowRamDevice,
       supportsHls: true,
       supportsDash: true,
-      supportsDiskCache: false,
+      supportsDiskCache: supportsDiskCache,
       supportsMemorySource: false,
       supportsTrackSelection: false,
       supportsPreloadBufferLimit: true,
@@ -302,6 +321,33 @@ class FakeReelKitPlatform extends ReelKitPlatform {
 
   @override
   Future<ReelNetworkStatus> getNetworkStatus() async => network;
+
+  @override
+  Future<ReelCacheInfo> getCacheInfo() async => ReelCacheInfo(
+    enabled: engineConfig?.cacheEnabled ?? false,
+    usedBytes: cache.values.fold(0, (a, b) => a + b),
+    maxBytes: engineConfig?.cacheMaxBytes ?? 0,
+  );
+
+  @override
+  Future<void> clearCache() async => cache.clear();
+
+  @override
+  Future<void> removeCached(String cacheKey) async => cache.remove(cacheKey);
+
+  @override
+  Future<int> getCachedBytes(String cacheKey) async => cache[cacheKey] ?? 0;
+
+  @override
+  Future<void> enterFullscreen(ReelFullscreenRequest request) async =>
+      fullscreenRequests.add(request);
+
+  @override
+  Future<void> exitFullscreen(ReelFullscreenRestore restore) async =>
+      fullscreenRestores.add(restore);
+
+  @override
+  Stream<bool> get fullscreenChanges => fullscreenEvents.stream;
 
   @override
   Stream<ReelNetworkStatus> get networkStatusChanges => _network.stream;

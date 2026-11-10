@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'reelkit_ios'
-  s.version          = '0.1.0-dev.5'
+  s.version          = '0.1.0-dev.6'
   s.summary          = 'iOS implementation of ReelKit, built on AVFoundation AVPlayer.'
   s.description      = <<-DESC
 iOS implementation of ReelKit, built on AVFoundation AVPlayer.
