@@ -1,18 +1,25 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
 
+import 'support/test_results.dart';
+
 /// Playback against the real engine, using the bundled 2 s 320x180 clips.
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  ensureBindingWithResults();
 
   late ReelKitManager manager;
 
   setUp(() async {
     manager = ReelKitManager(
-      config: const ReelKitConfig(pool: ReelPoolConfig(maxPlayers: 2)),
+      config: const ReelKitConfig(
+        pool: ReelPoolConfig(maxPlayers: 2),
+        // Browsers block autoplay with sound until the user interacts with
+        // the page; see the dedicated test below.
+        player: ReelPlayerConfig(muted: kIsWeb),
+      ),
     );
     await manager.initialize();
   });
@@ -58,6 +65,28 @@ void main() {
     expect(info.displaySize.height, 320);
     expect(controller.value.aspectRatio, closeTo(180 / 320, 0.01));
   });
+
+  testWidgets('web blocks autoplay with sound without a user gesture', (
+    tester,
+  ) async {
+    final controller = manager.createController(
+      const ReelSource.asset(landscapeAsset),
+      config: const ReelPlayerConfig(),
+    );
+    await controller.initialize();
+    try {
+      await controller.play();
+      // A browser that allows it (user engagement, policy flags) plays.
+      await waitFor(controller, (s) => s.isPlaying);
+    } on ReelKitException catch (error) {
+      expect(error.code, ReelKitErrorCode.playbackNotAllowed);
+      expect(controller.value.isPlaying, isFalse);
+      // Muted playback is always allowed.
+      await controller.setMuted(true);
+      await controller.play();
+      await waitFor(controller, (s) => s.isPlaying);
+    }
+  }, skip: !kIsWeb);
 
   testWidgets('plays to completion and restarts', (tester) async {
     final controller = manager.createController(

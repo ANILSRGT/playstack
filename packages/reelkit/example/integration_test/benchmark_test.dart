@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit_example/benchmark/reel_benchmark.dart';
+
+import 'support/test_results.dart';
 
 /// Milestone 7: measures start latency, preloading, rapid scrolling and
 /// memory on the device, prints the report and attaches it as report data.
@@ -20,7 +21,7 @@ import 'package:reelkit_example/benchmark/reel_benchmark.dart';
 /// benefit, leaks); they do not enforce timing budgets, which depend on the
 /// device.
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = ensureBindingWithResults();
 
   testWidgets('benchmark', (tester) async {
     final results = await ReelBenchmark(

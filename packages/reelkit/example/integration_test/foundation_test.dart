@@ -1,13 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
+
+import 'support/test_results.dart';
 
 /// Runs against the real engine of the device or browser.
 ///
 /// `flutter test integration_test -d <device>`
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  ensureBindingWithResults();
 
   testWidgets('engine reports capabilities', (tester) async {
     final manager = ReelKitManager();

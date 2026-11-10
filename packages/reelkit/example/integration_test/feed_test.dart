@@ -1,12 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
+
+import 'support/test_results.dart';
 
 /// Milestone 5 against the real engine: feed playback, preloading, rapid
 /// index changes and structural changes.
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  ensureBindingWithResults();
 
   late ReelKitManager manager;
 

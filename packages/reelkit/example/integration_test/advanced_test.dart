@@ -1,32 +1,39 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
 
 import 'support/media_server.dart';
+import 'support/test_results.dart';
 
 /// Milestone 6 against the real engine: disk cache, retry, fullscreen and
 /// orientation restoration. Media comes from a local HTTP server so the
-/// tests do not depend on the internet.
+/// tests do not depend on the internet. The server needs `dart:io`, so the
+/// network tests do not run on the web, where browsers also offer no
+/// ReelKit-managed cache; fullscreen has a web-specific test.
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = ensureBindingWithResults();
 
   late MediaServer server;
   final managers = <ReelKitManager>[];
 
   setUpAll(() async {
+    if (kIsWeb) return;
     final data = await rootBundle.load(landscapeAsset);
     server = await MediaServer.start(data.buffer.asUint8List());
   });
 
-  tearDownAll(() => server.close());
+  tearDownAll(() async {
+    if (!kIsWeb) await server.close();
+  });
 
   tearDown(() async {
     for (final manager in managers) {
       await manager.dispose();
     }
     managers.clear();
+    if (kIsWeb) return;
     server
       ..offline = false
       ..failNextRequests = 0;
@@ -97,7 +104,7 @@ void main() {
 
     await manager.cache.remove(source);
     expect(await manager.cache.cachedBytes(source), 0);
-  });
+  }, skip: kIsWeb);
 
   testWidgets('a bypass source is not cached', (tester) async {
     final manager = await createManager();
@@ -110,7 +117,7 @@ void main() {
     await controller.initialize();
     await controller.dispose();
     expect(await manager.cache.cachedBytes(source), 0);
-  });
+  }, skip: kIsWeb);
 
   testWidgets('retries a failed preparation automatically', (tester) async {
     final manager = await createManager(
@@ -126,7 +133,7 @@ void main() {
     await controller.initialize();
     expect(controller.value.status, ReelPlaybackStatus.ready);
     expect(controller.metrics.preparations, 1);
-  });
+  }, skip: kIsWeb);
 
   testWidgets('fullscreen restores portrait after landscape', (tester) async {
     final manager = await createManager();
@@ -147,7 +154,7 @@ void main() {
       expect(fullscreen.isFullscreen.value, isFalse);
       await waitUntil(isPortrait, reason: 'back to portrait (round $round)');
     }
-  });
+  }, skip: kIsWeb);
 
   testWidgets('fullscreen without an orientation keeps portrait', (
     tester,
@@ -168,5 +175,22 @@ void main() {
     expect(view.physicalSize.aspectRatio, closeTo(before.aspectRatio, 0.2));
     // Leave the app with its default policy for later tests.
     await SystemChrome.setPreferredOrientations(const <DeviceOrientation>[]);
-  });
+  }, skip: kIsWeb);
+
+  testWidgets('web fullscreen needs a user gesture', (tester) async {
+    final manager = await createManager();
+    final fullscreen = manager.fullscreen;
+    try {
+      await fullscreen.enter();
+      binding.reportData = {...?binding.reportData, 'fullscreen': 'allowed'};
+      // Allowed (for example by a browser flag): it must be reversible.
+      expect(fullscreen.isFullscreen.value, isTrue);
+      await fullscreen.exit();
+      expect(fullscreen.isFullscreen.value, isFalse);
+    } on ReelKitException catch (error) {
+      binding.reportData = {...?binding.reportData, 'fullscreen': 'refused'};
+      expect(error.code, ReelKitErrorCode.notAllowed);
+      expect(fullscreen.isFullscreen.value, isFalse);
+    }
+  }, skip: !kIsWeb);
 }

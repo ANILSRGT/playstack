@@ -10,8 +10,9 @@ are marked `publish_to: none` until the blockers below are resolved.
 - [ ] **Physical devices.** Run the integration suite and the benchmark on
       at least one physical Android phone and one iPhone, and record the
       benchmark in [BENCHMARKS.md](BENCHMARKS.md).
-- [ ] **Web in a browser.** Run the integration suite with chromedriver
-      (`flutter drive -d chrome`), including HLS.js and the Fullscreen API.
+- [x] **Web in a browser.** The integration suite passes in headless
+      Chromium (see [Examples](guides/examples.md#on-the-web)). Still open:
+      HLS.js, Safari and Firefox.
 - [ ] Remove `publish_to: none` from the five `pubspec.yaml` files.
 
 ## Checklist for every release

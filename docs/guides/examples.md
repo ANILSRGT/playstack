@@ -33,3 +33,27 @@ flutter run            # add --profile for realistic performance
 ```bash
 flutter test integration_test -d <device-id>
 ```
+
+Every file attaches its per-test results to the report data, and
+`test_driver/integration_test.dart` fails a `flutter drive` run in which
+no test ran (for example when `setUpAll` threw), which the web runner
+otherwise reports as passing.
+
+### On the web
+
+`flutter test` does not run integration tests in a browser; use
+`flutter drive` with a chromedriver whose major version matches the
+browser, one test file at a time:
+
+```bash
+chromedriver --port=4444 &
+flutter drive -d web-server --browser-name=chrome --headless \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/playback_test.dart
+# Add --chrome-binary=<path> for a Chromium-based browser other than Chrome.
+```
+
+Web-only tests check that autoplay with sound is refused with
+`playbackNotAllowed` and fullscreen outside a user gesture with
+`notAllowed` (or works, where the browser allows it). Tests needing the
+local `dart:io` media server or device rotation are skipped.

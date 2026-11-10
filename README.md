@@ -6,10 +6,9 @@ errors. You build the whole UI.
 
 > **Status: 0.1.0-dev.7, development preview (milestone 7 of 7).**
 > Playback, pooling, feeds with preloading, disk cache, fullscreen, audio
-> handling and retry work on Android (Media3) and iOS (AVPlayer), verified
-> on an emulator and a simulator; the web engine (`<video>`) is compiled and
-> unit tested but not yet run in a browser. Not yet verified on physical
-> devices. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
+> handling and retry work on Android (Media3), iOS (AVPlayer) and web
+> (`<video>`), verified on an Android emulator, an iOS simulator and
+> headless Chromium. Not yet verified on physical devices. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
 
 ## Packages
 
@@ -201,10 +200,11 @@ The complete matrix, with every limitation and the error each one raises:
 a feature the engine does not provide.
 
 Verified: the integration suite in `packages/reelkit/example/integration_test`
-(34 tests, including the benchmark) passes on an Android 16 emulator
-(API 36) and an iOS 26.5 simulator. The decoder-shortage retry and audio
-interruptions are covered by unit tests only; web has not been run in a
-browser yet. Baseline measurements: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+(including the benchmark) passes on an Android 16 emulator (API 36), an
+iOS 26.5 simulator and headless Chromium 157 (web skips the tests that need
+a local `dart:io` server or device orientation). The decoder-shortage retry
+and audio interruptions are covered by unit tests only; HLS.js has not
+been run in a browser. Baseline measurements: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Errors
 
@@ -260,8 +260,8 @@ Releasing: [docs/RELEASING.md](docs/RELEASING.md).
 7. Optimization and release — **done**: benchmark (start latency,
    preloading, rapid scrolling, memory) in the example app and as an
    integration test, documentation guides for every feature, documented
-   public API, release checklist. Publishing waits for physical-device
-   and browser verification.
+   public API, release checklist, web suite run in a browser. Publishing
+   waits for physical-device verification.
 
 ## License
 

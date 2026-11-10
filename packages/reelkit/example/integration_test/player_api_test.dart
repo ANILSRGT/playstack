@@ -1,13 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
+
+import 'support/test_results.dart';
 
 /// Milestone 3 API against the real engine: metadata, tracks, subtitles,
 /// source replacement, stop, position stream and app lifecycle.
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = ensureBindingWithResults();
 
   late ReelKitManager manager;
 
@@ -56,6 +58,21 @@ void main() {
       const ReelSource.asset(multitrackAsset),
     );
     await controller.initialize();
+    if (kIsWeb) {
+      // Browsers expose in-band MP4 tracks only partly (Safari: audio;
+      // Chromium: none). Whatever is exposed must be consistent and
+      // turning subtitles off must work.
+      await Future<void>.delayed(const Duration(seconds: 1));
+      final tracks = controller.tracks.value;
+      expect(
+        tracks.where((t) => t.type == ReelTrackType.audio).length,
+        anyOf(0, 2),
+        reason: '$tracks',
+      );
+      await controller.disableSubtitles();
+      expect(controller.subtitles.value, isEmpty);
+      return;
+    }
     await waitUntil(() => controller.tracks.value.isNotEmpty, reason: 'tracks');
     final tracks = controller.tracks.value;
     final audio = tracks.where((t) => t.type == ReelTrackType.audio).toList();

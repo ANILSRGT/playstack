@@ -29,9 +29,8 @@ PageView.builder(
 feed.setActiveIndex(0);
 ```
 
-Development preview (0.1.0-dev.7): verified on an Android emulator and an
-iOS simulator; web is compiled and unit tested but not yet run in a
-browser.
+Development preview (0.1.0-dev.7): verified on an Android emulator, an
+iOS simulator and headless Chromium; not yet on physical devices.
 
 - [Guides](https://github.com/ANILSRGT/reelkit/blob/main/docs/README.md)
 - [Platform support](https://github.com/ANILSRGT/reelkit/blob/main/docs/guides/platforms.md)

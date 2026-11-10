@@ -5,6 +5,11 @@
   `integration_test/benchmark_test.dart`) measuring cold, preloaded and
   swipe start latency until playback advances, rapid feed scrolling and
   memory across native player create/dispose cycles.
+* `ReelPlayerMetrics.lastPreparationTime` is measured correctly when the
+  engine renders the first frame before it reports the video ready (it
+  equaled `lastTimeToFirstFrame` on Android).
+* Integration tests run on the web (headless Chromium) and report per-test
+  results, so a run in which no test executed fails.
 * `setSource` cancels a pending automatic retry of the previous source
   instead of waiting for its delay.
 * Every public member is documented (`public_member_api_docs`); guides for

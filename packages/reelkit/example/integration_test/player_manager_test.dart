@@ -1,12 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_example/samples.dart';
+
+import 'support/test_results.dart';
 
 /// Milestone 4 against the real engine: several controllers on one manager,
 /// exclusive and concurrent playback, memory pressure and safe disposal.
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = ensureBindingWithResults();
 
   final managers = <ReelKitManager>[];
 

@@ -702,6 +702,35 @@ void main() {
     expect(metrics.lastStartLatency, isNotNull);
   });
 
+  test(
+    'metrics stay separate when the first frame precedes readiness',
+    () async {
+      platform.autoPrepare = false;
+      final controller = manager.createController(source);
+      final preparing = controller.initialize();
+      await flush();
+      final playerId = platform.livePlayers.single;
+      final generation = platform.generations[playerId]!;
+      platform.emit(
+        ReelFirstFrameEvent(playerId: playerId, generation: generation),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      platform.emit(
+        ReelInitializedEvent(
+          playerId: playerId,
+          generation: generation,
+          info: platform.videoInfo,
+        ),
+      );
+      await preparing;
+      final metrics = controller.metrics;
+      expect(
+        metrics.lastPreparationTime! - metrics.lastTimeToFirstFrame!,
+        greaterThanOrEqualTo(const Duration(milliseconds: 25)),
+      );
+    },
+  );
+
   test('release cancels a preparation in flight', () async {
     platform.hangingSources.add(source);
     final controller = manager.createController(source);

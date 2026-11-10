@@ -50,5 +50,8 @@ print('${caps.engineName} ${caps.engineVersion}, '
 - **Not verified on device:** the decoder-shortage retry and audio
   interruptions (unit tests only: emulators do not run out of decoders or
   receive calls on demand); physical-device performance.
-- **Web:** compiled to JS and Wasm and unit tested; the integration suite,
-  HLS.js and the Fullscreen API have not been run in a browser yet.
+- **Web:** the integration suite passes in headless Chromium 157 (Brave,
+  driven by chromedriver), including the benchmark, blocked autoplay with
+  sound and fullscreen outside a user gesture. Tests that need a local
+  `dart:io` HTTP server (disk cache, retry) or device rotation are skipped
+  on web. HLS.js, Safari and Firefox have not been run.

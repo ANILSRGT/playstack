@@ -120,6 +120,7 @@ class ReelPlayerController extends ChangeNotifier
 
   ReelPlayerMetrics _metrics = const ReelPlayerMetrics();
   final Stopwatch _preparationClock = Stopwatch();
+  bool _firstFrameMeasured = false;
   final Stopwatch _startClock = Stopwatch();
 
   /// Set by [play] and cleared by everything that ends the request (pause,
@@ -572,11 +573,13 @@ class ReelPlayerController extends ChangeNotifier
           ),
         );
       case ReelFirstFrameEvent():
-        if (_preparationClock.isRunning) {
+        // The first frame can arrive before or after the engine reports the
+        // video ready, so the clock keeps running for the other measurement.
+        if (_preparationClock.isRunning && !_firstFrameMeasured) {
+          _firstFrameMeasured = true;
           _metrics = _metrics.copyWith(
             lastTimeToFirstFrame: _preparationClock.elapsed,
           );
-          _preparationClock.stop();
         }
         _update(_value.copyWith(hasRenderedFirstFrame: true));
       case ReelTracksChangedEvent():
@@ -656,6 +659,7 @@ class ReelPlayerController extends ChangeNotifier
     _preparationClock
       ..reset()
       ..start();
+    _firstFrameMeasured = false;
     _metrics = _metrics.copyWith(preparations: _metrics.preparations + 1);
     try {
       ReelVideoInfo? info;
