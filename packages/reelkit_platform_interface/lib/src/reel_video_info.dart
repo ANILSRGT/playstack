@@ -11,6 +11,10 @@ class ReelVideoInfo {
     this.duration,
     this.rotationDegrees = 0,
     this.pixelAspectRatio = 1.0,
+    this.isLive = false,
+    this.frameRate,
+    this.bitrate,
+    this.videoCodec,
   });
 
   /// Width of the frames delivered to the render target, in pixels.
@@ -28,6 +32,19 @@ class ReelVideoInfo {
 
   /// Width-to-height ratio of a single pixel. 1.0 for square pixels.
   final double pixelAspectRatio;
+
+  /// Whether the source is a live stream.
+  final bool isLive;
+
+  /// Nominal frames per second, when known.
+  final double? frameRate;
+
+  /// Bitrate of the selected video in bits per second, when known.
+  final int? bitrate;
+
+  /// Video codec as an RFC 6381 string (for example `avc1.42C01E`) or a
+  /// FourCC (for example `avc1`), when known.
+  final String? videoCodec;
 
   /// Whether the video has a known, non-zero size.
   bool get hasSize => width > 0 && height > 0;
@@ -56,6 +73,10 @@ class ReelVideoInfo {
     Duration? duration,
     int? rotationDegrees,
     double? pixelAspectRatio,
+    bool? isLive,
+    double? frameRate,
+    int? bitrate,
+    String? videoCodec,
   }) {
     return ReelVideoInfo(
       width: width ?? this.width,
@@ -63,6 +84,10 @@ class ReelVideoInfo {
       duration: duration ?? this.duration,
       rotationDegrees: rotationDegrees ?? this.rotationDegrees,
       pixelAspectRatio: pixelAspectRatio ?? this.pixelAspectRatio,
+      isLive: isLive ?? this.isLive,
+      frameRate: frameRate ?? this.frameRate,
+      bitrate: bitrate ?? this.bitrate,
+      videoCodec: videoCodec ?? this.videoCodec,
     );
   }
 
@@ -73,14 +98,29 @@ class ReelVideoInfo {
       other.height == height &&
       other.duration == duration &&
       other.rotationDegrees == rotationDegrees &&
-      other.pixelAspectRatio == pixelAspectRatio;
+      other.pixelAspectRatio == pixelAspectRatio &&
+      other.isLive == isLive &&
+      other.frameRate == frameRate &&
+      other.bitrate == bitrate &&
+      other.videoCodec == videoCodec;
 
   @override
-  int get hashCode =>
-      Object.hash(width, height, duration, rotationDegrees, pixelAspectRatio);
+  int get hashCode => Object.hash(
+    width,
+    height,
+    duration,
+    rotationDegrees,
+    pixelAspectRatio,
+    isLive,
+    frameRate,
+    bitrate,
+    videoCodec,
+  );
 
   @override
   String toString() =>
       'ReelVideoInfo(${width}x$height, duration: $duration, '
-      'rotation: $rotationDegrees, par: $pixelAspectRatio)';
+      'rotation: $rotationDegrees, par: $pixelAspectRatio'
+      '${isLive ? ', live' : ''}'
+      '${videoCodec == null ? '' : ', $videoCodec'})';
 }

@@ -87,6 +87,21 @@ final class PlayerRegistry: ReelKitHostApi {
     try requirePlayer(playerId).position()
   }
 
+  func getTracks(playerId: Int64) throws -> [PlatformTrack] {
+    try requirePlayer(playerId).tracks()
+  }
+
+  func selectTrack(playerId: Int64, type: PlatformTrackType, trackId: String?) throws {
+    try requirePlayer(playerId).selectTrack(type: type, trackId: trackId)
+  }
+
+  func setVideoQualityLimit(
+    playerId: Int64, maxBitrate: Int64?, maxWidth: Int64?, maxHeight: Int64?
+  ) throws {
+    try requirePlayer(playerId).setVideoQualityLimit(
+      maxBitrate: maxBitrate, maxWidth: maxWidth, maxHeight: maxHeight)
+  }
+
   func releaseAll() {
     for player in players.values { player.release() }
     players.removeAll()

@@ -415,6 +415,250 @@ void main() {
     expect(info.duration, const Duration(seconds: 30));
   });
 
+  group('source replacement', () {
+    test('replaces the source on the same native player', () async {
+      final controller = manager.createController(source);
+      await controller.play();
+      await flush();
+      final id = platform.livePlayers.single;
+      final firstGeneration = platform.generations[id]!;
+
+      await controller.setSource(other);
+      await flush();
+
+      expect(controller.source, other);
+      expect(platform.createCalls, 1);
+      expect(
+        platform.calls,
+        contains(
+          'setSource($id, ${other.description}, '
+          '${platform.generations[id]})',
+        ),
+      );
+      expect(platform.generations[id], isNot(firstGeneration));
+      expect(
+        controller.value.status,
+        ReelPlaybackStatus.playing,
+        reason: 'playback resumes on the new source',
+      );
+    });
+
+    test('late events of the replaced source are ignored', () async {
+      final controller = manager.createController(source);
+      await controller.initialize();
+      final id = platform.livePlayers.single;
+      final oldGeneration = platform.generations[id]!;
+      await controller.setSource(other);
+      platform.emit(
+        ReelErrorEvent(
+          playerId: id,
+          generation: oldGeneration,
+          error: const ReelKitException(ReelKitErrorCode.decoder, 'old'),
+        ),
+      );
+      expect(controller.value.status, ReelPlaybackStatus.ready);
+    });
+
+    test('an idle controller only stores the new source', () async {
+      final controller = manager.createController(source);
+      await controller.setSource(other);
+      expect(platform.callCount('setSource'), 0);
+      expect(controller.value.videoInfo, isNull);
+      await controller.initialize();
+      expect(
+        platform.calls.where(
+          (c) => c.startsWith('setSource(') && c.contains(other.description),
+        ),
+        hasLength(1),
+      );
+    });
+  });
+
+  test('stop pauses and rewinds', () async {
+    final controller = manager.createController(source);
+    await controller.play();
+    await flush();
+    final id = platform.livePlayers.single;
+    await controller.stop();
+    await flush();
+    expect(platform.calls.sublist(platform.calls.length - 2), [
+      'pause($id)',
+      'seekTo($id, 0)',
+    ]);
+    expect(controller.value.status, ReelPlaybackStatus.paused);
+    expect(controller.priority, ReelPlayerPriority.visible);
+  });
+
+  group('tracks', () {
+    const audioEn = ReelTrack(
+      id: 'a:0',
+      type: ReelTrackType.audio,
+      isSelected: true,
+      language: 'en',
+    );
+    const audioTr = ReelTrack(
+      id: 'a:1',
+      type: ReelTrackType.audio,
+      isSelected: false,
+      language: 'tr',
+    );
+    const textEn = ReelTrack(
+      id: 't:0',
+      type: ReelTrackType.text,
+      isSelected: false,
+      language: 'en',
+    );
+
+    test('are read after preparation and on change events', () async {
+      platform.trackList = const [audioEn, audioTr, textEn];
+      final controller = manager.createController(source);
+      await controller.initialize();
+      await flush();
+      expect(controller.tracks.value, hasLength(3));
+
+      final id = platform.livePlayers.single;
+      platform.trackList = const [audioEn];
+      platform.emit(
+        ReelTracksChangedEvent(
+          playerId: id,
+          generation: platform.generations[id]!,
+        ),
+      );
+      await flush();
+      expect(controller.tracks.value, [audioEn]);
+    });
+
+    test('selection is applied and refreshed', () async {
+      platform.trackList = const [audioEn, audioTr];
+      final controller = manager.createController(source);
+      await controller.initialize();
+      await controller.selectTrack(audioTr);
+      final id = platform.livePlayers.single;
+      expect(platform.calls, contains('selectTrack($id, audio, a:1)'));
+      expect(
+        controller.tracks.value.singleWhere((t) => t.isSelected).id,
+        'a:1',
+      );
+    });
+
+    test('preferences are re-applied after losing the player', () async {
+      await manager.dispose();
+      manager = await createManager(maxPlayers: 1);
+      platform.trackList = const [audioEn, audioTr];
+      final controller = manager.createController(source)
+        ..priority = ReelPlayerPriority.preload;
+      await controller.initialize();
+      await controller.selectTrack(audioTr);
+      await controller.setVideoQualityLimit(
+        const ReelVideoQualityLimit(maxHeight: 480),
+      );
+
+      final active = manager.createController(other);
+      await active.play();
+      await active.dispose();
+      platform.calls.clear();
+
+      await controller.initialize();
+      final id = platform.livePlayers.single;
+      expect(platform.calls, contains('selectTrack($id, audio, a:1)'));
+      expect(platform.calls, contains('setVideoQualityLimit($id, 480)'));
+    });
+
+    test('selections before preparation are applied on preparation', () async {
+      platform.trackList = const [textEn];
+      final controller = manager.createController(source);
+      await controller.selectTrack(textEn);
+      expect(platform.callCount('selectTrack'), 0);
+      await controller.initialize();
+      expect(platform.callCount('selectTrack'), 1);
+    });
+
+    test('a new source resets track selections', () async {
+      platform.trackList = const [audioEn, audioTr];
+      final controller = manager.createController(source);
+      await controller.initialize();
+      await controller.selectTrack(audioTr);
+      platform.calls.clear();
+      await controller.setSource(other);
+      expect(platform.callCount('selectTrack'), 0);
+    });
+
+    test('subtitle cues are exposed and cleared when disabled', () async {
+      final controller = manager.createController(source);
+      await controller.initialize();
+      final id = platform.livePlayers.single;
+      platform.emit(
+        ReelCuesEvent(
+          playerId: id,
+          generation: platform.generations[id]!,
+          texts: const ['Hello'],
+        ),
+      );
+      expect(controller.subtitles.value, ['Hello']);
+      await controller.disableSubtitles();
+      expect(controller.subtitles.value, isEmpty);
+      platform.emit(
+        ReelCuesEvent(
+          playerId: id,
+          generation: platform.generations[id]!,
+          texts: const ['Ignored'],
+        ),
+      );
+      expect(controller.subtitles.value, isEmpty);
+    });
+
+    test('engines without track support report no tracks', () async {
+      final controller = manager.createController(source);
+      platform.throwOn['selectTrack'] = const ReelKitException(
+        ReelKitErrorCode.notImplemented,
+        'no',
+      );
+      await controller.initialize();
+      await expectLater(
+        controller.selectTrack(textEn),
+        throwsReelKit(ReelKitErrorCode.notImplemented),
+      );
+    });
+  });
+
+  test('position stream polls only while playing', () async {
+    final controller = manager.createController(source);
+    await controller.initialize();
+    final id = platform.livePlayers.single;
+    final received = <Duration>[];
+    final sub = controller
+        .positions(interval: const Duration(milliseconds: 10))
+        .listen((p) => received.add(p.position));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(received, [Duration.zero], reason: 'one initial read');
+
+    await controller.seekTo(const Duration(seconds: 3));
+    await flush();
+    expect(received.last, const Duration(seconds: 3));
+
+    platform.positions[id] = const Duration(seconds: 4);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(
+      received.last,
+      const Duration(seconds: 3),
+      reason: 'paused: no polling',
+    );
+
+    await controller.play();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(received.last, const Duration(seconds: 4));
+    await sub.cancel();
+  });
+
+  test('dispose closes position streams', () async {
+    final controller = manager.createController(source);
+    var done = false;
+    controller.positions().listen((_) {}, onDone: () => done = true);
+    await controller.dispose();
+    await flush();
+    expect(done, isTrue);
+  });
+
   test('repeated initialize and dispose does not leak players', () async {
     for (var i = 0; i < 50; i++) {
       final controller = manager.createController(

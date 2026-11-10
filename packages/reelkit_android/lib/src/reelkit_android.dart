@@ -43,6 +43,8 @@ class ReelKitAndroid extends ReelKitPlatform {
       supportsDiskCache: caps.supportsDiskCache,
       supportsMemorySource: caps.supportsMemorySource,
       supportsTrackSelection: caps.supportsTrackSelection,
+      supportsVideoTrackSelection: caps.supportsVideoTrackSelection,
+      supportsVideoQualityLimit: caps.supportsVideoQualityLimit,
     );
   }
 
@@ -115,6 +117,60 @@ class ReelKitAndroid extends ReelKitPlatform {
   }
 
   @override
+  Future<List<ReelTrack>> getTracks(int playerId) async {
+    final tracks = await _guard(() => _api.getTracks(playerId));
+    return [
+      for (final t in tracks)
+        ReelTrack(
+          id: t.id,
+          type: _fromPlatformTrackType(t.type),
+          isSelected: t.isSelected,
+          label: t.label,
+          language: t.language,
+          bitrate: t.bitrate,
+          width: t.width,
+          height: t.height,
+          frameRate: t.frameRate,
+          codecs: t.codecs,
+          channelCount: t.channelCount,
+        ),
+    ];
+  }
+
+  @override
+  Future<void> selectTrack(int playerId, ReelTrackType type, String? trackId) =>
+      _guard(
+        () => _api.selectTrack(playerId, _toPlatformTrackType(type), trackId),
+      );
+
+  @override
+  Future<void> setVideoQualityLimit(
+    int playerId,
+    ReelVideoQualityLimit limit,
+  ) => _guard(
+    () => _api.setVideoQualityLimit(
+      playerId,
+      limit.maxBitrate,
+      limit.maxWidth,
+      limit.maxHeight,
+    ),
+  );
+
+  static ReelTrackType _fromPlatformTrackType(PlatformTrackType type) =>
+      switch (type) {
+        PlatformTrackType.audio => ReelTrackType.audio,
+        PlatformTrackType.video => ReelTrackType.video,
+        PlatformTrackType.text => ReelTrackType.text,
+      };
+
+  static PlatformTrackType _toPlatformTrackType(ReelTrackType type) =>
+      switch (type) {
+        ReelTrackType.audio => PlatformTrackType.audio,
+        ReelTrackType.video => PlatformTrackType.video,
+        ReelTrackType.text => PlatformTrackType.text,
+      };
+
+  @override
   Stream<ReelPlatformEvent> get events => _events ??=
       (_rawEvents ?? playerEvents()).map(_toReelEvent).asBroadcastStream();
 
@@ -185,6 +241,10 @@ class ReelKitAndroid extends ReelKitPlatform {
               : Duration(milliseconds: event.durationMs),
           rotationDegrees: event.rotationDegrees,
           pixelAspectRatio: event.pixelAspectRatio,
+          isLive: event.isLive,
+          frameRate: event.frameRate,
+          bitrate: event.bitrate,
+          videoCodec: event.videoCodec,
         ),
       ),
       PlatformStateEvent() => ReelNativeStateEvent(
@@ -213,6 +273,15 @@ class ReelKitAndroid extends ReelKitPlatform {
       PlatformFirstFrameEvent() => ReelFirstFrameEvent(
         playerId: event.playerId,
         generation: event.generation,
+      ),
+      PlatformTracksChangedEvent() => ReelTracksChangedEvent(
+        playerId: event.playerId,
+        generation: event.generation,
+      ),
+      PlatformCuesEvent() => ReelCuesEvent(
+        playerId: event.playerId,
+        generation: event.generation,
+        texts: List<String>.unmodifiable(event.texts),
       ),
       PlatformErrorEvent() => ReelErrorEvent(
         playerId: event.playerId,

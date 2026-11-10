@@ -4,12 +4,13 @@ ReelKit is a video playback manager for Flutter, built for fast-scrolling video
 feeds and for single players. It handles native players, pooling, lifecycle and
 errors. You build the whole UI.
 
-> **Status: milestone 2 (single native player), development preview.**
-> Playback works on Android (Media3), iOS (AVPlayer) and web
-> (`<video>`): network, asset, file and memory sources; play, pause, seek,
-> loop, volume, mute and speed; first-frame, buffering, completion and typed
-> error events; rotation-correct rendering. Feed preloading, caching,
-> fullscreen and audio sessions come in later milestones.
+> **Status: milestone 3 (complete player API), development preview.**
+> Playback works on Android (Media3), iOS (AVPlayer) and web (`<video>`):
+> network, asset, file and memory sources; play, pause, stop, seek, loop,
+> volume, mute and speed; source replacement; audio and subtitle tracks with
+> subtitle text delivered to your UI; video quality caps; video metadata; a
+> position stream; and pause/resume with the app lifecycle. Feed preloading,
+> caching, fullscreen and audio sessions come in later milestones.
 
 ## Packages
 
@@ -58,7 +59,8 @@ Stack(
 );
 
 await controller.play();           // prepares on demand
-final pos = await controller.getPosition(); // pulled, never pushed per frame
+await controller.setSource(ReelSource.asset('assets/next.mp4')); // same player
+controller.positions().listen(print); // polls only while playing
 await controller.release();        // give the native player back, keep controller
 await manager.dispose();           // releases every controller and player
 ```
@@ -78,6 +80,17 @@ await manager.dispose();           // releases every controller and player
 - **`release()`** gives a controller's native player back to the pool
   without disposing it; the pool detaches the source so the idle player
   holds no decoder or network resources.
+- **Tracks and subtitles.** `controller.tracks` lists audio, video and
+  subtitle tracks; `selectTrack`, `selectAutomaticTrack` and
+  `disableSubtitles` change them; `controller.subtitles` delivers the subtitle
+  text to show, which you render with your own widgets.
+  `setVideoQualityLimit` caps adaptive video (bitrate and resolution).
+  Selections are re-applied if the controller has to prepare again and are
+  reset by `setSource`.
+- **Lifecycle.** By default the manager pauses its playing controllers when
+  the app is hidden and resumes them when it is shown again
+  (`ReelLifecycleConfig`). `manager.pauseAll()` pauses everything, for
+  example when another route covers the feed.
 - **`ReelVideoView`** renders frames with any `BoxFit`, `Alignment`,
   background color, clipping and border radius, plus optional poster,
   placeholder and error builders. No controls.
@@ -100,18 +113,23 @@ await manager.dispose();           // releases every controller and player
 | DASH | Yes | No (`unsupportedFormat`) | No (`unsupportedFormat`) |
 | Autoplay with sound | Yes | Yes | Blocked by browsers until a user gesture (`playbackNotAllowed`); muted autoplay works |
 | Disk cache | Milestone 6 | Milestone 6 | Browser cache only, no guarantees |
-| Track selection | Milestone 3 | Milestone 3 | Not planned |
+| Audio track selection | Yes | Yes (media selection) | Only where the browser exposes `audioTracks` (Safari) |
+| Subtitle tracks, text delivered to Dart | Yes (in-band and HLS/DASH) | Yes (legible media selection) | Tracks the browser exposes (for example HLS in Safari); in-band MP4 text is not exposed by Chromium |
+| Video rendition selection | Yes | No: AVFoundation chooses; listed for information | No |
+| Video quality limit (bitrate, size) | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
+| Metadata: frame rate, bitrate, codec, live | Yes | Yes | Live flag only |
 | Audio session / focus | Milestone 6 (host app's settings apply) | Milestone 6 (host app's `AVAudioSession` applies) | n/a |
 
 `ReelPlatformCapabilities` reports these flags at runtime and never claims a
 feature the engine does not provide.
 
 Verified on device: the integration suite in
-`packages/reelkit/example/integration_test` (13 tests: preparation, first
+`packages/reelkit/example/integration_test` (20 tests: preparation, first
 frame while paused, rotation, completion and restart, pause, loop, seek,
 volume/mute/speed, memory source, missing source, pooled source switching,
-100-source churn) passes on an Android 16 emulator (API 36) and an iOS
-simulator. Rendering orientation was checked by screenshot against ffmpeg's
+100-source churn, metadata, audio and subtitle track selection with subtitle
+text, source replacement, stop, position stream, quality limit, app
+lifecycle) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
 reference frame on both. Web is compiled (JS and Wasm) but its integration
 suite has not been run yet (no chromedriver in the development setup).
 
@@ -151,7 +169,8 @@ flutter test integration_test -d <device-id>
    interface, Pigeon bridge, player pool, example, tests.
 2. Single native player — **done**: sources, play/pause/seek/loop, volume,
    speed, events, first frame, rotation, typed errors on all platforms.
-3. Complete player API: tracks, metadata, source replacement, lifecycle.
+3. Complete player API — **done**: tracks and subtitles, quality limits,
+   metadata, source replacement, stop, position stream, app lifecycle.
 4. Player manager: exclusive playback, decoder-failure-aware pool sizing.
 5. Feed manager and intelligent preloading.
 6. Cache, fullscreen and orientation coordination, audio sessions, retry.

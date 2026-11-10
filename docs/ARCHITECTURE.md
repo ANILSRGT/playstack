@@ -125,6 +125,29 @@ pool calls `clearSource` (Android `stop()` + `clearMediaItems()`, iOS
 `replaceCurrentItem(nil)`, web `removeAttribute('src')` + `load()`) before
 keeping the player for reuse. A player that cannot be cleared is destroyed.
 
+**Tracks are pulled, subtitles are pushed.** Engines emit a
+`tracksChanged` event and the controller reads the list once
+(`getTracks`); subtitle text changes are pushed as `cues` events because they
+are needed at cue time. Both are low frequency. Subtitles are plain text so
+that the application renders them with its own widgets; source styling and
+positioning are not preserved. Track preferences live in the controller and
+are re-applied after every preparation, because a pooled controller can lose
+and regain its native player. iOS hides AVFoundation's synthesized
+"forced-only" subtitle variants, which are not a viewer choice.
+
+**Position stream.** `positions()` polls only while it has a listener and
+the video is playing, plus once after every state change or seek. A paused
+player causes no channel traffic.
+
+**App lifecycle.** The manager listens to `AppLifecycleState`. On `hidden`
+(and `paused`/`detached`) it pauses its playing controllers and remembers
+them; on `resumed` it resumes only those. `inactive` is ignored because it is
+transient (notification shade, incoming call banner).
+
+**Source replacement.** `setSource` keeps the controller's native player and
+renews the lease generation, so late events of the old source are dropped
+without a release/acquire round trip.
+
 ## Platform risks
 
 | Risk | Platform | Mitigation |

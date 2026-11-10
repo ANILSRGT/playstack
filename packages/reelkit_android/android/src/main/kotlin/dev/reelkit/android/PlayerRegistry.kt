@@ -69,6 +69,18 @@ internal class PlayerRegistry(
 
   override fun getPosition(playerId: Long): PlatformPosition = requirePlayer(playerId).position()
 
+  override fun getTracks(playerId: Long): List<PlatformTrack> = requirePlayer(playerId).tracks()
+
+  override fun selectTrack(playerId: Long, type: PlatformTrackType, trackId: String?) =
+      requirePlayer(playerId).selectTrack(type, trackId)
+
+  override fun setVideoQualityLimit(
+      playerId: Long,
+      maxBitrate: Long?,
+      maxWidth: Long?,
+      maxHeight: Long?,
+  ) = requirePlayer(playerId).setVideoQualityLimit(maxBitrate, maxWidth, maxHeight)
+
   fun releaseAll() {
     players.values.forEach { it.release() }
     players.clear()

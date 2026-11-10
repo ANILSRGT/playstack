@@ -75,7 +75,9 @@ class ReelKitWeb extends ReelKitPlatform {
       supportsDash: false,
       supportsDiskCache: false,
       supportsMemorySource: true,
-      supportsTrackSelection: false,
+      // Subtitle tracks exposed by the browser (for example HLS subtitles in
+      // Safari) and, where the browser exposes them, audio tracks.
+      supportsTrackSelection: true,
     );
   }
 
@@ -202,6 +204,31 @@ class ReelKitWeb extends ReelKitPlatform {
   @override
   Future<ReelPositionSnapshot> getPosition(int playerId) async =>
       _require(playerId).position();
+
+  @override
+  Future<List<ReelTrack>> getTracks(int playerId) async =>
+      _require(playerId).tracks();
+
+  @override
+  Future<void> selectTrack(
+    int playerId,
+    ReelTrackType type,
+    String? trackId,
+  ) async => _require(playerId).selectTrack(type, trackId);
+
+  @override
+  Future<void> setVideoQualityLimit(
+    int playerId,
+    ReelVideoQualityLimit limit,
+  ) async {
+    _require(playerId);
+    if (limit.isUnbounded) return;
+    throw const ReelKitException(
+      ReelKitErrorCode.notImplemented,
+      'Browsers choose <video> renditions themselves; a quality limit '
+      'cannot be applied.',
+    );
+  }
 
   @override
   Stream<ReelPlatformEvent> get events => _events.stream;

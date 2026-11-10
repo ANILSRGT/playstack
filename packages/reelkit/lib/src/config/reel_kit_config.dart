@@ -7,6 +7,7 @@ class ReelKitConfig {
   const ReelKitConfig({
     this.pool = const ReelPoolConfig(),
     this.player = const ReelPlayerConfig(),
+    this.lifecycle = const ReelLifecycleConfig(),
   });
 
   /// How native players are allocated and reused.
@@ -15,12 +16,49 @@ class ReelKitConfig {
   /// Default settings of controllers created by the manager.
   final ReelPlayerConfig player;
 
-  @override
-  bool operator ==(Object other) =>
-      other is ReelKitConfig && other.pool == pool && other.player == player;
+  /// How playback reacts to the app moving to the background.
+  final ReelLifecycleConfig lifecycle;
 
   @override
-  int get hashCode => Object.hash(pool, player);
+  bool operator ==(Object other) =>
+      other is ReelKitConfig &&
+      other.pool == pool &&
+      other.player == player &&
+      other.lifecycle == lifecycle;
+
+  @override
+  int get hashCode => Object.hash(pool, player, lifecycle);
+}
+
+/// Reaction to the application being hidden and shown again.
+///
+/// "Hidden" follows Flutter's `AppLifecycleState.hidden`: the app is no
+/// longer visible (backgrounded on mobile, tab hidden or window minimized on
+/// web). Transient `inactive` states such as an incoming call banner or the
+/// control center do not pause playback.
+@immutable
+class ReelLifecycleConfig {
+  const ReelLifecycleConfig({
+    this.pauseOnBackground = true,
+    this.resumeOnForeground = true,
+  });
+
+  /// Pauses every playing controller of the manager when the app is hidden.
+  /// Disable for background audio, which also requires the platform's
+  /// background audio setup.
+  final bool pauseOnBackground;
+
+  /// Resumes the controllers that were paused because the app was hidden.
+  final bool resumeOnForeground;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReelLifecycleConfig &&
+      other.pauseOnBackground == pauseOnBackground &&
+      other.resumeOnForeground == resumeOnForeground;
+
+  @override
+  int get hashCode => Object.hash(pauseOnBackground, resumeOnForeground);
 }
 
 /// Configuration of the native player pool.

@@ -17,6 +17,8 @@ class ReelPlatformCapabilities {
     required this.supportsDiskCache,
     required this.supportsMemorySource,
     required this.supportsTrackSelection,
+    this.supportsVideoTrackSelection = false,
+    this.supportsVideoQualityLimit = false,
     this.maxHardwareDecoderInstances,
     this.totalMemoryBytes,
   });
@@ -40,7 +42,15 @@ class ReelPlatformCapabilities {
   final bool supportsDash;
   final bool supportsDiskCache;
   final bool supportsMemorySource;
+
+  /// Audio and text (subtitle) track listing and selection.
   final bool supportsTrackSelection;
+
+  /// Selecting a specific video rendition (quality).
+  final bool supportsVideoTrackSelection;
+
+  /// Capping adaptive video by bitrate and resolution.
+  final bool supportsVideoQualityLimit;
 
   @override
   bool operator ==(Object other) =>
@@ -55,7 +65,9 @@ class ReelPlatformCapabilities {
       other.supportsDash == supportsDash &&
       other.supportsDiskCache == supportsDiskCache &&
       other.supportsMemorySource == supportsMemorySource &&
-      other.supportsTrackSelection == supportsTrackSelection;
+      other.supportsTrackSelection == supportsTrackSelection &&
+      other.supportsVideoTrackSelection == supportsVideoTrackSelection &&
+      other.supportsVideoQualityLimit == supportsVideoQualityLimit;
 
   @override
   int get hashCode => Object.hash(
@@ -70,6 +82,8 @@ class ReelPlatformCapabilities {
     supportsDiskCache,
     supportsMemorySource,
     supportsTrackSelection,
+    supportsVideoTrackSelection,
+    supportsVideoQualityLimit,
   );
 
   @override

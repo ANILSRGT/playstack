@@ -6,7 +6,9 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
@@ -27,6 +29,7 @@ internal class NativePlayer(
     options: PlatformPlayerOptions,
 ) : Player.Listener {
   private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
+  private val tracks = TrackSelection(exoPlayer)
   private var released = false
   private var generation = NO_SOURCE
   private var initializedSent = false
@@ -59,6 +62,7 @@ internal class NativePlayer(
     exoPlayer.playWhenReady = false
     this.generation = generation
     initializedSent = false
+    tracks.reset()
     exoPlayer.setMediaSource(mediaSource, /* resetPosition= */ true)
     exoPlayer.prepare()
   }
@@ -69,7 +73,15 @@ internal class NativePlayer(
     exoPlayer.playWhenReady = false
     exoPlayer.stop()
     exoPlayer.clearMediaItems()
+    tracks.reset()
   }
+
+  fun tracks(): List<PlatformTrack> = tracks.list()
+
+  fun selectTrack(type: PlatformTrackType, trackId: String?) = tracks.select(type, trackId)
+
+  fun setVideoQualityLimit(maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?) =
+      tracks.limitVideo(maxBitrate, maxWidth, maxHeight)
 
   fun play() = exoPlayer.play()
 
@@ -147,6 +159,17 @@ internal class NativePlayer(
         ))
   }
 
+  override fun onTracksChanged(tracks: Tracks) {
+    if (generation == NO_SOURCE || !initializedSent) return
+    events.emit(PlatformTracksChangedEvent(playerId = id, generation = generation))
+  }
+
+  override fun onCues(cueGroup: CueGroup) {
+    if (generation == NO_SOURCE) return
+    val texts = cueGroup.cues.mapNotNull { cue -> cue.text?.toString()?.takeIf { it.isNotBlank() } }
+    events.emit(PlatformCuesEvent(playerId = id, generation = generation, texts = texts))
+  }
+
   override fun onRenderedFirstFrame() {
     if (generation == NO_SOURCE) return
     events.emit(PlatformFirstFrameEvent(playerId = id, generation = generation))
@@ -168,6 +191,7 @@ internal class NativePlayer(
     initializedSent = true
     val geometry = geometry()
     val duration = exoPlayer.duration
+    val format = exoPlayer.videoFormat
     events.emit(
         PlatformInitializedEvent(
             playerId = id,
@@ -177,6 +201,10 @@ internal class NativePlayer(
             height = geometry.height.toLong(),
             rotationDegrees = geometry.rotationDegrees.toLong(),
             pixelAspectRatio = geometry.pixelAspectRatio,
+            isLive = exoPlayer.isCurrentMediaItemLive,
+            frameRate = format?.frameRate?.takeIf { it > 0 }?.toDouble(),
+            bitrate = format?.bitrate?.takeIf { it > 0 }?.toLong(),
+            videoCodec = format?.codecs ?: format?.sampleMimeType,
         ))
   }
 

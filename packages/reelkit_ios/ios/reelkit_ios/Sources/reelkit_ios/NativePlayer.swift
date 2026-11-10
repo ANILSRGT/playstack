@@ -15,7 +15,7 @@ import QuartzCore
 /// no per-frame work.
 ///
 /// All methods must be called on the main thread.
-final class NativePlayer: NSObject, FlutterTexture {
+final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPushDelegate {
   let id: Int64
   private(set) var textureId: Int64 = 0
 
@@ -28,6 +28,7 @@ final class NativePlayer: NSObject, FlutterTexture {
 
   private var item: AVPlayerItem?
   private var videoOutput: AVPlayerItemVideoOutput?
+  private var legibleOutput: AVPlayerItemLegibleOutput?
   private var temporaryFile: URL?
   private var itemObservations: [NSKeyValueObservation] = []
   private var itemNotifications: [NSObjectProtocol] = []
@@ -78,8 +79,15 @@ final class NativePlayer: NSObject, FlutterTexture {
       kCVPixelBufferMetalCompatibilityKey as String: true,
     ])
     item.add(output)
+    // Subtitles are delivered as text to Dart; AVFoundation must not draw
+    // them (it could not anyway: frames go through the video output).
+    let legible = AVPlayerItemLegibleOutput()
+    legible.suppressesPlayerRendering = true
+    legible.setDelegate(self, queue: .main)
+    item.add(legible)
     self.item = item
     videoOutput = output
+    legibleOutput = legible
     observe(item)
     player.replaceCurrentItem(with: item)
     awaitingFrame = true
@@ -119,6 +127,40 @@ final class NativePlayer: NSObject, FlutterTexture {
   func setPlaybackSpeed(_ speed: Double) {
     playbackSpeed = Float(speed)
     if player.rate != 0 { player.rate = playbackSpeed }
+  }
+
+  func tracks() -> [PlatformTrack] {
+    guard let item, initializedSent else { return [] }
+    return TrackSelection.list(item)
+  }
+
+  func selectTrack(type: PlatformTrackType, trackId: String?) throws {
+    guard let item, initializedSent else {
+      throw PigeonError(code: "notInitialized", message: "No prepared source.", details: nil)
+    }
+    try TrackSelection.select(item, type: type, trackId: trackId)
+    if type == .text && trackId == nil { emitCues([]) }
+  }
+
+  func setVideoQualityLimit(maxBitrate: Int64?, maxWidth: Int64?, maxHeight: Int64?) {
+    guard let item else { return }
+    TrackSelection.limitVideo(item, maxBitrate: maxBitrate, maxWidth: maxWidth, maxHeight: maxHeight)
+  }
+
+  // MARK: AVPlayerItemLegibleOutputPushDelegate
+
+  func legibleOutput(
+    _ output: AVPlayerItemLegibleOutput,
+    didOutputAttributedStrings strings: [NSAttributedString],
+    nativeSampleBuffers nativeSamples: [Any], forItemTime itemTime: CMTime
+  ) {
+    guard output === legibleOutput else { return }
+    emitCues(strings.map { $0.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+  }
+
+  private func emitCues(_ texts: [String]) {
+    guard generation != NativePlayer.noSource else { return }
+    events.emit(PlatformCuesEvent(playerId: id, generation: generation, texts: texts))
   }
 
   func position() -> PlatformPosition {
@@ -193,6 +235,15 @@ final class NativePlayer: NSObject, FlutterTexture {
         forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
       ) { [weak self] _ in self?.onPlayedToEnd() },
       center.addObserver(
+        forName: AVPlayerItem.mediaSelectionDidChangeNotification, object: item, queue: .main
+      ) { [weak self] _ in
+        guard let self, self.initializedSent, self.generation != NativePlayer.noSource else {
+          return
+        }
+        self.events.emit(
+          PlatformTracksChangedEvent(playerId: self.id, generation: self.generation))
+      },
+      center.addObserver(
         forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main
       ) { [weak self] note in
         let error = note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
@@ -209,10 +260,21 @@ final class NativePlayer: NSObject, FlutterTexture {
       readGeometry(of: item)
       let size = frameSize(of: item)
       let duration = item.duration
+      let videoTrack = item.tracks.compactMap({ $0.assetTrack }).first(where: {
+        $0.mediaType == .video
+      })
       events.emit(
         PlatformInitializedEvent(
           playerId: id, generation: generation,
           durationMs: duration.isNumeric ? milliseconds(duration) : -1,
+          isLive: duration.isIndefinite,
+          frameRate: videoTrack.flatMap {
+            $0.nominalFrameRate > 0 ? Double($0.nominalFrameRate) : nil
+          },
+          bitrate: videoTrack.flatMap {
+            $0.estimatedDataRate > 0 ? Int64($0.estimatedDataRate) : nil
+          },
+          videoCodec: videoTrack.flatMap(TrackSelection.codec(of:)),
           width: Int64(size.width), height: Int64(size.height),
           rotationDegrees: rotationDegrees, pixelAspectRatio: pixelAspectRatio))
       emitState(player.timeControlStatus == .waitingToPlayAtSpecifiedRate ? .buffering : .ready)
@@ -318,6 +380,11 @@ final class NativePlayer: NSObject, FlutterTexture {
     itemNotifications.removeAll()
     player.pause()
     if let item, let videoOutput { item.remove(videoOutput) }
+    if let item, let legibleOutput {
+      legibleOutput.setDelegate(nil, queue: nil)
+      item.remove(legibleOutput)
+    }
+    legibleOutput = nil
     player.replaceCurrentItem(with: nil)
     item = nil
     videoOutput = nil

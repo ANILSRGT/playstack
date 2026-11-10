@@ -242,6 +242,20 @@ class ReelPlayerPool {
     });
   }
 
+  /// Gives [client]'s current lease a new generation without changing the
+  /// native player, so events of the previous source are discarded. Returns
+  /// null when the client holds no lease.
+  Future<PooledPlayer?> renew(ReelPoolClient client) {
+    return _lock.synchronized(() async {
+      final player = leaseOf(client);
+      if (player == null) return null;
+      player
+        .._generation = _nextGeneration++
+        .._lastUsed = ++_clock;
+      return player;
+    });
+  }
+
   /// Returns [client]'s player to the pool. Its source is detached so it
   /// stops using decoder and network resources; the native player itself
   /// stays alive for reuse until the idle timeout, unless the pool is above

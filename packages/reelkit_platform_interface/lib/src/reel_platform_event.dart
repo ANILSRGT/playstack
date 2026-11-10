@@ -103,3 +103,25 @@ final class ReelErrorEvent extends ReelPlatformEvent {
 
   final ReelKitException error;
 }
+
+/// The available or selected tracks changed.
+final class ReelTracksChangedEvent extends ReelPlatformEvent {
+  const ReelTracksChangedEvent({
+    required super.playerId,
+    required super.generation,
+  });
+}
+
+/// The subtitle text to display changed. An empty list clears it.
+///
+/// Engines deliver plain text; styling and positioning of the source format
+/// are not preserved, so the application renders subtitles its own way.
+final class ReelCuesEvent extends ReelPlatformEvent {
+  const ReelCuesEvent({
+    required super.playerId,
+    required super.generation,
+    required this.texts,
+  });
+
+  final List<String> texts;
+}

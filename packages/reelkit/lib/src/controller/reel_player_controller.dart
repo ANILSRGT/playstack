@@ -8,6 +8,8 @@ import '../config/reel_kit_config.dart';
 import '../pool/reel_player_pool.dart';
 import '../util/async_lock.dart';
 import 'reel_playback_state.dart';
+import 'reel_position_stream.dart';
+import 'reel_track_state.dart';
 
 /// Services a controller needs from its manager.
 @internal
@@ -46,13 +48,20 @@ class ReelPlayerController extends ChangeNotifier
          volume: config.volume,
          isMuted: config.muted,
          playbackSpeed: config.playbackSpeed,
-       );
+       ) {
+    _tracks = ReelTrackState(() => _host.platform);
+  }
 
   final ReelControllerHost _host;
   final Duration _initializeTimeout;
   final AsyncLock _commands = AsyncLock();
 
-  final ReelSource _source;
+  late final ReelTrackState _tracks;
+  final ChangeNotifier _positionChanges = ChangeNotifier();
+  final Set<StreamController<ReelPositionSnapshot>> _positionStreams =
+      <StreamController<ReelPositionSnapshot>>{};
+
+  ReelSource _source;
   ReelPlaybackState _value;
   ReelPlayerPriority _priority = ReelPlayerPriority.visible;
   PooledPlayer? _lease;
@@ -65,6 +74,19 @@ class ReelPlayerController extends ChangeNotifier
 
   @override
   ReelPlaybackState get value => _value;
+
+  /// Audio, video and text tracks of the prepared source. Updated by the
+  /// engine; empty until the source is prepared and on engines without
+  /// track support (see `ReelPlatformCapabilities.supportsTrackSelection`).
+  ValueListenable<List<ReelTrack>> get tracks => _tracks.tracks;
+
+  /// Subtitle text to display now, one entry per cue. Empty when no
+  /// subtitle track is selected or nothing is to be shown. Render it with
+  /// your own widgets.
+  ValueListenable<List<String>> get subtitles => _tracks.subtitles;
+
+  /// The current adaptive video cap.
+  ReelVideoQualityLimit get videoQualityLimit => _tracks.qualityLimit;
 
   /// Whether [dispose] was called.
   bool get isDisposed => _disposed;
@@ -120,12 +142,25 @@ class ReelPlayerController extends ChangeNotifier
     await _host.platform.pause(lease.playerId);
   });
 
+  /// Pauses and returns to the beginning. The video stays prepared.
+  Future<void> stop() => _command(() async {
+    if (_priority == ReelPlayerPriority.active) {
+      _priority = ReelPlayerPriority.visible;
+    }
+    final lease = _lease;
+    if (lease == null || !_value.isInitialized) return;
+    await _host.platform.pause(lease.playerId);
+    await _host.platform.seekTo(lease.playerId, Duration.zero);
+    _positionChanges.notifyListeners();
+  });
+
   /// Seeks to [position], clamped to the video duration when it is known.
   ///
   /// Throws [ReelKitErrorCode.notInitialized] before the video is prepared.
   Future<void> seekTo(Duration position) => _command(() async {
     final lease = _requirePrepared('seekTo');
     await _host.platform.seekTo(lease.playerId, _clampToDuration(position));
+    _positionChanges.notifyListeners();
   });
 
   /// Seeks [offset] relative to the current position. Negative offsets seek
@@ -137,6 +172,7 @@ class ReelPlayerController extends ChangeNotifier
       lease.playerId,
       _clampToDuration(current.position + offset),
     );
+    _positionChanges.notifyListeners();
   });
 
   /// Seeks forward by [step].
@@ -184,6 +220,80 @@ class ReelPlayerController extends ChangeNotifier
     await _applySettings();
   });
 
+  /// Replaces the video while keeping this controller, its settings and, when
+  /// attached, its native player.
+  ///
+  /// When the controller is prepared, the new source is prepared at once and
+  /// playback resumes if it was playing. Otherwise the new source is used by
+  /// the next [initialize] or [play]. Track selections are reset; the video
+  /// quality limit is kept.
+  Future<void> setSource(ReelSource source) => _command(() async {
+    if (source == _source && _value.isInitialized) return;
+    final resume = _value.isPlaying;
+    _source = source;
+    _tracks.resetForNewSource();
+    _update(
+      _value.copyWith(
+        clearVideoInfo: true,
+        clearError: true,
+        status: ReelPlaybackStatus.idle,
+        isBuffering: false,
+        hasRenderedFirstFrame: false,
+      ),
+    );
+    if (_lease == null) return;
+    await _prepareIfNeeded();
+    final lease = _lease;
+    if (resume && lease != null && !_disposed) {
+      await _host.platform.play(lease.playerId);
+    }
+  });
+
+  /// Selects [track] (from [tracks]).
+  ///
+  /// The choice is remembered for this source and re-applied if the
+  /// controller has to prepare again.
+  Future<void> selectTrack(ReelTrack track) => _command(() async {
+    await _tracks.select(_preparedPlayerId, track.type, track.id);
+    await _refreshTracks();
+  });
+
+  /// Returns [type] to automatic selection: adaptive bitrate for video, the
+  /// engine's default for audio. For text this is the same as
+  /// [disableSubtitles].
+  Future<void> selectAutomaticTrack(ReelTrackType type) => _command(() async {
+    await _tracks.select(_preparedPlayerId, type, null);
+    await _refreshTracks();
+  });
+
+  /// Turns subtitles off.
+  Future<void> disableSubtitles() => selectAutomaticTrack(ReelTrackType.text);
+
+  /// Caps adaptive video quality, for example on metered networks. Pass
+  /// [ReelVideoQualityLimit.none] to remove the cap.
+  Future<void> setVideoQualityLimit(ReelVideoQualityLimit limit) =>
+      _command(() => _tracks.setQualityLimit(_preparedPlayerId, limit));
+
+  /// Emits the playback position every [interval] while playing, and once
+  /// after every state change or seek.
+  ///
+  /// Polling runs only while the stream has a listener and the video is
+  /// playing, so a paused video causes no channel traffic.
+  Stream<ReelPositionSnapshot> positions({
+    Duration interval = const Duration(milliseconds: 250),
+  }) {
+    _throwIfDisposed();
+    return pollPositions(
+      interval: interval,
+      read: getPosition,
+      isPlaying: () => _value.isPlaying,
+      isClosed: () => _disposed,
+      changes: Listenable.merge([this, _positionChanges]),
+      register: _positionStreams.add,
+      unregister: _positionStreams.remove,
+    );
+  }
+
   /// Gives the native player back to the pool without disposing the
   /// controller, for example when a feed item scrolls far out of view. The
   /// state returns to [ReelPlaybackStatus.idle] (video info is kept for
@@ -194,6 +304,7 @@ class ReelPlayerController extends ChangeNotifier
     if (_priority == ReelPlayerPriority.active) {
       _priority = ReelPlayerPriority.visible;
     }
+    _tracks.clear();
     _update(
       _value.copyWith(
         status: ReelPlaybackStatus.idle,
@@ -255,6 +366,12 @@ class ReelPlayerController extends ChangeNotifier
       }
     });
     _host.controllerDisposed(this);
+    for (final stream in List.of(_positionStreams)) {
+      await stream.close();
+    }
+    _positionStreams.clear();
+    _tracks.dispose();
+    _positionChanges.dispose();
     _disposedNotifier = true;
     super.dispose();
   }
@@ -306,6 +423,10 @@ class ReelPlayerController extends ChangeNotifier
         );
       case ReelFirstFrameEvent():
         _update(_value.copyWith(hasRenderedFirstFrame: true));
+      case ReelTracksChangedEvent():
+        unawaited(_refreshTracks().catchError(_reportBackgroundError));
+      case ReelCuesEvent(:final texts):
+        _tracks.onCues(texts);
       case ReelErrorEvent(:final error):
         final preparation = _preparation;
         if (preparation != null && !preparation.isCompleted) {
@@ -334,6 +455,7 @@ class ReelPlayerController extends ChangeNotifier
       ),
     );
     if (_disposed) return;
+    _tracks.clear();
     _update(
       _value.copyWith(
         status: ReelPlaybackStatus.idle,
@@ -359,6 +481,7 @@ class ReelPlayerController extends ChangeNotifier
   Future<void> _prepareIfNeeded() async {
     if (_disposed) return;
     if (_value.isInitialized && _lease != null) return;
+    _tracks.clear();
 
     _update(
       _value.copyWith(
@@ -373,15 +496,11 @@ class ReelPlayerController extends ChangeNotifier
     preparation.future.ignore();
     _preparation = preparation;
     try {
-      if (_lease != null) {
-        // A previous preparation failed on this lease. Return the player so
-        // the retry runs under a fresh generation and late events of the
-        // failed attempt are discarded.
-        _lease = null;
-        await _host.pool.release(this);
-        if (_disposed) return;
-      }
-      final lease = await _host.pool.acquire(this);
+      // A held lease (retry after an error, or a new source) keeps its native
+      // player but gets a fresh generation, so late events of the previous
+      // attempt are discarded.
+      final lease =
+          await _host.pool.renew(this) ?? await _host.pool.acquire(this);
       if (_disposed) return;
       _lease = lease;
       _update(_value.copyWith(isAttached: true));
@@ -396,9 +515,11 @@ class ReelPlayerController extends ChangeNotifier
         ),
       );
       if (_disposed || !identical(_lease, lease)) return;
+      await _tracks.applyPreferences(lease.playerId);
       _update(
         _value.copyWith(status: ReelPlaybackStatus.ready, videoInfo: info),
       );
+      unawaited(_refreshTracks().catchError(_reportBackgroundError));
     } on ReelKitException catch (error) {
       if (_disposed) return;
       if (error.code == ReelKitErrorCode.cancelled && _lease == null) {
@@ -467,6 +588,32 @@ class ReelPlayerController extends ChangeNotifier
     } else if (_value.status == ReelPlaybackStatus.playing) {
       _update(_value.copyWith(status: ReelPlaybackStatus.paused));
     }
+  }
+
+  int? get _preparedPlayerId => _value.isInitialized ? _lease?.playerId : null;
+
+  Future<void> _refreshTracks() async {
+    final lease = _lease;
+    if (lease == null || _disposed || !_value.isInitialized) return;
+    final generation = lease.generation;
+    await _tracks.refresh(
+      lease.playerId,
+      () =>
+          !_disposed &&
+          identical(_lease, lease) &&
+          lease.generation == generation,
+    );
+  }
+
+  void _reportBackgroundError(Object error, StackTrace stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'reelkit',
+        context: ErrorDescription('while reading tracks'),
+      ),
+    );
   }
 
   PooledPlayer _requirePrepared(String operation) {

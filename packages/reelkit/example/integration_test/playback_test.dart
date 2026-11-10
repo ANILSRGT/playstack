@@ -48,9 +48,7 @@ void main() {
     await waitFor(controller, (s) => s.hasRenderedFirstFrame);
   });
 
-  testWidgets('reports rotation so the video is shown upright', (
-    tester,
-  ) async {
+  testWidgets('reports rotation so the video is shown upright', (tester) async {
     final controller = manager.createController(
       const ReelSource.asset(rotatedAsset),
     );
@@ -67,10 +65,7 @@ void main() {
     );
     await controller.play();
     await waitFor(controller, (s) => s.status == ReelPlaybackStatus.playing);
-    await waitFor(
-      controller,
-      (s) => s.status == ReelPlaybackStatus.completed,
-    );
+    await waitFor(controller, (s) => s.status == ReelPlaybackStatus.completed);
     final end = await controller.getPosition();
     expect(end.position.inMilliseconds, greaterThan(1800));
 
@@ -157,7 +152,10 @@ void main() {
         isA<ReelKitException>().having(
           (e) => e.code,
           'code',
-          anyOf(ReelKitErrorCode.sourceNotFound, ReelKitErrorCode.unsupportedFormat),
+          anyOf(
+            ReelKitErrorCode.sourceNotFound,
+            ReelKitErrorCode.unsupportedFormat,
+          ),
         ),
       ),
     );

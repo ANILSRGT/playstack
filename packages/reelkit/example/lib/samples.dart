@@ -12,3 +12,7 @@ const landscapeAsset = 'assets/videos/landscape_320x180.mp4';
 
 /// The same clip with 90 degree rotation metadata.
 const rotatedAsset = 'assets/videos/rotated_90.mp4';
+
+/// 3 s clip with two audio tracks (eng, tur) and two mov_text subtitle
+/// tracks (eng: "Hello subtitles", tur: "Merhaba altyazi").
+const multitrackAsset = 'assets/videos/multitrack.mp4';

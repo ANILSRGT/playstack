@@ -105,6 +105,118 @@ enum PlatformVideoFormat { auto, progressive, hls, dash }
 /// a player can be `buffering` while it intends to play.
 enum PlatformPlaybackState { idle, buffering, ready, ended }
 
+enum PlatformTrackType { audio, video, text }
+
+/// One selectable audio, video or text track of the current source.
+class PlatformTrack {
+  PlatformTrack({
+    required this.id,
+    required this.type,
+    required this.isSelected,
+    this.label,
+    this.language,
+    this.bitrate,
+    this.width,
+    this.height,
+    this.frameRate,
+    this.codecs,
+    this.channelCount,
+  });
+
+  /// Engine-defined identifier, stable for the same source.
+  String id;
+
+  PlatformTrackType type;
+
+  bool isSelected;
+
+  String? label;
+
+  /// BCP 47 language tag, when known.
+  String? language;
+
+  /// Peak or average bitrate in bits per second, when known.
+  int? bitrate;
+
+  int? width;
+
+  int? height;
+
+  double? frameRate;
+
+  String? codecs;
+
+  int? channelCount;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      id,
+      type,
+      isSelected,
+      label,
+      language,
+      bitrate,
+      width,
+      height,
+      frameRate,
+      codecs,
+      channelCount,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformTrack decode(Object result) {
+    result as List<Object?>;
+    return PlatformTrack(
+      id: result[0]! as String,
+      type: result[1]! as PlatformTrackType,
+      isSelected: result[2]! as bool,
+      label: result[3] as String?,
+      language: result[4] as String?,
+      bitrate: result[5] as int?,
+      width: result[6] as int?,
+      height: result[7] as int?,
+      frameRate: result[8] as double?,
+      codecs: result[9] as String?,
+      channelCount: result[10] as int?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformTrack || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(id, other.id) &&
+        _deepEquals(type, other.type) &&
+        _deepEquals(isSelected, other.isSelected) &&
+        _deepEquals(label, other.label) &&
+        _deepEquals(language, other.language) &&
+        _deepEquals(bitrate, other.bitrate) &&
+        _deepEquals(width, other.width) &&
+        _deepEquals(height, other.height) &&
+        _deepEquals(frameRate, other.frameRate) &&
+        _deepEquals(codecs, other.codecs) &&
+        _deepEquals(channelCount, other.channelCount);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformTrack(id: $id, type: $type, isSelected: $isSelected, label: $label, language: $language, bitrate: $bitrate, width: $width, height: $height, frameRate: $frameRate, codecs: $codecs, channelCount: $channelCount)';
+  }
+}
+
 class PlatformSource {
   PlatformSource({
     required this.type,
@@ -317,6 +429,8 @@ class PlatformCapabilities {
     required this.supportsDiskCache,
     required this.supportsMemorySource,
     required this.supportsTrackSelection,
+    required this.supportsVideoTrackSelection,
+    required this.supportsVideoQualityLimit,
   });
 
   String engineName;
@@ -342,7 +456,14 @@ class PlatformCapabilities {
 
   bool supportsMemorySource;
 
+  /// Audio and text track listing and selection.
   bool supportsTrackSelection;
+
+  /// Selecting a specific video rendition (quality).
+  bool supportsVideoTrackSelection;
+
+  /// Capping adaptive video by bitrate and resolution.
+  bool supportsVideoQualityLimit;
 
   List<Object?> _toList() {
     return <Object?>[
@@ -357,6 +478,8 @@ class PlatformCapabilities {
       supportsDiskCache,
       supportsMemorySource,
       supportsTrackSelection,
+      supportsVideoTrackSelection,
+      supportsVideoQualityLimit,
     ];
   }
 
@@ -378,6 +501,8 @@ class PlatformCapabilities {
       supportsDiskCache: result[8]! as bool,
       supportsMemorySource: result[9]! as bool,
       supportsTrackSelection: result[10]! as bool,
+      supportsVideoTrackSelection: result[11]! as bool,
+      supportsVideoQualityLimit: result[12]! as bool,
     );
   }
 
@@ -403,7 +528,12 @@ class PlatformCapabilities {
         _deepEquals(supportsDash, other.supportsDash) &&
         _deepEquals(supportsDiskCache, other.supportsDiskCache) &&
         _deepEquals(supportsMemorySource, other.supportsMemorySource) &&
-        _deepEquals(supportsTrackSelection, other.supportsTrackSelection);
+        _deepEquals(supportsTrackSelection, other.supportsTrackSelection) &&
+        _deepEquals(
+          supportsVideoTrackSelection,
+          other.supportsVideoTrackSelection,
+        ) &&
+        _deepEquals(supportsVideoQualityLimit, other.supportsVideoQualityLimit);
   }
 
   @override
@@ -412,7 +542,7 @@ class PlatformCapabilities {
 
   @override
   String toString() {
-    return 'PlatformCapabilities(engineName: $engineName, engineVersion: $engineVersion, recommendedMaxPlayers: $recommendedMaxPlayers, maxHardwareDecoderInstances: $maxHardwareDecoderInstances, totalMemoryBytes: $totalMemoryBytes, isLowRamDevice: $isLowRamDevice, supportsHls: $supportsHls, supportsDash: $supportsDash, supportsDiskCache: $supportsDiskCache, supportsMemorySource: $supportsMemorySource, supportsTrackSelection: $supportsTrackSelection)';
+    return 'PlatformCapabilities(engineName: $engineName, engineVersion: $engineVersion, recommendedMaxPlayers: $recommendedMaxPlayers, maxHardwareDecoderInstances: $maxHardwareDecoderInstances, totalMemoryBytes: $totalMemoryBytes, isLowRamDevice: $isLowRamDevice, supportsHls: $supportsHls, supportsDash: $supportsDash, supportsDiskCache: $supportsDiskCache, supportsMemorySource: $supportsMemorySource, supportsTrackSelection: $supportsTrackSelection, supportsVideoTrackSelection: $supportsVideoTrackSelection, supportsVideoQualityLimit: $supportsVideoQualityLimit)';
   }
 }
 
@@ -469,6 +599,10 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
     required this.playerId,
     required this.generation,
     required this.durationMs,
+    required this.isLive,
+    this.frameRate,
+    this.bitrate,
+    this.videoCodec,
     required this.width,
     required this.height,
     required this.rotationDegrees,
@@ -481,6 +615,16 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
 
   /// Negative when the duration is unknown (for example live streams).
   int durationMs;
+
+  bool isLive;
+
+  double? frameRate;
+
+  /// Bitrate of the selected video in bits per second, when known.
+  int? bitrate;
+
+  /// Video codec (RFC 6381 string or FourCC), when known.
+  String? videoCodec;
 
   int width;
 
@@ -499,6 +643,10 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
       playerId,
       generation,
       durationMs,
+      isLive,
+      frameRate,
+      bitrate,
+      videoCodec,
       width,
       height,
       rotationDegrees,
@@ -516,10 +664,14 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
       playerId: result[0]! as int,
       generation: result[1]! as int,
       durationMs: result[2]! as int,
-      width: result[3]! as int,
-      height: result[4]! as int,
-      rotationDegrees: result[5]! as int,
-      pixelAspectRatio: result[6]! as double,
+      isLive: result[3]! as bool,
+      frameRate: result[4] as double?,
+      bitrate: result[5] as int?,
+      videoCodec: result[6] as String?,
+      width: result[7]! as int,
+      height: result[8]! as int,
+      rotationDegrees: result[9]! as int,
+      pixelAspectRatio: result[10]! as double,
     );
   }
 
@@ -536,6 +688,10 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
     return _deepEquals(playerId, other.playerId) &&
         _deepEquals(generation, other.generation) &&
         _deepEquals(durationMs, other.durationMs) &&
+        _deepEquals(isLive, other.isLive) &&
+        _deepEquals(frameRate, other.frameRate) &&
+        _deepEquals(bitrate, other.bitrate) &&
+        _deepEquals(videoCodec, other.videoCodec) &&
         _deepEquals(width, other.width) &&
         _deepEquals(height, other.height) &&
         _deepEquals(rotationDegrees, other.rotationDegrees) &&
@@ -548,7 +704,7 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
 
   @override
   String toString() {
-    return 'PlatformInitializedEvent(playerId: $playerId, generation: $generation, durationMs: $durationMs, width: $width, height: $height, rotationDegrees: $rotationDegrees, pixelAspectRatio: $pixelAspectRatio)';
+    return 'PlatformInitializedEvent(playerId: $playerId, generation: $generation, durationMs: $durationMs, isLive: $isLive, frameRate: $frameRate, bitrate: $bitrate, videoCodec: $videoCodec, width: $width, height: $height, rotationDegrees: $rotationDegrees, pixelAspectRatio: $pixelAspectRatio)';
   }
 }
 
@@ -855,6 +1011,112 @@ class PlatformErrorEvent extends PlatformPlayerEvent {
   }
 }
 
+/// The available or selected tracks changed. Read them with `getTracks`.
+class PlatformTracksChangedEvent extends PlatformPlayerEvent {
+  PlatformTracksChangedEvent({
+    required this.playerId,
+    required this.generation,
+  });
+
+  int playerId;
+
+  int generation;
+
+  List<Object?> _toList() {
+    return <Object?>[playerId, generation];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformTracksChangedEvent decode(Object result) {
+    result as List<Object?>;
+    return PlatformTracksChangedEvent(
+      playerId: result[0]! as int,
+      generation: result[1]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformTracksChangedEvent ||
+        other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(playerId, other.playerId) &&
+        _deepEquals(generation, other.generation);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformTracksChangedEvent(playerId: $playerId, generation: $generation)';
+  }
+}
+
+/// The subtitle text to show changed. An empty list clears the subtitles.
+class PlatformCuesEvent extends PlatformPlayerEvent {
+  PlatformCuesEvent({
+    required this.playerId,
+    required this.generation,
+    required this.texts,
+  });
+
+  int playerId;
+
+  int generation;
+
+  List<String> texts;
+
+  List<Object?> _toList() {
+    return <Object?>[playerId, generation, texts];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformCuesEvent decode(Object result) {
+    result as List<Object?>;
+    return PlatformCuesEvent(
+      playerId: result[0]! as int,
+      generation: result[1]! as int,
+      texts: (result[2]! as List<Object?>).cast<String>(),
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformCuesEvent || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(playerId, other.playerId) &&
+        _deepEquals(generation, other.generation) &&
+        _deepEquals(texts, other.texts);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformCuesEvent(playerId: $playerId, generation: $generation, texts: $texts)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -871,38 +1133,50 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformPlaybackState) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    } else if (value is PlatformSource) {
+    } else if (value is PlatformTrackType) {
       buffer.putUint8(132);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformTrack) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(142);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformFirstFrameEvent) {
+      buffer.putUint8(143);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformErrorEvent) {
+      buffer.putUint8(144);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformTracksChangedEvent) {
+      buffer.putUint8(145);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(146);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -922,27 +1196,36 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformPlaybackState.values[value];
       case 132:
-        return PlatformSource.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformTrackType.values[value];
       case 133:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 134:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 135:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 136:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 137:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 138:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 139:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 140:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 141:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 142:
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+      case 143:
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+      case 144:
         return PlatformErrorEvent.decode(readValue(buffer)!);
+      case 145:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 146:
+        return PlatformCuesEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -1210,6 +1493,76 @@ class ReelKitHostApi {
       isNullValid: false,
     );
     return pigeonVar_replyValue! as PlatformPosition;
+  }
+
+  Future<List<PlatformTrack>> getTracks(int playerId) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.getTracks$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return (pigeonVar_replyValue! as List<Object?>).cast<PlatformTrack>();
+  }
+
+  /// Selects [trackId] for [type]. A null [trackId] restores automatic
+  /// selection for audio and video and disables text tracks.
+  Future<void> selectTrack(
+    int playerId,
+    PlatformTrackType type,
+    String? trackId,
+  ) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.selectTrack$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, type, trackId],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Caps adaptive video selection. Null values remove the respective cap.
+  Future<void> setVideoQualityLimit(
+    int playerId,
+    int? maxBitrate,
+    int? maxWidth,
+    int? maxHeight,
+  ) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.setVideoQualityLimit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, maxBitrate, maxWidth, maxHeight],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 }
 

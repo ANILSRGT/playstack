@@ -1,7 +1,19 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reelkit/reelkit.dart';
 
 import 'support/fake_reelkit_platform.dart';
+
+/// Delivers lifecycle changes in the real async zone, where the manager's
+/// futures were created, so the resulting commands complete.
+Future<void> lifecycle(WidgetTester tester, List<AppLifecycleState> states) {
+  return tester.runAsync(() async {
+    for (final state in states) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    await flush();
+  });
+}
 
 void main() {
   test('initialize is idempotent and shared between callers', () async {
@@ -123,5 +135,63 @@ void main() {
     await manager.trimIdlePlayers();
     expect(platform.livePlayers, isEmpty);
     await manager.dispose();
+  });
+
+  testWidgets('pauses on background and resumes on foreground', (tester) async {
+    final platform = FakeReelKitPlatform();
+    // Everything is created in the real async zone: futures complete in the
+    // zone they were created in, and fake-async microtasks would not run.
+    late final ReelKitManager manager;
+    late final ReelPlayerController playing;
+    late final ReelPlayerController paused;
+    await tester.runAsync(() async {
+      manager = ReelKitManager(platform: platform);
+      await manager.initialize();
+      playing = manager.createController(const ReelSource.file('/a'));
+      paused = manager.createController(const ReelSource.file('/b'));
+      await playing.play();
+      await paused.initialize();
+      await flush();
+    });
+    expect(playing.value.isPlaying, isTrue);
+    await lifecycle(tester, [AppLifecycleState.inactive]);
+    expect(playing.value.isPlaying, isTrue, reason: 'inactive is transient');
+
+    await lifecycle(tester, [AppLifecycleState.hidden]);
+    expect(playing.value.status, ReelPlaybackStatus.paused);
+
+    await lifecycle(tester, [
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]);
+    expect(playing.value.status, ReelPlaybackStatus.playing);
+    expect(
+      paused.value.status,
+      ReelPlaybackStatus.ready,
+      reason: 'only controllers paused by the lifecycle resume',
+    );
+    await tester.runAsync(manager.dispose);
+  });
+
+  testWidgets('lifecycle handling can be disabled', (tester) async {
+    late final ReelKitManager manager;
+    late final ReelPlayerController controller;
+    await tester.runAsync(() async {
+      manager = ReelKitManager(
+        config: const ReelKitConfig(
+          lifecycle: ReelLifecycleConfig(pauseOnBackground: false),
+        ),
+        platform: FakeReelKitPlatform(),
+      );
+      await manager.initialize();
+      controller = manager.createController(const ReelSource.file('/a'));
+      await controller.play();
+      await flush();
+    });
+    await lifecycle(tester, [AppLifecycleState.hidden]);
+    expect(controller.value.isPlaying, isTrue);
+    await tester.runAsync(manager.dispose);
   });
 }

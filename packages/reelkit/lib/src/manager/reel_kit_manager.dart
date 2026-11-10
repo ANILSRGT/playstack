@@ -38,7 +38,8 @@ class ReelKitManager implements ReelControllerHost {
   ReelPlatformCapabilities? _capabilities;
   ReelPlayerPool? _pool;
   StreamSubscription<ReelPlatformEvent>? _events;
-  _MemoryPressureObserver? _memoryObserver;
+  _BindingObserver? _bindingObserver;
+  final Set<ReelPlayerController> _pausedByLifecycle = <ReelPlayerController>{};
   bool _disposed = false;
 
   @override
@@ -114,7 +115,10 @@ class ReelKitManager implements ReelControllerHost {
         );
       },
     );
-    _memoryObserver = _MemoryPressureObserver(_onMemoryPressure)..attach();
+    _bindingObserver = _BindingObserver(
+      onMemoryPressure: _onMemoryPressure,
+      onLifecycle: _onLifecycle,
+    )..attach();
   }
 
   /// Creates a controller for [source].
@@ -142,6 +146,14 @@ class ReelKitManager implements ReelControllerHost {
     return controller;
   }
 
+  /// Pauses every playing controller of this manager.
+  Future<void> pauseAll() async {
+    await Future.wait([
+      for (final controller in List<ReelPlayerController>.of(_controllers))
+        if (controller.value.isPlaying) controller.pause(),
+    ]);
+  }
+
   /// Destroys native players that are not assigned to any controller.
   Future<void> trimIdlePlayers() => _pool?.trimIdle() ?? Future<void>.value();
 
@@ -150,8 +162,9 @@ class ReelKitManager implements ReelControllerHost {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
-    _memoryObserver?.detach();
-    _memoryObserver = null;
+    _bindingObserver?.detach();
+    _bindingObserver = null;
+    _pausedByLifecycle.clear();
     await Future.wait(
       List<ReelPlayerController>.of(_controllers).map((c) => c.dispose()),
     );
@@ -164,6 +177,7 @@ class ReelKitManager implements ReelControllerHost {
   @internal
   void controllerDisposed(ReelPlayerController controller) {
     _controllers.remove(controller);
+    _pausedByLifecycle.remove(controller);
   }
 
   void _routeEvent(ReelPlatformEvent event) {
@@ -175,17 +189,54 @@ class ReelKitManager implements ReelControllerHost {
     unawaited(trimIdlePlayers());
   }
 
+  void _onLifecycle(AppLifecycleState state) {
+    final lifecycle = config.lifecycle;
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        if (!lifecycle.pauseOnBackground) return;
+        for (final controller in List<ReelPlayerController>.of(_controllers)) {
+          if (!controller.value.isPlaying) continue;
+          _pausedByLifecycle.add(controller);
+          unawaited(controller.pause().catchError(_reportLifecycleError));
+        }
+      case AppLifecycleState.resumed:
+        final toResume = List<ReelPlayerController>.of(_pausedByLifecycle);
+        _pausedByLifecycle.clear();
+        if (!lifecycle.resumeOnForeground) return;
+        for (final controller in toResume) {
+          if (controller.isDisposed) continue;
+          unawaited(controller.play().catchError(_reportLifecycleError));
+        }
+      case AppLifecycleState.inactive:
+        break;
+    }
+  }
+
+  void _reportLifecycleError(Object error, StackTrace stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'reelkit',
+        context: ErrorDescription('while applying the app lifecycle'),
+      ),
+    );
+  }
+
   ReelKitException _notInitialized() => const ReelKitException(
     ReelKitErrorCode.notInitialized,
     'Call and await ReelKitManager.initialize() first.',
   );
 }
 
-/// Destroys idle native players when the OS reports memory pressure.
-class _MemoryPressureObserver with WidgetsBindingObserver {
-  _MemoryPressureObserver(this._onPressure);
+/// Forwards memory pressure and app lifecycle changes to the manager.
+class _BindingObserver with WidgetsBindingObserver {
+  _BindingObserver({required this.onMemoryPressure, required this.onLifecycle});
 
-  final VoidCallback _onPressure;
+  final VoidCallback onMemoryPressure;
+  final void Function(AppLifecycleState state) onLifecycle;
   bool _attached = false;
 
   void attach() {
@@ -211,5 +262,9 @@ class _MemoryPressureObserver with WidgetsBindingObserver {
   }
 
   @override
-  void didHaveMemoryPressure() => _onPressure();
+  void didHaveMemoryPressure() => onMemoryPressure();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) =>
+      onLifecycle(state);
 }

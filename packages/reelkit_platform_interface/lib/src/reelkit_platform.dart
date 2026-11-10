@@ -6,6 +6,7 @@ import 'reel_native_player.dart';
 import 'reel_platform_capabilities.dart';
 import 'reel_platform_event.dart';
 import 'reel_source.dart';
+import 'reel_track.dart';
 
 /// The contract every ReelKit engine implements.
 ///
@@ -87,6 +88,24 @@ abstract class ReelKitPlatform extends PlatformInterface {
 
   Future<ReelPositionSnapshot> getPosition(int playerId) {
     throw UnimplementedError('getPosition() has not been implemented.');
+  }
+
+  /// Tracks of the current source. Empty before preparation.
+  Future<List<ReelTrack>> getTracks(int playerId) {
+    throw UnimplementedError('getTracks() has not been implemented.');
+  }
+
+  /// Selects [trackId] for [type]. A null [trackId] restores automatic
+  /// selection for audio and video, and disables text tracks.
+  Future<void> selectTrack(int playerId, ReelTrackType type, String? trackId) {
+    throw UnimplementedError('selectTrack() has not been implemented.');
+  }
+
+  /// Caps adaptive video selection.
+  Future<void> setVideoQualityLimit(int playerId, ReelVideoQualityLimit limit) {
+    throw UnimplementedError(
+      'setVideoQualityLimit() has not been implemented.',
+    );
   }
 
   /// Events of all native players of this engine.

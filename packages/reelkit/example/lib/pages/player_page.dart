@@ -18,6 +18,9 @@ class _PlayerPageState extends State<PlayerPage> {
     'Network MP4': ReelSource.network(sampleVideos.first),
     'Asset': const ReelSource.asset(landscapeAsset),
     'Asset, rotated 90°': const ReelSource.asset(rotatedAsset),
+    'Asset, 2 audio + 2 subtitle tracks': const ReelSource.asset(
+      multitrackAsset,
+    ),
   };
 
   final ReelKitManager _manager = ReelKitManager();
@@ -28,7 +31,7 @@ class _PlayerPageState extends State<PlayerPage> {
     position: Duration.zero,
     buffered: Duration.zero,
   );
-  Timer? _positionTimer;
+  StreamSubscription<ReelPositionSnapshot>? _positionSubscription;
 
   @override
   void initState() {
@@ -38,39 +41,26 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _load() async {
     await _manager.initialize();
-    final previous = _controller;
-    final controller = _manager.createController(_sources[_sourceName]!)
-      ..addListener(_onState);
-    setState(() => _controller = controller);
-    await previous?.dispose();
-    await controller.initialize().catchError((Object _) {});
-  }
-
-  /// Position is pulled by the app, and only while playing.
-  void _onState() {
-    final playing = _controller?.value.isPlaying ?? false;
-    if (playing && _positionTimer == null) {
-      _positionTimer = Timer.periodic(
-        const Duration(milliseconds: 250),
-        (_) => unawaited(_readPosition()),
-      );
-    } else if (!playing) {
-      _positionTimer?.cancel();
-      _positionTimer = null;
-      unawaited(_readPosition());
+    final source = _sources[_sourceName]!;
+    final existing = _controller;
+    if (existing != null) {
+      // Same controller and native player, new video.
+      await existing.setSource(source).catchError((Object _) {});
+      return;
     }
-  }
-
-  Future<void> _readPosition() async {
-    final controller = _controller;
-    if (controller == null || controller.isDisposed) return;
-    final position = await controller.getPosition();
-    if (mounted) setState(() => _position = position);
+    final controller = _manager.createController(source);
+    // The stream polls only while playing (and once after seeks and state
+    // changes), so a paused player causes no channel traffic.
+    _positionSubscription = controller.positions().listen(
+      (position) => setState(() => _position = position),
+    );
+    setState(() => _controller = controller);
+    await controller.initialize().catchError((Object _) {});
   }
 
   @override
   void dispose() {
-    _positionTimer?.cancel();
+    unawaited(_positionSubscription?.cancel());
     unawaited(_manager.dispose());
     super.dispose();
   }
@@ -82,6 +72,7 @@ class _PlayerPageState extends State<PlayerPage> {
       appBar: AppBar(
         title: const Text('Single player'),
         actions: [
+          if (controller != null) _TracksMenu(controller: controller),
           PopupMenuButton<String>(
             initialValue: _sourceName,
             onSelected: (name) {
@@ -121,6 +112,26 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                         if (state.isBuffering && state.isPlaying)
                           const Center(child: CircularProgressIndicator()),
+                        // Subtitles are plain text; styling is the app's.
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 12,
+                          child: ValueListenableBuilder<List<String>>(
+                            valueListenable: controller.subtitles,
+                            builder: (_, lines, _) => lines.isEmpty
+                                ? const SizedBox.shrink()
+                                : Text(
+                                    lines.join('\n'),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      backgroundColor: Colors.black54,
+                                    ),
+                                  ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -156,6 +167,55 @@ class _PlayerPageState extends State<PlayerPage> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _TracksMenu extends StatelessWidget {
+  const _TracksMenu({required this.controller});
+
+  final ReelPlayerController controller;
+
+  static String _label(ReelTrack track) {
+    final parts = [
+      ?track.label,
+      ?track.language,
+      if (track.height != null) '${track.height}p',
+    ];
+    return parts.isEmpty ? track.id : parts.join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<ReelTrack>>(
+      valueListenable: controller.tracks,
+      builder: (context, tracks, _) => PopupMenuButton<VoidCallback>(
+        tooltip: 'Tracks',
+        enabled: tracks.isNotEmpty,
+        icon: const Icon(Icons.subtitles_outlined),
+        onSelected: (action) => action(),
+        itemBuilder: (_) => [
+          for (final type in ReelTrackType.values) ...[
+            if (tracks.any((t) => t.type == type))
+              PopupMenuItem<VoidCallback>(
+                enabled: false,
+                child: Text(type.name.toUpperCase()),
+              ),
+            for (final track in tracks.where((t) => t.type == type))
+              CheckedPopupMenuItem<VoidCallback>(
+                checked: track.isSelected,
+                value: () => unawaited(
+                  controller.selectTrack(track).catchError((Object _) {}),
+                ),
+                child: Text(_label(track)),
+              ),
+          ],
+          PopupMenuItem<VoidCallback>(
+            value: () => unawaited(controller.disableSubtitles()),
+            child: const Text('Subtitles off'),
+          ),
+        ],
+      ),
     );
   }
 }

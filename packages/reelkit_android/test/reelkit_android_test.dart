@@ -25,6 +25,8 @@ class _FakeHostApi extends ReelKitHostApi {
       supportsDiskCache: false,
       supportsMemorySource: false,
       supportsTrackSelection: false,
+      supportsVideoTrackSelection: false,
+      supportsVideoQualityLimit: false,
     );
   }
 
@@ -156,6 +158,8 @@ void main() {
           height: 360,
           rotationDegrees: 90,
           pixelAspectRatio: 1,
+          isLive: false,
+          videoCodec: 'avc1.42C01E',
         ),
       )
       ..add(

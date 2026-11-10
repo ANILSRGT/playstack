@@ -247,6 +247,104 @@ enum class PlatformPlaybackState(val raw: Int) {
   }
 }
 
+enum class PlatformTrackType(val raw: Int) {
+  AUDIO(0),
+  VIDEO(1),
+  TEXT(2);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformTrackType? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
+/**
+ * One selectable audio, video or text track of the current source.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformTrack (
+  /** Engine-defined identifier, stable for the same source. */
+  val id: String,
+  val type: PlatformTrackType,
+  val isSelected: Boolean,
+  val label: String? = null,
+  /** BCP 47 language tag, when known. */
+  val language: String? = null,
+  /** Peak or average bitrate in bits per second, when known. */
+  val bitrate: Long? = null,
+  val width: Long? = null,
+  val height: Long? = null,
+  val frameRate: Double? = null,
+  val codecs: String? = null,
+  val channelCount: Long? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformTrack {
+      val id = pigeonVar_list[0] as String
+      val type = pigeonVar_list[1] as PlatformTrackType
+      val isSelected = pigeonVar_list[2] as Boolean
+      val label = pigeonVar_list[3] as String?
+      val language = pigeonVar_list[4] as String?
+      val bitrate = pigeonVar_list[5] as Long?
+      val width = pigeonVar_list[6] as Long?
+      val height = pigeonVar_list[7] as Long?
+      val frameRate = pigeonVar_list[8] as Double?
+      val codecs = pigeonVar_list[9] as String?
+      val channelCount = pigeonVar_list[10] as Long?
+      return PlatformTrack(id, type, isSelected, label, language, bitrate, width, height, frameRate, codecs, channelCount)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      id,
+      type,
+      isSelected,
+      label,
+      language,
+      bitrate,
+      width,
+      height,
+      frameRate,
+      codecs,
+      channelCount,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformTrack
+    return MessagesPigeonUtils.deepEquals(this.id, other.id) && MessagesPigeonUtils.deepEquals(this.type, other.type) && MessagesPigeonUtils.deepEquals(this.isSelected, other.isSelected) && MessagesPigeonUtils.deepEquals(this.label, other.label) && MessagesPigeonUtils.deepEquals(this.language, other.language) && MessagesPigeonUtils.deepEquals(this.bitrate, other.bitrate) && MessagesPigeonUtils.deepEquals(this.width, other.width) && MessagesPigeonUtils.deepEquals(this.height, other.height) && MessagesPigeonUtils.deepEquals(this.frameRate, other.frameRate) && MessagesPigeonUtils.deepEquals(this.codecs, other.codecs) && MessagesPigeonUtils.deepEquals(this.channelCount, other.channelCount)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.id)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.type)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.isSelected)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.label)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.language)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.bitrate)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.width)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.height)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.frameRate)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.codecs)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.channelCount)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformTrack(id=$id, type=$type, isSelected=$isSelected, label=$label, language=$language, bitrate=$bitrate, width=$width, height=$height, frameRate=$frameRate, codecs=$codecs, channelCount=$channelCount)"
+  }
+}
+
 /** Generated class from Pigeon that represents data sent in messages. */
 data class PlatformSource (
   val type: PlatformSourceType,
@@ -422,7 +520,12 @@ data class PlatformCapabilities (
   val supportsDash: Boolean,
   val supportsDiskCache: Boolean,
   val supportsMemorySource: Boolean,
-  val supportsTrackSelection: Boolean
+  /** Audio and text track listing and selection. */
+  val supportsTrackSelection: Boolean,
+  /** Selecting a specific video rendition (quality). */
+  val supportsVideoTrackSelection: Boolean,
+  /** Capping adaptive video by bitrate and resolution. */
+  val supportsVideoQualityLimit: Boolean
 )
  {
   companion object {
@@ -438,7 +541,9 @@ data class PlatformCapabilities (
       val supportsDiskCache = pigeonVar_list[8] as Boolean
       val supportsMemorySource = pigeonVar_list[9] as Boolean
       val supportsTrackSelection = pigeonVar_list[10] as Boolean
-      return PlatformCapabilities(engineName, engineVersion, recommendedMaxPlayers, maxHardwareDecoderInstances, totalMemoryBytes, isLowRamDevice, supportsHls, supportsDash, supportsDiskCache, supportsMemorySource, supportsTrackSelection)
+      val supportsVideoTrackSelection = pigeonVar_list[11] as Boolean
+      val supportsVideoQualityLimit = pigeonVar_list[12] as Boolean
+      return PlatformCapabilities(engineName, engineVersion, recommendedMaxPlayers, maxHardwareDecoderInstances, totalMemoryBytes, isLowRamDevice, supportsHls, supportsDash, supportsDiskCache, supportsMemorySource, supportsTrackSelection, supportsVideoTrackSelection, supportsVideoQualityLimit)
     }
   }
   fun toList(): List<Any?> {
@@ -454,6 +559,8 @@ data class PlatformCapabilities (
       supportsDiskCache,
       supportsMemorySource,
       supportsTrackSelection,
+      supportsVideoTrackSelection,
+      supportsVideoQualityLimit,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -464,7 +571,7 @@ data class PlatformCapabilities (
       return true
     }
     val other = other as PlatformCapabilities
-    return MessagesPigeonUtils.deepEquals(this.engineName, other.engineName) && MessagesPigeonUtils.deepEquals(this.engineVersion, other.engineVersion) && MessagesPigeonUtils.deepEquals(this.recommendedMaxPlayers, other.recommendedMaxPlayers) && MessagesPigeonUtils.deepEquals(this.maxHardwareDecoderInstances, other.maxHardwareDecoderInstances) && MessagesPigeonUtils.deepEquals(this.totalMemoryBytes, other.totalMemoryBytes) && MessagesPigeonUtils.deepEquals(this.isLowRamDevice, other.isLowRamDevice) && MessagesPigeonUtils.deepEquals(this.supportsHls, other.supportsHls) && MessagesPigeonUtils.deepEquals(this.supportsDash, other.supportsDash) && MessagesPigeonUtils.deepEquals(this.supportsDiskCache, other.supportsDiskCache) && MessagesPigeonUtils.deepEquals(this.supportsMemorySource, other.supportsMemorySource) && MessagesPigeonUtils.deepEquals(this.supportsTrackSelection, other.supportsTrackSelection)
+    return MessagesPigeonUtils.deepEquals(this.engineName, other.engineName) && MessagesPigeonUtils.deepEquals(this.engineVersion, other.engineVersion) && MessagesPigeonUtils.deepEquals(this.recommendedMaxPlayers, other.recommendedMaxPlayers) && MessagesPigeonUtils.deepEquals(this.maxHardwareDecoderInstances, other.maxHardwareDecoderInstances) && MessagesPigeonUtils.deepEquals(this.totalMemoryBytes, other.totalMemoryBytes) && MessagesPigeonUtils.deepEquals(this.isLowRamDevice, other.isLowRamDevice) && MessagesPigeonUtils.deepEquals(this.supportsHls, other.supportsHls) && MessagesPigeonUtils.deepEquals(this.supportsDash, other.supportsDash) && MessagesPigeonUtils.deepEquals(this.supportsDiskCache, other.supportsDiskCache) && MessagesPigeonUtils.deepEquals(this.supportsMemorySource, other.supportsMemorySource) && MessagesPigeonUtils.deepEquals(this.supportsTrackSelection, other.supportsTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoTrackSelection, other.supportsVideoTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoQualityLimit, other.supportsVideoQualityLimit)
   }
 
   override fun hashCode(): Int {
@@ -480,10 +587,12 @@ data class PlatformCapabilities (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsDiskCache)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsMemorySource)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsTrackSelection)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsVideoTrackSelection)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsVideoQualityLimit)
     return result
   }
   override fun toString(): String {
-    return "PlatformCapabilities(engineName=$engineName, engineVersion=$engineVersion, recommendedMaxPlayers=$recommendedMaxPlayers, maxHardwareDecoderInstances=$maxHardwareDecoderInstances, totalMemoryBytes=$totalMemoryBytes, isLowRamDevice=$isLowRamDevice, supportsHls=$supportsHls, supportsDash=$supportsDash, supportsDiskCache=$supportsDiskCache, supportsMemorySource=$supportsMemorySource, supportsTrackSelection=$supportsTrackSelection)"
+    return "PlatformCapabilities(engineName=$engineName, engineVersion=$engineVersion, recommendedMaxPlayers=$recommendedMaxPlayers, maxHardwareDecoderInstances=$maxHardwareDecoderInstances, totalMemoryBytes=$totalMemoryBytes, isLowRamDevice=$isLowRamDevice, supportsHls=$supportsHls, supportsDash=$supportsDash, supportsDiskCache=$supportsDiskCache, supportsMemorySource=$supportsMemorySource, supportsTrackSelection=$supportsTrackSelection, supportsVideoTrackSelection=$supportsVideoTrackSelection, supportsVideoQualityLimit=$supportsVideoQualityLimit)"
   }
 }
 
@@ -539,6 +648,12 @@ data class PlatformInitializedEvent (
   val generation: Long,
   /** Negative when the duration is unknown (for example live streams). */
   val durationMs: Long,
+  val isLive: Boolean,
+  val frameRate: Double? = null,
+  /** Bitrate of the selected video in bits per second, when known. */
+  val bitrate: Long? = null,
+  /** Video codec (RFC 6381 string or FourCC), when known. */
+  val videoCodec: String? = null,
   val width: Long,
   val height: Long,
   /**
@@ -556,11 +671,15 @@ data class PlatformInitializedEvent (
       val playerId = pigeonVar_list[0] as Long
       val generation = pigeonVar_list[1] as Long
       val durationMs = pigeonVar_list[2] as Long
-      val width = pigeonVar_list[3] as Long
-      val height = pigeonVar_list[4] as Long
-      val rotationDegrees = pigeonVar_list[5] as Long
-      val pixelAspectRatio = pigeonVar_list[6] as Double
-      return PlatformInitializedEvent(playerId, generation, durationMs, width, height, rotationDegrees, pixelAspectRatio)
+      val isLive = pigeonVar_list[3] as Boolean
+      val frameRate = pigeonVar_list[4] as Double?
+      val bitrate = pigeonVar_list[5] as Long?
+      val videoCodec = pigeonVar_list[6] as String?
+      val width = pigeonVar_list[7] as Long
+      val height = pigeonVar_list[8] as Long
+      val rotationDegrees = pigeonVar_list[9] as Long
+      val pixelAspectRatio = pigeonVar_list[10] as Double
+      return PlatformInitializedEvent(playerId, generation, durationMs, isLive, frameRate, bitrate, videoCodec, width, height, rotationDegrees, pixelAspectRatio)
     }
   }
   fun toList(): List<Any?> {
@@ -568,6 +687,10 @@ data class PlatformInitializedEvent (
       playerId,
       generation,
       durationMs,
+      isLive,
+      frameRate,
+      bitrate,
+      videoCodec,
       width,
       height,
       rotationDegrees,
@@ -582,7 +705,7 @@ data class PlatformInitializedEvent (
       return true
     }
     val other = other as PlatformInitializedEvent
-    return MessagesPigeonUtils.deepEquals(this.playerId, other.playerId) && MessagesPigeonUtils.deepEquals(this.generation, other.generation) && MessagesPigeonUtils.deepEquals(this.durationMs, other.durationMs) && MessagesPigeonUtils.deepEquals(this.width, other.width) && MessagesPigeonUtils.deepEquals(this.height, other.height) && MessagesPigeonUtils.deepEquals(this.rotationDegrees, other.rotationDegrees) && MessagesPigeonUtils.deepEquals(this.pixelAspectRatio, other.pixelAspectRatio)
+    return MessagesPigeonUtils.deepEquals(this.playerId, other.playerId) && MessagesPigeonUtils.deepEquals(this.generation, other.generation) && MessagesPigeonUtils.deepEquals(this.durationMs, other.durationMs) && MessagesPigeonUtils.deepEquals(this.isLive, other.isLive) && MessagesPigeonUtils.deepEquals(this.frameRate, other.frameRate) && MessagesPigeonUtils.deepEquals(this.bitrate, other.bitrate) && MessagesPigeonUtils.deepEquals(this.videoCodec, other.videoCodec) && MessagesPigeonUtils.deepEquals(this.width, other.width) && MessagesPigeonUtils.deepEquals(this.height, other.height) && MessagesPigeonUtils.deepEquals(this.rotationDegrees, other.rotationDegrees) && MessagesPigeonUtils.deepEquals(this.pixelAspectRatio, other.pixelAspectRatio)
   }
 
   override fun hashCode(): Int {
@@ -590,6 +713,10 @@ data class PlatformInitializedEvent (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.playerId)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.generation)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.durationMs)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.isLive)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.frameRate)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.bitrate)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.videoCodec)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.width)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.height)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.rotationDegrees)
@@ -597,7 +724,7 @@ data class PlatformInitializedEvent (
     return result
   }
   override fun toString(): String {
-    return "PlatformInitializedEvent(playerId=$playerId, generation=$generation, durationMs=$durationMs, width=$width, height=$height, rotationDegrees=$rotationDegrees, pixelAspectRatio=$pixelAspectRatio)"
+    return "PlatformInitializedEvent(playerId=$playerId, generation=$generation, durationMs=$durationMs, isLive=$isLive, frameRate=$frameRate, bitrate=$bitrate, videoCodec=$videoCodec, width=$width, height=$height, rotationDegrees=$rotationDegrees, pixelAspectRatio=$pixelAspectRatio)"
   }
 }
 
@@ -855,6 +982,100 @@ data class PlatformErrorEvent (
     return "PlatformErrorEvent(playerId=$playerId, generation=$generation, code=$code, message=$message, details=$details)"
   }
 }
+
+/**
+ * The available or selected tracks changed. Read them with `getTracks`.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformTracksChangedEvent (
+  val playerId: Long,
+  val generation: Long
+) : PlatformPlayerEvent()
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformTracksChangedEvent {
+      val playerId = pigeonVar_list[0] as Long
+      val generation = pigeonVar_list[1] as Long
+      return PlatformTracksChangedEvent(playerId, generation)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      playerId,
+      generation,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformTracksChangedEvent
+    return MessagesPigeonUtils.deepEquals(this.playerId, other.playerId) && MessagesPigeonUtils.deepEquals(this.generation, other.generation)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.playerId)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.generation)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformTracksChangedEvent(playerId=$playerId, generation=$generation)"
+  }
+}
+
+/**
+ * The subtitle text to show changed. An empty list clears the subtitles.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformCuesEvent (
+  val playerId: Long,
+  val generation: Long,
+  val texts: List<String>
+) : PlatformPlayerEvent()
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformCuesEvent {
+      val playerId = pigeonVar_list[0] as Long
+      val generation = pigeonVar_list[1] as Long
+      val texts = pigeonVar_list[2] as List<String>
+      return PlatformCuesEvent(playerId, generation, texts)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      playerId,
+      generation,
+      texts,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformCuesEvent
+    return MessagesPigeonUtils.deepEquals(this.playerId, other.playerId) && MessagesPigeonUtils.deepEquals(this.generation, other.generation) && MessagesPigeonUtils.deepEquals(this.texts, other.texts)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.playerId)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.generation)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.texts)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformCuesEvent(playerId=$playerId, generation=$generation, texts=$texts)"
+  }
+}
 private open class MessagesPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -874,58 +1095,78 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         }
       }
       132.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSource.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformTrackType.ofRaw(it.toInt())
         }
       }
       133.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerOptions.fromList(it)
+          PlatformTrack.fromList(it)
         }
       }
       134.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerCreation.fromList(it)
+          PlatformSource.fromList(it)
         }
       }
       135.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCapabilities.fromList(it)
+          PlatformPlayerOptions.fromList(it)
         }
       }
       136.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPosition.fromList(it)
+          PlatformPlayerCreation.fromList(it)
         }
       }
       137.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformInitializedEvent.fromList(it)
+          PlatformCapabilities.fromList(it)
         }
       }
       138.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformStateEvent.fromList(it)
+          PlatformPosition.fromList(it)
         }
       }
       139.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformIsPlayingEvent.fromList(it)
+          PlatformInitializedEvent.fromList(it)
         }
       }
       140.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformVideoSizeEvent.fromList(it)
+          PlatformStateEvent.fromList(it)
         }
       }
       141.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformFirstFrameEvent.fromList(it)
+          PlatformIsPlayingEvent.fromList(it)
         }
       }
       142.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
+          PlatformVideoSizeEvent.fromList(it)
+        }
+      }
+      143.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformFirstFrameEvent.fromList(it)
+        }
+      }
+      144.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
           PlatformErrorEvent.fromList(it)
+        }
+      }
+      145.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformTracksChangedEvent.fromList(it)
+        }
+      }
+      146.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformCuesEvent.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -945,48 +1186,64 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(131)
         writeValue(stream, value.raw.toLong())
       }
-      is PlatformSource -> {
+      is PlatformTrackType -> {
         stream.write(132)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformPlayerOptions -> {
+      is PlatformTrack -> {
         stream.write(133)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerCreation -> {
+      is PlatformSource -> {
         stream.write(134)
         writeValue(stream, value.toList())
       }
-      is PlatformCapabilities -> {
+      is PlatformPlayerOptions -> {
         stream.write(135)
         writeValue(stream, value.toList())
       }
-      is PlatformPosition -> {
+      is PlatformPlayerCreation -> {
         stream.write(136)
         writeValue(stream, value.toList())
       }
-      is PlatformInitializedEvent -> {
+      is PlatformCapabilities -> {
         stream.write(137)
         writeValue(stream, value.toList())
       }
-      is PlatformStateEvent -> {
+      is PlatformPosition -> {
         stream.write(138)
         writeValue(stream, value.toList())
       }
-      is PlatformIsPlayingEvent -> {
+      is PlatformInitializedEvent -> {
         stream.write(139)
         writeValue(stream, value.toList())
       }
-      is PlatformVideoSizeEvent -> {
+      is PlatformStateEvent -> {
         stream.write(140)
         writeValue(stream, value.toList())
       }
-      is PlatformFirstFrameEvent -> {
+      is PlatformIsPlayingEvent -> {
         stream.write(141)
         writeValue(stream, value.toList())
       }
-      is PlatformErrorEvent -> {
+      is PlatformVideoSizeEvent -> {
         stream.write(142)
+        writeValue(stream, value.toList())
+      }
+      is PlatformFirstFrameEvent -> {
+        stream.write(143)
+        writeValue(stream, value.toList())
+      }
+      is PlatformErrorEvent -> {
+        stream.write(144)
+        writeValue(stream, value.toList())
+      }
+      is PlatformTracksChangedEvent -> {
+        stream.write(145)
+        writeValue(stream, value.toList())
+      }
+      is PlatformCuesEvent -> {
+        stream.write(146)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1022,6 +1279,14 @@ interface ReelKitHostApi {
   fun setVolume(playerId: Long, volume: Double)
   fun setPlaybackSpeed(playerId: Long, speed: Double)
   fun getPosition(playerId: Long): PlatformPosition
+  fun getTracks(playerId: Long): List<PlatformTrack>
+  /**
+   * Selects [trackId] for [type]. A null [trackId] restores automatic
+   * selection for audio and video and disables text tracks.
+   */
+  fun selectTrack(playerId: Long, type: PlatformTrackType, trackId: String?)
+  /** Caps adaptive video selection. Null values remove the respective cap. */
+  fun setVideoQualityLimit(playerId: Long, maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?)
 
   companion object {
     /** The codec used by ReelKitHostApi. */
@@ -1244,6 +1509,64 @@ interface ReelKitHostApi {
             val playerIdArg = args[0] as Long
             val wrapped: List<Any?> = try {
               listOf(api.getPosition(playerIdArg))
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getTracks$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              listOf(api.getTracks(playerIdArg))
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.selectTrack$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long
+            val typeArg = args[1] as PlatformTrackType
+            val trackIdArg = args[2] as String?
+            val wrapped: List<Any?> = try {
+              api.selectTrack(playerIdArg, typeArg, trackIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.setVideoQualityLimit$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long
+            val maxBitrateArg = args[1] as Long?
+            val maxWidthArg = args[2] as Long?
+            val maxHeightArg = args[3] as Long?
+            val wrapped: List<Any?> = try {
+              api.setVideoQualityLimit(playerIdArg, maxBitrateArg, maxWidthArg, maxHeightArg)
+              listOf(null)
             } catch (exception: Throwable) {
               MessagesPigeonUtils.wrapError(exception)
             }

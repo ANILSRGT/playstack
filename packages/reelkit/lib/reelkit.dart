@@ -17,8 +17,11 @@ export 'package:reelkit_platform_interface/reelkit_platform_interface.dart'
         ReelPlatformCapabilities,
         ReelPositionSnapshot,
         ReelSource,
+        ReelTrack,
+        ReelTrackType,
         ReelVideoFormat,
-        ReelVideoInfo;
+        ReelVideoInfo,
+        ReelVideoQualityLimit;
 
 export 'src/config/reel_kit_config.dart';
 export 'src/controller/reel_playback_state.dart';

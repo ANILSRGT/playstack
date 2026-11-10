@@ -101,6 +101,7 @@ class ReelPlaybackState {
   ReelPlaybackState copyWith({
     ReelPlaybackStatus? status,
     ReelVideoInfo? videoInfo,
+    bool clearVideoInfo = false,
     ReelKitException? error,
     bool clearError = false,
     bool? isBuffering,
@@ -113,7 +114,7 @@ class ReelPlaybackState {
   }) {
     return ReelPlaybackState(
       status: status ?? this.status,
-      videoInfo: videoInfo ?? this.videoInfo,
+      videoInfo: clearVideoInfo ? null : (videoInfo ?? this.videoInfo),
       error: clearError ? null : (error ?? this.error),
       isBuffering: isBuffering ?? this.isBuffering,
       isAttached: isAttached ?? this.isAttached,

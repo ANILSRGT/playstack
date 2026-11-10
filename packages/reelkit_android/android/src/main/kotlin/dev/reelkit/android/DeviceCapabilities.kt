@@ -52,7 +52,9 @@ internal object DeviceCapabilities {
         supportsDash = true,
         supportsDiskCache = false,
         supportsMemorySource = true,
-        supportsTrackSelection = false,
+        supportsTrackSelection = true,
+        supportsVideoTrackSelection = true,
+        supportsVideoQualityLimit = true,
     )
   }
 

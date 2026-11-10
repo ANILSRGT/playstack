@@ -28,7 +28,9 @@ enum DeviceCapabilities {
       supportsDash: false,
       supportsDiskCache: false,
       supportsMemorySource: true,
-      supportsTrackSelection: false
+      supportsTrackSelection: true,
+      supportsVideoTrackSelection: false,
+      supportsVideoQualityLimit: true
     )
   }
 }

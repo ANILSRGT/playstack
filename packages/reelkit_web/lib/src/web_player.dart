@@ -37,6 +37,9 @@ class WebPlayer {
     _listen('ended', () => _state(ReelNativePlaybackState.ended));
     _listen('resize', _onResize);
     _listen('error', _onError);
+    _listenTrackList(element.textTracks);
+    final audioTracks = _audioTracks;
+    if (audioTracks != null) _listenTrackList(audioTracks);
   }
 
   static const int _noSource = -1;
@@ -50,6 +53,8 @@ class WebPlayer {
   bool _initializedSent = false;
   bool _firstFrameSent = false;
   String? _objectUrl;
+  web.TextTrack? _subtitleTrack;
+  JSFunction? _cueListener;
 
   void load(String url, int generation, {bool ownsObjectUrl = false}) {
     clear();
@@ -61,6 +66,7 @@ class WebPlayer {
   }
 
   void clear() {
+    _detachCueListener();
     _generation = _noSource;
     _initializedSent = false;
     _firstFrameSent = false;
@@ -123,6 +129,163 @@ class WebPlayer {
     );
   }
 
+  // Tracks ------------------------------------------------------------------
+
+  /// `audioTracks` exists only in some browsers (Safari); it is read
+  /// dynamically so other browsers report no audio tracks instead of
+  /// failing.
+  JSObject? get _audioTracks {
+    final media = element as JSObject;
+    if (!media.has('audioTracks')) return null;
+    return media.getProperty<JSObject?>('audioTracks'.toJS);
+  }
+
+  List<ReelTrack> tracks() {
+    final result = <ReelTrack>[];
+    final audio = _audioTracks;
+    if (audio != null) {
+      final length = audio.getProperty<JSNumber>('length'.toJS).toDartInt;
+      for (var i = 0; i < length; i++) {
+        final track = audio.getProperty<JSObject>(i.toJS);
+        result.add(
+          ReelTrack(
+            id: 'audio:$i',
+            type: ReelTrackType.audio,
+            isSelected: track.getProperty<JSBoolean>('enabled'.toJS).toDart,
+            label: _nonEmpty(track.getProperty<JSString?>('label'.toJS)),
+            language: _nonEmpty(track.getProperty<JSString?>('language'.toJS)),
+          ),
+        );
+      }
+    }
+    final text = element.textTracks;
+    for (var i = 0; i < text.length; i++) {
+      final track = text[i];
+      if (track.kind != 'subtitles' && track.kind != 'captions') continue;
+      result.add(
+        ReelTrack(
+          id: 'text:$i',
+          type: ReelTrackType.text,
+          isSelected: track.mode != 'disabled',
+          label: track.label.isEmpty ? null : track.label,
+          language: track.language.isEmpty ? null : track.language,
+        ),
+      );
+    }
+    return result;
+  }
+
+  void selectTrack(ReelTrackType type, String? trackId) {
+    switch (type) {
+      case ReelTrackType.video:
+        throw const ReelKitException(
+          ReelKitErrorCode.notImplemented,
+          'Browsers do not expose video rendition selection for <video>.',
+        );
+      case ReelTrackType.audio:
+        final audio = _audioTracks;
+        if (audio == null) {
+          throw const ReelKitException(
+            ReelKitErrorCode.notImplemented,
+            'This browser does not expose audio tracks.',
+          );
+        }
+        final length = audio.getProperty<JSNumber>('length'.toJS).toDartInt;
+        final index = trackId == null ? 0 : _index(trackId, 'audio', length);
+        for (var i = 0; i < length; i++) {
+          audio
+              .getProperty<JSObject>(i.toJS)
+              .setProperty('enabled'.toJS, (i == index).toJS);
+        }
+      case ReelTrackType.text:
+        final text = element.textTracks;
+        final index = trackId == null
+            ? -1
+            : _index(trackId, 'text', text.length);
+        _detachCueListener();
+        for (var i = 0; i < text.length; i++) {
+          // 'hidden' loads cues without letting the browser draw them; the
+          // application renders subtitles from the cue events.
+          text[i].mode = i == index ? 'hidden' : 'disabled';
+        }
+        if (index >= 0) {
+          _attachCueListener(text[index]);
+        } else {
+          _emitCues(const <String>[]);
+        }
+    }
+    _emitTracksChanged();
+  }
+
+  void _attachCueListener(web.TextTrack track) {
+    final listener = ((web.Event _) => _emitActiveCues(track)).toJS;
+    track.addEventListener('cuechange', listener);
+    _subtitleTrack = track;
+    _cueListener = listener;
+    _emitActiveCues(track);
+  }
+
+  void _detachCueListener() {
+    final track = _subtitleTrack;
+    final listener = _cueListener;
+    if (track != null && listener != null) {
+      track.removeEventListener('cuechange', listener);
+    }
+    _subtitleTrack = null;
+    _cueListener = null;
+  }
+
+  void _emitActiveCues(web.TextTrack track) {
+    final cues = track.activeCues;
+    final texts = <String>[];
+    if (cues != null) {
+      for (var i = 0; i < cues.length; i++) {
+        final cue = cues[i] as JSObject;
+        final text = _nonEmpty(cue.getProperty<JSString?>('text'.toJS));
+        if (text != null) texts.add(text);
+      }
+    }
+    _emitCues(texts);
+  }
+
+  void _emitCues(List<String> texts) {
+    if (!_hasSource) return;
+    _emit(
+      ReelCuesEvent(playerId: playerId, generation: _generation, texts: texts),
+    );
+  }
+
+  void _emitTracksChanged() {
+    if (!_hasSource || !_initializedSent) return;
+    _emit(ReelTracksChangedEvent(playerId: playerId, generation: _generation));
+  }
+
+  void _listenTrackList(JSObject list) {
+    final listener = ((web.Event _) => _emitTracksChanged()).toJS;
+    for (final type in const ['addtrack', 'removetrack', 'change']) {
+      (list as web.EventTarget).addEventListener(type, listener);
+    }
+  }
+
+  static int _index(String trackId, String prefix, int length) {
+    final parts = trackId.split(':');
+    final index = parts.length == 2 && parts[0] == prefix
+        ? int.tryParse(parts[1])
+        : null;
+    if (index == null || index < 0 || index >= length) {
+      throw ReelKitException(
+        ReelKitErrorCode.invalidArgument,
+        'Unknown $prefix track: $trackId',
+      );
+    }
+    return index;
+  }
+
+  static String? _nonEmpty(JSString? value) {
+    final text = value?.toDart.trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
   void dispose() {
     clear();
     for (final (type, listener) in _listeners) {
@@ -156,6 +319,7 @@ class WebPlayer {
           width: element.videoWidth,
           height: element.videoHeight,
           duration: duration.isFinite ? _duration(duration) : null,
+          isLive: duration.isInfinite,
         ),
       ),
     );

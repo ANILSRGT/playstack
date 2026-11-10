@@ -37,6 +37,9 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   final StreamController<ReelPlatformEvent> _events =
       StreamController<ReelPlatformEvent>.broadcast(sync: true);
 
+  /// Tracks reported for every prepared source.
+  List<ReelTrack> trackList = const <ReelTrack>[];
+
   final List<String> calls = <String>[];
   final Set<int> livePlayers = <int>{};
   final Map<int, int> generations = <int, int>{};
@@ -217,6 +220,45 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     _requireLive(playerId);
     final position = positions[playerId] ?? Duration.zero;
     return ReelPositionSnapshot(position: position, buffered: position);
+  }
+
+  @override
+  Future<List<ReelTrack>> getTracks(int playerId) async {
+    calls.add('getTracks($playerId)');
+    _requireLive(playerId);
+    return trackList;
+  }
+
+  @override
+  Future<void> selectTrack(
+    int playerId,
+    ReelTrackType type,
+    String? trackId,
+  ) async {
+    calls.add('selectTrack($playerId, ${type.name}, $trackId)');
+    _check('selectTrack');
+    _requireLive(playerId);
+    trackList = [
+      for (final t in trackList)
+        t.type == type
+            ? ReelTrack(
+                id: t.id,
+                type: t.type,
+                isSelected: t.id == trackId,
+                language: t.language,
+              )
+            : t,
+    ];
+  }
+
+  @override
+  Future<void> setVideoQualityLimit(
+    int playerId,
+    ReelVideoQualityLimit limit,
+  ) async {
+    calls.add('setVideoQualityLimit($playerId, ${limit.maxHeight})');
+    _check('setVideoQualityLimit');
+    _requireLive(playerId);
   }
 
   @override

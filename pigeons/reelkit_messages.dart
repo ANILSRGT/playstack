@@ -23,6 +23,34 @@ enum PlatformVideoFormat { auto, progressive, hls, dash }
 /// a player can be `buffering` while it intends to play.
 enum PlatformPlaybackState { idle, buffering, ready, ended }
 
+enum PlatformTrackType { audio, video, text }
+
+/// One selectable audio, video or text track of the current source.
+class PlatformTrack {
+  PlatformTrack({
+    required this.id,
+    required this.type,
+    required this.isSelected,
+  });
+
+  /// Engine-defined identifier, stable for the same source.
+  String id;
+  PlatformTrackType type;
+  bool isSelected;
+  String? label;
+
+  /// BCP 47 language tag, when known.
+  String? language;
+
+  /// Peak or average bitrate in bits per second, when known.
+  int? bitrate;
+  int? width;
+  int? height;
+  double? frameRate;
+  String? codecs;
+  int? channelCount;
+}
+
 class PlatformSource {
   PlatformSource({
     required this.type,
@@ -84,6 +112,8 @@ class PlatformCapabilities {
     required this.supportsDiskCache,
     required this.supportsMemorySource,
     required this.supportsTrackSelection,
+    required this.supportsVideoTrackSelection,
+    required this.supportsVideoQualityLimit,
   });
 
   String engineName;
@@ -103,7 +133,15 @@ class PlatformCapabilities {
   bool supportsDash;
   bool supportsDiskCache;
   bool supportsMemorySource;
+
+  /// Audio and text track listing and selection.
   bool supportsTrackSelection;
+
+  /// Selecting a specific video rendition (quality).
+  bool supportsVideoTrackSelection;
+
+  /// Capping adaptive video by bitrate and resolution.
+  bool supportsVideoQualityLimit;
 }
 
 class PlatformPosition {
@@ -147,6 +185,20 @@ abstract class ReelKitHostApi {
   void setPlaybackSpeed(int playerId, double speed);
 
   PlatformPosition getPosition(int playerId);
+
+  List<PlatformTrack> getTracks(int playerId);
+
+  /// Selects [trackId] for [type]. A null [trackId] restores automatic
+  /// selection for audio and video and disables text tracks.
+  void selectTrack(int playerId, PlatformTrackType type, String? trackId);
+
+  /// Caps adaptive video selection. Null values remove the respective cap.
+  void setVideoQualityLimit(
+    int playerId,
+    int? maxBitrate,
+    int? maxWidth,
+    int? maxHeight,
+  );
 }
 
 sealed class PlatformPlayerEvent {}
@@ -160,6 +212,7 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
     required this.height,
     required this.rotationDegrees,
     required this.pixelAspectRatio,
+    required this.isLive,
   });
 
   int playerId;
@@ -167,6 +220,15 @@ class PlatformInitializedEvent extends PlatformPlayerEvent {
 
   /// Negative when the duration is unknown (for example live streams).
   int durationMs;
+
+  bool isLive;
+  double? frameRate;
+
+  /// Bitrate of the selected video in bits per second, when known.
+  int? bitrate;
+
+  /// Video codec (RFC 6381 string or FourCC), when known.
+  String? videoCodec;
   int width;
   int height;
 
@@ -253,6 +315,30 @@ class PlatformErrorEvent extends PlatformPlayerEvent {
   String code;
   String message;
   String? details;
+}
+
+/// The available or selected tracks changed. Read them with `getTracks`.
+class PlatformTracksChangedEvent extends PlatformPlayerEvent {
+  PlatformTracksChangedEvent({
+    required this.playerId,
+    required this.generation,
+  });
+
+  int playerId;
+  int generation;
+}
+
+/// The subtitle text to show changed. An empty list clears the subtitles.
+class PlatformCuesEvent extends PlatformPlayerEvent {
+  PlatformCuesEvent({
+    required this.playerId,
+    required this.generation,
+    required this.texts,
+  });
+
+  int playerId;
+  int generation;
+  List<String> texts;
 }
 
 @EventChannelApi()
