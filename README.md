@@ -260,5 +260,9 @@ Releasing: [docs/RELEASING.md](docs/RELEASING.md).
 7. Optimization and release — **done**: benchmark (start latency,
    preloading, rapid scrolling, memory) in the example app and as an
    integration test, documentation guides for every feature, documented
-   public API, release checklist. Publishing waits for a license and
-   physical-device verification.
+   public API, release checklist. Publishing waits for physical-device
+   and browser verification.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

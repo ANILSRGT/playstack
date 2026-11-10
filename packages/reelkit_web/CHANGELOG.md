@@ -1,5 +1,6 @@
 ## 0.1.0-dev.7
 
+* Licensed under the MIT license.
 * Internal members documented; package metadata and aligned dependency
   constraints for publishing.
 

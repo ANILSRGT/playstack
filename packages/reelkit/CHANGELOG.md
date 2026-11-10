@@ -1,5 +1,6 @@
 ## 0.1.0-dev.7
 
+* Licensed under the MIT license.
 * Milestone 7: example benchmark (`lib/benchmark`, *Benchmark* page and
   `integration_test/benchmark_test.dart`) measuring cold, preloaded and
   swipe start latency until playback advances, rapid feed scrolling and

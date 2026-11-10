@@ -5,10 +5,8 @@ are marked `publish_to: none` until the blockers below are resolved.
 
 ## Blockers before the first publication
 
-- [ ] **License.** Every package's `LICENSE` is a placeholder. Choose a
-      license, put its full text in the root and in each package
-      (`packages/*/LICENSE`); pub.dev rejects packages without a valid
-      license.
+- [x] **License.** MIT, in the root `LICENSE` and in every package
+      (`packages/*/LICENSE`, identical copies).
 - [ ] **Physical devices.** Run the integration suite and the benchmark on
       at least one physical Android phone and one iPhone, and record the
       benchmark in [BENCHMARKS.md](BENCHMARKS.md).

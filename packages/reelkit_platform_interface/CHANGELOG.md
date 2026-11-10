@@ -1,5 +1,6 @@
 ## 0.1.0-dev.7
 
+* Licensed under the MIT license.
 * Every public member is documented (`public_member_api_docs`).
 * Package metadata for publishing.
 
