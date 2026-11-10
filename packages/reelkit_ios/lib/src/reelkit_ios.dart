@@ -16,8 +16,10 @@ class ReelKitIOS extends ReelKitPlatform {
   ReelKitIOS({
     @visibleForTesting ReelKitHostApi? api,
     @visibleForTesting Stream<PlatformPlayerEvent>? eventStream,
+    @visibleForTesting Stream<PlatformNetworkStatus>? networkStream,
   }) : _api = api ?? ReelKitHostApi(),
-       _rawEvents = eventStream;
+       _rawEvents = eventStream,
+       _rawNetworkEvents = networkStream;
 
   /// Registers this class as the default [ReelKitPlatform] implementation.
   static void registerWith() {
@@ -26,6 +28,7 @@ class ReelKitIOS extends ReelKitPlatform {
 
   final ReelKitHostApi _api;
   final Stream<PlatformPlayerEvent>? _rawEvents;
+  final Stream<PlatformNetworkStatus>? _rawNetworkEvents;
   final Map<int, int> _textureIds = <int, int>{};
   Stream<ReelPlatformEvent>? _events;
 
@@ -46,6 +49,8 @@ class ReelKitIOS extends ReelKitPlatform {
       supportsTrackSelection: caps.supportsTrackSelection,
       supportsVideoTrackSelection: caps.supportsVideoTrackSelection,
       supportsVideoQualityLimit: caps.supportsVideoQualityLimit,
+      supportsPreloadBufferLimit: caps.supportsPreloadBufferLimit,
+      supportsNetworkStatus: caps.supportsNetworkStatus,
     );
   }
 
@@ -156,6 +161,33 @@ class ReelKitIOS extends ReelKitPlatform {
       limit.maxHeight,
     ),
   );
+
+  @override
+  Future<void> setPreloadBufferLimit(int playerId, Duration? limit) =>
+      _guard(() => _api.setPreloadBufferLimit(playerId, limit?.inMilliseconds));
+
+  @override
+  Future<ReelNetworkStatus> getNetworkStatus() async =>
+      _toNetworkStatus(await _guard(_api.getNetworkStatus));
+
+  @override
+  Stream<ReelNetworkStatus> get networkStatusChanges =>
+      (_rawNetworkEvents ?? networkEvents()).map(_toNetworkStatus);
+
+  static ReelNetworkStatus _toNetworkStatus(PlatformNetworkStatus status) =>
+      ReelNetworkStatus(
+        isConnected: status.isConnected,
+        isMetered: status.isMetered,
+        isConstrained: status.isConstrained,
+        type: switch (status.type) {
+          PlatformNetworkType.none => ReelNetworkType.none,
+          PlatformNetworkType.wifi => ReelNetworkType.wifi,
+          PlatformNetworkType.cellular => ReelNetworkType.cellular,
+          PlatformNetworkType.ethernet => ReelNetworkType.ethernet,
+          PlatformNetworkType.other => ReelNetworkType.other,
+          PlatformNetworkType.unknown => ReelNetworkType.unknown,
+        },
+      );
 
   static ReelTrackType _fromPlatformTrackType(PlatformTrackType type) =>
       switch (type) {

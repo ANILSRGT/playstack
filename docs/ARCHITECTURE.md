@@ -172,6 +172,37 @@ reported, not retried.
 controllers lose their players (they prepare again on demand). Releases are
 awaited before trimming so that their players are destroyed too.
 
+**Feed manager.** `ReelFeedManager` is the only component that knows about
+item order. It never owns a widget: the app reports the item in view and
+the feed translates that into controller priorities and commands. Every
+change (index, items, network, memory, pool size) re-plans synchronously:
+priorities are set and items outside the window are released first (so the
+active item rarely needs revocation), then the active item is played, then
+preloads run in order (+1, -1, +2, ...) after the active item has
+prepared, so it gets the bandwidth and the first decoder. A plan number
+stops preload loops of windows that were left; `release()` fails an
+in-flight preparation immediately, which detaches its source on the native
+side. Controllers far outside the window are disposed to keep endless feeds
+flat; the native player count is bounded by the pool regardless.
+
+**Preload window.** `ReelPreloadWindow.resolve` is a pure function of the
+configuration, network status, low-RAM flag, memory-warning cooldown and
+the pool size (`maxPlayers - 1`, so it follows decoder-shortage
+reductions). It is unit-tested on its own.
+
+**Bounded preload buffering.** Media3's `DefaultLoadControl` would buffer
+up to 50 s of a paused, prepared player. `PreloadLoadControl` wraps it and
+stops loading at the configured duration while `playWhenReady` is false,
+so starting playback lifts the cap without a channel call. iOS sets
+`preferredForwardBufferDuration` while paused and automatic buffering when
+playing; AVFoundation treats it as a hint. Browsers expose no control.
+
+**Network status.** Android uses a default-network callback registered only
+while Dart listens; iOS keeps one `NWPathMonitor` (cheap, push based) so the
+status can be read synchronously; web reads `navigator.onLine` and
+`navigator.connection`. Unsupported values are reported as unknown, never
+guessed.
+
 **Source replacement.** `setSource` keeps the controller's native player and
 renews the lease generation, so late events of the old source are dropped
 without a release/acquire round trip.

@@ -42,7 +42,7 @@ class HomePage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.view_carousel_outlined),
             title: const Text('Vertical feed'),
-            subtitle: const Text('PageView with a 3-player pool'),
+            subtitle: const Text('Endless PageView driven by ReelFeedManager'),
             onTap: () => open(const FeedPage()),
           ),
           ListTile(

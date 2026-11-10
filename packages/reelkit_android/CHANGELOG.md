@@ -1,3 +1,8 @@
+## 0.1.0-dev.5
+
+* Milestone 5: preload buffer cap through a wrapping `LoadControl`; network
+  status from `ConnectivityManager` (adds `ACCESS_NETWORK_STATE`).
+
 ## 0.1.0-dev.4
 
 * Milestone 4: `ERROR_CODE_DECODER_INIT_FAILED` is reported as

@@ -30,7 +30,9 @@ enum DeviceCapabilities {
       supportsMemorySource: true,
       supportsTrackSelection: true,
       supportsVideoTrackSelection: false,
-      supportsVideoQualityLimit: true
+      supportsVideoQualityLimit: true,
+      supportsPreloadBufferLimit: true,
+      supportsNetworkStatus: true
     )
   }
 }

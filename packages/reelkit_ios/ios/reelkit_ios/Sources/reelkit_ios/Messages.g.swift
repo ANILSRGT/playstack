@@ -213,6 +213,69 @@ enum PlatformTrackType: Int, CaseIterable {
   case text = 2
 }
 
+enum PlatformNetworkType: Int, CaseIterable {
+  case none = 0
+  case wifi = 1
+  case cellular = 2
+  case ethernet = 3
+  case other = 4
+  case unknown = 5
+}
+
+/// Connectivity as seen by the operating system.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformNetworkStatus: Hashable, CustomStringConvertible {
+  var isConnected: Bool
+  /// Billed by data volume (Android NOT_METERED missing, iOS isExpensive).
+  var isMetered: Bool
+  /// The user asked to save data (Android Data Saver, iOS Low Data Mode).
+  var isConstrained: Bool
+  var type: PlatformNetworkType
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformNetworkStatus? {
+    let isConnected = pigeonVar_list[0] as! Bool
+    let isMetered = pigeonVar_list[1] as! Bool
+    let isConstrained = pigeonVar_list[2] as! Bool
+    let type = pigeonVar_list[3] as! PlatformNetworkType
+
+    return PlatformNetworkStatus(
+      isConnected: isConnected,
+      isMetered: isMetered,
+      isConstrained: isConstrained,
+      type: type
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      isConnected,
+      isMetered,
+      isConstrained,
+      type,
+    ]
+  }
+  static func == (lhs: PlatformNetworkStatus, rhs: PlatformNetworkStatus) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.isConnected, rhs.isConnected) && MessagesPigeonInternal.deepEquals(lhs.isMetered, rhs.isMetered) && MessagesPigeonInternal.deepEquals(lhs.isConstrained, rhs.isConstrained) && MessagesPigeonInternal.deepEquals(lhs.type, rhs.type)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformNetworkStatus")
+    MessagesPigeonInternal.deepHash(value: isConnected, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: isMetered, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: isConstrained, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: type, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformNetworkStatus(isConnected: \(String(describing: isConnected)), isMetered: \(String(describing: isMetered)), isConstrained: \(String(describing: isConstrained)), type: \(String(describing: type)))"
+  }
+}
+
 /// One selectable audio, video or text track of the current source.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
@@ -489,6 +552,10 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
   var supportsVideoTrackSelection: Bool
   /// Capping adaptive video by bitrate and resolution.
   var supportsVideoQualityLimit: Bool
+  /// `setPreloadBufferLimit` bounds forward buffering of paused players.
+  var supportsPreloadBufferLimit: Bool
+  /// `getNetworkStatus` and `networkEvents` report real connectivity.
+  var supportsNetworkStatus: Bool
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -506,6 +573,8 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
     let supportsTrackSelection = pigeonVar_list[10] as! Bool
     let supportsVideoTrackSelection = pigeonVar_list[11] as! Bool
     let supportsVideoQualityLimit = pigeonVar_list[12] as! Bool
+    let supportsPreloadBufferLimit = pigeonVar_list[13] as! Bool
+    let supportsNetworkStatus = pigeonVar_list[14] as! Bool
 
     return PlatformCapabilities(
       engineName: engineName,
@@ -520,7 +589,9 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
       supportsMemorySource: supportsMemorySource,
       supportsTrackSelection: supportsTrackSelection,
       supportsVideoTrackSelection: supportsVideoTrackSelection,
-      supportsVideoQualityLimit: supportsVideoQualityLimit
+      supportsVideoQualityLimit: supportsVideoQualityLimit,
+      supportsPreloadBufferLimit: supportsPreloadBufferLimit,
+      supportsNetworkStatus: supportsNetworkStatus
     )
   }
   func toList() -> [Any?] {
@@ -538,13 +609,15 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
       supportsTrackSelection,
       supportsVideoTrackSelection,
       supportsVideoQualityLimit,
+      supportsPreloadBufferLimit,
+      supportsNetworkStatus,
     ]
   }
   static func == (lhs: PlatformCapabilities, rhs: PlatformCapabilities) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.engineName, rhs.engineName) && MessagesPigeonInternal.deepEquals(lhs.engineVersion, rhs.engineVersion) && MessagesPigeonInternal.deepEquals(lhs.recommendedMaxPlayers, rhs.recommendedMaxPlayers) && MessagesPigeonInternal.deepEquals(lhs.maxHardwareDecoderInstances, rhs.maxHardwareDecoderInstances) && MessagesPigeonInternal.deepEquals(lhs.totalMemoryBytes, rhs.totalMemoryBytes) && MessagesPigeonInternal.deepEquals(lhs.isLowRamDevice, rhs.isLowRamDevice) && MessagesPigeonInternal.deepEquals(lhs.supportsHls, rhs.supportsHls) && MessagesPigeonInternal.deepEquals(lhs.supportsDash, rhs.supportsDash) && MessagesPigeonInternal.deepEquals(lhs.supportsDiskCache, rhs.supportsDiskCache) && MessagesPigeonInternal.deepEquals(lhs.supportsMemorySource, rhs.supportsMemorySource) && MessagesPigeonInternal.deepEquals(lhs.supportsTrackSelection, rhs.supportsTrackSelection) && MessagesPigeonInternal.deepEquals(lhs.supportsVideoTrackSelection, rhs.supportsVideoTrackSelection) && MessagesPigeonInternal.deepEquals(lhs.supportsVideoQualityLimit, rhs.supportsVideoQualityLimit)
+    return MessagesPigeonInternal.deepEquals(lhs.engineName, rhs.engineName) && MessagesPigeonInternal.deepEquals(lhs.engineVersion, rhs.engineVersion) && MessagesPigeonInternal.deepEquals(lhs.recommendedMaxPlayers, rhs.recommendedMaxPlayers) && MessagesPigeonInternal.deepEquals(lhs.maxHardwareDecoderInstances, rhs.maxHardwareDecoderInstances) && MessagesPigeonInternal.deepEquals(lhs.totalMemoryBytes, rhs.totalMemoryBytes) && MessagesPigeonInternal.deepEquals(lhs.isLowRamDevice, rhs.isLowRamDevice) && MessagesPigeonInternal.deepEquals(lhs.supportsHls, rhs.supportsHls) && MessagesPigeonInternal.deepEquals(lhs.supportsDash, rhs.supportsDash) && MessagesPigeonInternal.deepEquals(lhs.supportsDiskCache, rhs.supportsDiskCache) && MessagesPigeonInternal.deepEquals(lhs.supportsMemorySource, rhs.supportsMemorySource) && MessagesPigeonInternal.deepEquals(lhs.supportsTrackSelection, rhs.supportsTrackSelection) && MessagesPigeonInternal.deepEquals(lhs.supportsVideoTrackSelection, rhs.supportsVideoTrackSelection) && MessagesPigeonInternal.deepEquals(lhs.supportsVideoQualityLimit, rhs.supportsVideoQualityLimit) && MessagesPigeonInternal.deepEquals(lhs.supportsPreloadBufferLimit, rhs.supportsPreloadBufferLimit) && MessagesPigeonInternal.deepEquals(lhs.supportsNetworkStatus, rhs.supportsNetworkStatus)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -562,10 +635,12 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
     MessagesPigeonInternal.deepHash(value: supportsTrackSelection, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: supportsVideoTrackSelection, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: supportsVideoQualityLimit, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: supportsPreloadBufferLimit, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: supportsNetworkStatus, hasher: &hasher)
   }
 
   public var description: String {
-    return "PlatformCapabilities(engineName: \(String(describing: engineName)), engineVersion: \(String(describing: engineVersion)), recommendedMaxPlayers: \(String(describing: recommendedMaxPlayers)), maxHardwareDecoderInstances: \(String(describing: maxHardwareDecoderInstances)), totalMemoryBytes: \(String(describing: totalMemoryBytes)), isLowRamDevice: \(String(describing: isLowRamDevice)), supportsHls: \(String(describing: supportsHls)), supportsDash: \(String(describing: supportsDash)), supportsDiskCache: \(String(describing: supportsDiskCache)), supportsMemorySource: \(String(describing: supportsMemorySource)), supportsTrackSelection: \(String(describing: supportsTrackSelection)), supportsVideoTrackSelection: \(String(describing: supportsVideoTrackSelection)), supportsVideoQualityLimit: \(String(describing: supportsVideoQualityLimit)))"
+    return "PlatformCapabilities(engineName: \(String(describing: engineName)), engineVersion: \(String(describing: engineVersion)), recommendedMaxPlayers: \(String(describing: recommendedMaxPlayers)), maxHardwareDecoderInstances: \(String(describing: maxHardwareDecoderInstances)), totalMemoryBytes: \(String(describing: totalMemoryBytes)), isLowRamDevice: \(String(describing: isLowRamDevice)), supportsHls: \(String(describing: supportsHls)), supportsDash: \(String(describing: supportsDash)), supportsDiskCache: \(String(describing: supportsDiskCache)), supportsMemorySource: \(String(describing: supportsMemorySource)), supportsTrackSelection: \(String(describing: supportsTrackSelection)), supportsVideoTrackSelection: \(String(describing: supportsVideoTrackSelection)), supportsVideoQualityLimit: \(String(describing: supportsVideoQualityLimit)), supportsPreloadBufferLimit: \(String(describing: supportsPreloadBufferLimit)), supportsNetworkStatus: \(String(describing: supportsNetworkStatus)))"
   }
 }
 
@@ -1079,32 +1154,40 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 133:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformNetworkType(rawValue: enumResultAsInt)
+      }
+      return nil
     case 134:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 135:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 136:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 137:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 138:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 139:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
     case 146:
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+    case 147:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 148:
       return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1126,47 +1209,53 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformTrackType {
       super.writeByte(132)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformTrack {
+    } else if let value = value as? PlatformNetworkType {
       super.writeByte(133)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(134)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(135)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformSource {
       super.writeByte(136)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(137)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformFirstFrameEvent {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformErrorEvent {
       super.writeByte(146)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformTracksChangedEvent {
+      super.writeByte(147)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(148)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1218,6 +1307,11 @@ protocol ReelKitHostApi {
   func selectTrack(playerId: Int64, type: PlatformTrackType, trackId: String?) throws
   /// Caps adaptive video selection. Null values remove the respective cap.
   func setVideoQualityLimit(playerId: Int64, maxBitrate: Int64?, maxWidth: Int64?, maxHeight: Int64?) throws
+  /// Stops forward buffering at [maxBufferMs] while the player is not
+  /// playing; null removes the limit. Used for players prepared ahead of
+  /// time so they do not download whole videos the user may never watch.
+  func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws
+  func getNetworkStatus() throws -> PlatformNetworkStatus
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -1474,6 +1568,38 @@ class ReelKitHostApiSetup {
     } else {
       setVideoQualityLimitChannel.setMessageHandler(nil)
     }
+    /// Stops forward buffering at [maxBufferMs] while the player is not
+    /// playing; null removes the limit. Used for players prepared ahead of
+    /// time so they do not download whole videos the user may never watch.
+    let setPreloadBufferLimitChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.setPreloadBufferLimit\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setPreloadBufferLimitChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg = args[0] as! Int64
+        let maxBufferMsArg: Int64? = nilOrValue(args[1])
+        do {
+          try api.setPreloadBufferLimit(playerId: playerIdArg, maxBufferMs: maxBufferMsArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setPreloadBufferLimitChannel.setMessageHandler(nil)
+    }
+    let getNetworkStatusChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.getNetworkStatus\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getNetworkStatusChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.getNetworkStatus()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      getNetworkStatusChannel.setMessageHandler(nil)
+    }
   }
 }
 
@@ -1559,6 +1685,44 @@ class PlayerEventsStreamHandler: PigeonEventChannelWrapper<PlatformPlayerEvent> 
     streamHandler: PlayerEventsStreamHandler
   ) -> PlayerEventsEventChannel {
     let channel = PlayerEventsEventChannel(messenger: messenger, instanceName: instanceName)
+    channel.setStreamHandler(streamHandler)
+    return channel
+  }
+}
+      
+/// A typed channel for communicating with the Flutter application using asynchronous event streams.
+class NetworkEventsEventChannel {
+  private let channel: FlutterEventChannel
+
+  init(messenger: FlutterBinaryMessenger, instanceName: String = "") {
+    var channelName = "dev.flutter.pigeon.reelkit_ios.ReelKitEventApi.networkEvents"
+    if !instanceName.isEmpty {
+      channelName += ".\(instanceName)"
+    }
+    channel = FlutterEventChannel(name: channelName, binaryMessenger: messenger, codec: messagesPigeonMethodCodec)
+  }
+
+  /// Sets the stream handler for this channel, replacing any previous handler.
+  /// 
+  /// Pass `nil` to remove the event channel registration.
+  func setStreamHandler(_ streamHandler: NetworkEventsStreamHandler?) {
+    let internalHandler = streamHandler.map({ PigeonStreamHandler<PlatformNetworkStatus>(wrapper: $0) })
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+class NetworkEventsStreamHandler: PigeonEventChannelWrapper<PlatformNetworkStatus> {
+  /// Creates and returns a new event channel that calls the provided stream handler.
+  /// 
+  /// The returned channel can be stored to allow changing or removing the stream handler.
+  /// If the handler will not be changed for the lifetime of the engine associated with the messenger,
+  /// the return value can be ignored.
+  @discardableResult static func register(
+    with messenger: FlutterBinaryMessenger,
+    instanceName: String = "",
+    streamHandler: NetworkEventsStreamHandler
+  ) -> NetworkEventsEventChannel {
+    let channel = NetworkEventsEventChannel(messenger: messenger, instanceName: instanceName)
     channel.setStreamHandler(streamHandler)
     return channel
   }

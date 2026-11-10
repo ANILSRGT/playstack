@@ -25,6 +25,28 @@ enum PlatformPlaybackState { idle, buffering, ready, ended }
 
 enum PlatformTrackType { audio, video, text }
 
+enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
+
+/// Connectivity as seen by the operating system.
+class PlatformNetworkStatus {
+  PlatformNetworkStatus({
+    required this.isConnected,
+    required this.isMetered,
+    required this.isConstrained,
+    required this.type,
+  });
+
+  bool isConnected;
+
+  /// Billed by data volume (Android NOT_METERED missing, iOS isExpensive).
+  bool isMetered;
+
+  /// The user asked to save data (Android Data Saver, iOS Low Data Mode).
+  bool isConstrained;
+
+  PlatformNetworkType type;
+}
+
 /// One selectable audio, video or text track of the current source.
 class PlatformTrack {
   PlatformTrack({
@@ -114,6 +136,8 @@ class PlatformCapabilities {
     required this.supportsTrackSelection,
     required this.supportsVideoTrackSelection,
     required this.supportsVideoQualityLimit,
+    required this.supportsPreloadBufferLimit,
+    required this.supportsNetworkStatus,
   });
 
   String engineName;
@@ -142,6 +166,12 @@ class PlatformCapabilities {
 
   /// Capping adaptive video by bitrate and resolution.
   bool supportsVideoQualityLimit;
+
+  /// `setPreloadBufferLimit` bounds forward buffering of paused players.
+  bool supportsPreloadBufferLimit;
+
+  /// `getNetworkStatus` and `networkEvents` report real connectivity.
+  bool supportsNetworkStatus;
 }
 
 class PlatformPosition {
@@ -199,6 +229,13 @@ abstract class ReelKitHostApi {
     int? maxWidth,
     int? maxHeight,
   );
+
+  /// Stops forward buffering at [maxBufferMs] while the player is not
+  /// playing; null removes the limit. Used for players prepared ahead of
+  /// time so they do not download whole videos the user may never watch.
+  void setPreloadBufferLimit(int playerId, int? maxBufferMs);
+
+  PlatformNetworkStatus getNetworkStatus();
 }
 
 sealed class PlatformPlayerEvent {}
@@ -344,4 +381,8 @@ class PlatformCuesEvent extends PlatformPlayerEvent {
 @EventChannelApi()
 abstract class ReelKitEventApi {
   PlatformPlayerEvent playerEvents();
+
+  /// Connectivity changes. The engine monitors the network only while this
+  /// stream has a listener.
+  PlatformNetworkStatus networkEvents();
 }

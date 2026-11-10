@@ -48,6 +48,9 @@ class AppliedPlayerSettings {
   bool looping;
   double volume;
   double playbackSpeed;
+
+  /// Native players start without a preload buffer limit.
+  Duration? preloadBufferLimit;
 }
 
 /// A native player owned by a [ReelPlayerPool].

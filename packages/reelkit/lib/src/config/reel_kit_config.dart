@@ -146,6 +146,7 @@ class ReelPlayerConfig {
     this.muted = false,
     this.playbackSpeed = 1.0,
     this.initializeTimeout = const Duration(seconds: 30),
+    this.preloadBufferDuration = const Duration(seconds: 5),
   }) : assert(volume >= 0 && volume <= 1),
        assert(playbackSpeed > 0);
 
@@ -161,12 +162,23 @@ class ReelPlayerConfig {
   /// Maximum time to wait for a source to finish preparing.
   final Duration initializeTimeout;
 
+  /// How far ahead a paused controller with priority
+  /// `ReelPlayerPriority.preload` or `ReelPlayerPriority.background` buffers.
+  ///
+  /// Prepared-ahead videos would otherwise download up to the engine's
+  /// default buffer (50 s on Android) although the user may never watch
+  /// them. Playing removes the limit. Null leaves buffering to the engine.
+  /// Applied where `ReelPlatformCapabilities.supportsPreloadBufferLimit` is
+  /// true (Android, iOS; on iOS it is a preference AVFoundation may exceed).
+  final Duration? preloadBufferDuration;
+
   ReelPlayerConfig copyWith({
     bool? looping,
     double? volume,
     bool? muted,
     double? playbackSpeed,
     Duration? initializeTimeout,
+    Duration? preloadBufferDuration,
   }) {
     return ReelPlayerConfig(
       looping: looping ?? this.looping,
@@ -174,6 +186,8 @@ class ReelPlayerConfig {
       muted: muted ?? this.muted,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       initializeTimeout: initializeTimeout ?? this.initializeTimeout,
+      preloadBufferDuration:
+          preloadBufferDuration ?? this.preloadBufferDuration,
     );
   }
 
@@ -184,9 +198,16 @@ class ReelPlayerConfig {
       other.volume == volume &&
       other.muted == muted &&
       other.playbackSpeed == playbackSpeed &&
-      other.initializeTimeout == initializeTimeout;
+      other.initializeTimeout == initializeTimeout &&
+      other.preloadBufferDuration == preloadBufferDuration;
 
   @override
-  int get hashCode =>
-      Object.hash(looping, volume, muted, playbackSpeed, initializeTimeout);
+  int get hashCode => Object.hash(
+    looping,
+    volume,
+    muted,
+    playbackSpeed,
+    initializeTimeout,
+    preloadBufferDuration,
+  );
 }

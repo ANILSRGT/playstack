@@ -1,3 +1,13 @@
+## 0.1.0-dev.5
+
+* Milestone 5: `ReelFeedManager` (`ReelKitManager.createFeed`) with a
+  preload window bounded by network, memory and pool size, ordered preloads
+  after the active item, cancellation on scroll, stable item ids
+  (insert/remove/replaceAll/updateSource), pause/resume and `ReelFeedStats`.
+  `ReelPlayerConfig.preloadBufferDuration`, `ReelKitManager.networkStatus`,
+  `ReelPlayerController.metrics`. `release()` cancels a preparation in
+  flight; cancelled preparations return to `idle` instead of `error`.
+
 ## 0.1.0-dev.4
 
 * Milestone 4: exclusive playback (`ReelKitConfig.exclusivePlayback`,

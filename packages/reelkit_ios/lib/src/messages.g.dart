@@ -107,6 +107,70 @@ enum PlatformPlaybackState { idle, buffering, ready, ended }
 
 enum PlatformTrackType { audio, video, text }
 
+enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
+
+/// Connectivity as seen by the operating system.
+class PlatformNetworkStatus {
+  PlatformNetworkStatus({
+    required this.isConnected,
+    required this.isMetered,
+    required this.isConstrained,
+    required this.type,
+  });
+
+  bool isConnected;
+
+  /// Billed by data volume (Android NOT_METERED missing, iOS isExpensive).
+  bool isMetered;
+
+  /// The user asked to save data (Android Data Saver, iOS Low Data Mode).
+  bool isConstrained;
+
+  PlatformNetworkType type;
+
+  List<Object?> _toList() {
+    return <Object?>[isConnected, isMetered, isConstrained, type];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformNetworkStatus decode(Object result) {
+    result as List<Object?>;
+    return PlatformNetworkStatus(
+      isConnected: result[0]! as bool,
+      isMetered: result[1]! as bool,
+      isConstrained: result[2]! as bool,
+      type: result[3]! as PlatformNetworkType,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformNetworkStatus || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(isConnected, other.isConnected) &&
+        _deepEquals(isMetered, other.isMetered) &&
+        _deepEquals(isConstrained, other.isConstrained) &&
+        _deepEquals(type, other.type);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformNetworkStatus(isConnected: $isConnected, isMetered: $isMetered, isConstrained: $isConstrained, type: $type)';
+  }
+}
+
 /// One selectable audio, video or text track of the current source.
 class PlatformTrack {
   PlatformTrack({
@@ -431,6 +495,8 @@ class PlatformCapabilities {
     required this.supportsTrackSelection,
     required this.supportsVideoTrackSelection,
     required this.supportsVideoQualityLimit,
+    required this.supportsPreloadBufferLimit,
+    required this.supportsNetworkStatus,
   });
 
   String engineName;
@@ -465,6 +531,12 @@ class PlatformCapabilities {
   /// Capping adaptive video by bitrate and resolution.
   bool supportsVideoQualityLimit;
 
+  /// `setPreloadBufferLimit` bounds forward buffering of paused players.
+  bool supportsPreloadBufferLimit;
+
+  /// `getNetworkStatus` and `networkEvents` report real connectivity.
+  bool supportsNetworkStatus;
+
   List<Object?> _toList() {
     return <Object?>[
       engineName,
@@ -480,6 +552,8 @@ class PlatformCapabilities {
       supportsTrackSelection,
       supportsVideoTrackSelection,
       supportsVideoQualityLimit,
+      supportsPreloadBufferLimit,
+      supportsNetworkStatus,
     ];
   }
 
@@ -503,6 +577,8 @@ class PlatformCapabilities {
       supportsTrackSelection: result[10]! as bool,
       supportsVideoTrackSelection: result[11]! as bool,
       supportsVideoQualityLimit: result[12]! as bool,
+      supportsPreloadBufferLimit: result[13]! as bool,
+      supportsNetworkStatus: result[14]! as bool,
     );
   }
 
@@ -533,7 +609,15 @@ class PlatformCapabilities {
           supportsVideoTrackSelection,
           other.supportsVideoTrackSelection,
         ) &&
-        _deepEquals(supportsVideoQualityLimit, other.supportsVideoQualityLimit);
+        _deepEquals(
+          supportsVideoQualityLimit,
+          other.supportsVideoQualityLimit,
+        ) &&
+        _deepEquals(
+          supportsPreloadBufferLimit,
+          other.supportsPreloadBufferLimit,
+        ) &&
+        _deepEquals(supportsNetworkStatus, other.supportsNetworkStatus);
   }
 
   @override
@@ -542,7 +626,7 @@ class PlatformCapabilities {
 
   @override
   String toString() {
-    return 'PlatformCapabilities(engineName: $engineName, engineVersion: $engineVersion, recommendedMaxPlayers: $recommendedMaxPlayers, maxHardwareDecoderInstances: $maxHardwareDecoderInstances, totalMemoryBytes: $totalMemoryBytes, isLowRamDevice: $isLowRamDevice, supportsHls: $supportsHls, supportsDash: $supportsDash, supportsDiskCache: $supportsDiskCache, supportsMemorySource: $supportsMemorySource, supportsTrackSelection: $supportsTrackSelection, supportsVideoTrackSelection: $supportsVideoTrackSelection, supportsVideoQualityLimit: $supportsVideoQualityLimit)';
+    return 'PlatformCapabilities(engineName: $engineName, engineVersion: $engineVersion, recommendedMaxPlayers: $recommendedMaxPlayers, maxHardwareDecoderInstances: $maxHardwareDecoderInstances, totalMemoryBytes: $totalMemoryBytes, isLowRamDevice: $isLowRamDevice, supportsHls: $supportsHls, supportsDash: $supportsDash, supportsDiskCache: $supportsDiskCache, supportsMemorySource: $supportsMemorySource, supportsTrackSelection: $supportsTrackSelection, supportsVideoTrackSelection: $supportsVideoTrackSelection, supportsVideoQualityLimit: $supportsVideoQualityLimit, supportsPreloadBufferLimit: $supportsPreloadBufferLimit, supportsNetworkStatus: $supportsNetworkStatus)';
   }
 }
 
@@ -1136,47 +1220,53 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformTrackType) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    } else if (value is PlatformTrack) {
+    } else if (value is PlatformNetworkType) {
       buffer.putUint8(133);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformFirstFrameEvent) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformErrorEvent) {
       buffer.putUint8(146);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformTracksChangedEvent) {
+      buffer.putUint8(147);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(148);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1199,32 +1289,37 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformTrackType.values[value];
       case 133:
-        return PlatformTrack.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformNetworkType.values[value];
       case 134:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 135:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 136:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 137:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 138:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 139:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 140:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 141:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 142:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 143:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 144:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
       case 145:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
       case 146:
+        return PlatformErrorEvent.decode(readValue(buffer)!);
+      case 147:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 148:
         return PlatformCuesEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1564,6 +1659,46 @@ class ReelKitHostApi {
       isNullValid: true,
     );
   }
+
+  /// Stops forward buffering at [maxBufferMs] while the player is not
+  /// playing; null removes the limit. Used for players prepared ahead of
+  /// time so they do not download whole videos the user may never watch.
+  Future<void> setPreloadBufferLimit(int playerId, int? maxBufferMs) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.setPreloadBufferLimit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, maxBufferMs],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<PlatformNetworkStatus> getNetworkStatus() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.reelkit_ios.ReelKitHostApi.getNetworkStatus$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as PlatformNetworkStatus;
+  }
 }
 
 /// Returns a broadcast [Stream] of events from the `playerEvents` event channel.
@@ -1582,5 +1717,27 @@ Stream<PlatformPlayerEvent> playerEvents({String instanceName = ''}) {
   );
   return playerEventsChannel.receiveBroadcastStream().map((dynamic event) {
     return event as PlatformPlayerEvent;
+  });
+}
+
+/// Connectivity changes. The engine monitors the network only while this
+/// stream has a listener.
+///
+/// Returns a broadcast [Stream] of events from the `networkEvents` event channel.
+///
+/// Each call to this method creates a new [EventChannel], so it should
+/// not be called multiple times for the same `instanceName`. To deliver
+/// events to multiple listeners, call this method once and listen to the
+/// returned broadcast stream multiple times instead.
+Stream<PlatformNetworkStatus> networkEvents({String instanceName = ''}) {
+  if (instanceName.isNotEmpty) {
+    instanceName = '.$instanceName';
+  }
+  final EventChannel networkEventsChannel = EventChannel(
+    'dev.flutter.pigeon.reelkit_ios.ReelKitEventApi.networkEvents$instanceName',
+    pigeonMethodCodec,
+  );
+  return networkEventsChannel.receiveBroadcastStream().map((dynamic event) {
+    return event as PlatformNetworkStatus;
   });
 }

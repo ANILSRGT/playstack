@@ -27,8 +27,23 @@ class _FakeHostApi extends ReelKitHostApi {
       supportsTrackSelection: false,
       supportsVideoTrackSelection: false,
       supportsVideoQualityLimit: false,
+      supportsPreloadBufferLimit: true,
+      supportsNetworkStatus: true,
     );
   }
+
+  @override
+  Future<PlatformNetworkStatus> getNetworkStatus() async =>
+      PlatformNetworkStatus(
+        isConnected: true,
+        isMetered: true,
+        isConstrained: false,
+        type: PlatformNetworkType.cellular,
+      );
+
+  @override
+  Future<void> setPreloadBufferLimit(int playerId, int? maxBufferMs) async =>
+      calls.add('bufferLimit $maxBufferMs');
 
   @override
   Future<PlatformPlayerCreation> createPlayer(
@@ -190,5 +205,23 @@ void main() {
     final error = events[2] as ReelErrorEvent;
     expect(error.error.code, ReelKitErrorCode.decoder);
     expect(error.generation, 2);
+  });
+
+  test('maps network status and buffer limits', () async {
+    final status = await platform.getNetworkStatus();
+    expect(
+      status,
+      const ReelNetworkStatus(
+        isConnected: true,
+        isMetered: true,
+        type: ReelNetworkType.cellular,
+      ),
+    );
+    await platform.setPreloadBufferLimit(7, const Duration(seconds: 4));
+    await platform.setPreloadBufferLimit(7, null);
+    expect(
+      api.calls,
+      containsAllInOrder(['bufferLimit 4000', 'bufferLimit null']),
+    );
   });
 }

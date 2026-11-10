@@ -6,6 +6,9 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
 import '../config/reel_kit_config.dart';
 import '../controller/reel_player_controller.dart';
+import '../feed/reel_feed_config.dart';
+import '../feed/reel_feed_item.dart';
+import '../feed/reel_feed_manager.dart';
 import '../pool/reel_player_pool.dart';
 import 'reel_playback_coordinator.dart';
 
@@ -25,7 +28,7 @@ import 'reel_playback_coordinator.dart';
 ///
 /// Use one manager per independent playback context (for example one per
 /// feed). Each manager has its own pool limit.
-class ReelKitManager implements ReelControllerHost {
+class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   ReelKitManager({
     this.config = const ReelKitConfig(),
     @visibleForTesting ReelKitPlatform? platform,
@@ -38,6 +41,10 @@ class ReelKitManager implements ReelControllerHost {
   final ReelKitPlatform? _platformOverride;
   final Set<ReelPlayerController> _controllers = <ReelPlayerController>{};
   final ReelPlaybackCoordinator _coordinator;
+  final Set<ReelFeedManager> _feeds = <ReelFeedManager>{};
+  final ValueNotifier<ReelNetworkStatus> _network =
+      ValueNotifier<ReelNetworkStatus>(ReelNetworkStatus.unknown);
+  StreamSubscription<ReelNetworkStatus>? _networkEvents;
 
   Future<void>? _initialization;
   ReelPlatformCapabilities? _capabilities;
@@ -65,6 +72,7 @@ class ReelKitManager implements ReelControllerHost {
   bool get isDisposed => _disposed;
 
   /// Engine and device capabilities. Available after [initialize].
+  @override
   ReelPlatformCapabilities get capabilities =>
       _capabilities ?? (throw _notInitialized());
 
@@ -74,6 +82,13 @@ class ReelKitManager implements ReelControllerHost {
   /// Controllers created by this manager that are not disposed.
   List<ReelPlayerController> get controllers =>
       List<ReelPlayerController>.unmodifiable(_controllers);
+
+  /// Connectivity reported by the engine. [ReelNetworkStatus.unknown] on
+  /// engines without network status (see
+  /// [ReelPlatformCapabilities.supportsNetworkStatus]) and before
+  /// [initialize].
+  @override
+  ValueListenable<ReelNetworkStatus> get networkStatus => _network;
 
   /// The playing controller that started most recently, or null when none
   /// plays. With exclusive playback this is the only playing controller.
@@ -126,6 +141,7 @@ class ReelKitManager implements ReelControllerHost {
         );
       },
     );
+    if (capabilities.supportsNetworkStatus) await _startNetworkStatus();
     _bindingObserver = _BindingObserver(
       onMemoryPressure: _onMemoryPressure,
       onLifecycle: _onLifecycle,
@@ -157,6 +173,30 @@ class ReelKitManager implements ReelControllerHost {
     return controller;
   }
 
+  /// Creates a feed of [items] whose controllers share this manager's pool.
+  ///
+  /// See [ReelFeedManager]. Call `setActiveIndex` once the first item is in
+  /// view.
+  ReelFeedManager createFeed(
+    Iterable<ReelFeedItem> items, {
+    ReelFeedConfig config = const ReelFeedConfig(),
+  }) {
+    if (_disposed) {
+      throw const ReelKitException(
+        ReelKitErrorCode.disposed,
+        'This ReelKitManager was disposed.',
+      );
+    }
+    if (_pool == null) throw _notInitialized();
+    final feed = ReelFeedManager.internal(
+      host: this,
+      items: items.toList(),
+      config: config,
+    );
+    _feeds.add(feed);
+    return feed;
+  }
+
   /// Pauses every playing controller of this manager.
   Future<void> pauseAll() async {
     await Future.wait([
@@ -176,14 +216,67 @@ class ReelKitManager implements ReelControllerHost {
     _bindingObserver?.detach();
     _bindingObserver = null;
     _pausedByLifecycle.clear();
+    for (final feed in List<ReelFeedManager>.of(_feeds)) {
+      feed.dispose();
+    }
+    // Not awaited: a cancelled broadcast subscription completes with a
+    // root-zone future, and nothing depends on it.
+    unawaited(_networkEvents?.cancel());
+    _networkEvents = null;
     await Future.wait(
       List<ReelPlayerController>.of(_controllers).map((c) => c.dispose()),
     );
     await _pool?.dispose();
-    await _events?.cancel();
+    unawaited(_events?.cancel());
     _events = null;
     _coordinator.dispose();
+    _network.dispose();
   }
+
+  Future<void> _startNetworkStatus() async {
+    try {
+      _network.value = await platform.getNetworkStatus();
+    } on Object catch (error, stack) {
+      _reportError(error, stack, 'while reading the network status');
+    }
+    _networkEvents = platform.networkStatusChanges.listen(
+      (status) {
+        if (!_disposed) _network.value = status;
+      },
+      onError: (Object error, StackTrace stack) =>
+          _reportError(error, stack, 'while monitoring the network'),
+    );
+  }
+
+  void _reportError(Object error, StackTrace stack, String context) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'reelkit',
+        context: ErrorDescription(context),
+      ),
+    );
+  }
+
+  @override
+  @internal
+  ReelPlayerController createFeedController(
+    ReelSource source,
+    ReelPlayerConfig? config,
+  ) => createController(source, config: config);
+
+  @override
+  @internal
+  int get maxPlayers => pool.maxPlayers;
+
+  @override
+  @internal
+  bool get exclusivePlayback => config.exclusivePlayback;
+
+  @override
+  @internal
+  void feedDisposed(ReelFeedManager feed) => _feeds.remove(feed);
 
   @override
   @internal
@@ -221,6 +314,9 @@ class ReelKitManager implements ReelControllerHost {
   /// [ReelPlayerPriority.background] controllers, which by definition are
   /// kept only while nothing else needs them.
   void _onMemoryPressure() {
+    for (final feed in List<ReelFeedManager>.of(_feeds)) {
+      feed.handleMemoryPressure();
+    }
     unawaited(_releaseForMemory().catchError(_reportMemoryError));
   }
 

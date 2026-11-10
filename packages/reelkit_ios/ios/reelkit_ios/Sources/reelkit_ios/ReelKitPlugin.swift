@@ -9,19 +9,23 @@ public final class ReelKitPlugin: NSObject, FlutterPlugin {
   private let registry: PlayerRegistry
   private let events: PlayerEventDispatcher
   private let eventChannel: PlayerEventsEventChannel
+  private let network: NetworkMonitor
+  private let networkChannel: NetworkEventsEventChannel
   private let messenger: FlutterBinaryMessenger
 
   private init(registrar: FlutterPluginRegistrar) {
     messenger = registrar.messenger()
     events = PlayerEventDispatcher()
+    network = NetworkMonitor()
     registry = PlayerRegistry(
-      textureRegistry: registrar.textures(), events: events,
+      textureRegistry: registrar.textures(), events: events, network: network,
       assetLookup: { [weak registrar] name, package in
         guard let registrar else { return name }
         if let package { return registrar.lookupKey(forAsset: name, fromPackage: package) }
         return registrar.lookupKey(forAsset: name)
       })
     eventChannel = PlayerEventsStreamHandler.register(with: messenger, streamHandler: events)
+    networkChannel = NetworkEventsStreamHandler.register(with: messenger, streamHandler: network)
     super.init()
     ReelKitHostApiSetup.setUp(binaryMessenger: messenger, api: registry)
   }
@@ -34,6 +38,8 @@ public final class ReelKitPlugin: NSObject, FlutterPlugin {
   public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
     ReelKitHostApiSetup.setUp(binaryMessenger: messenger, api: nil)
     eventChannel.setStreamHandler(nil)
+    networkChannel.setStreamHandler(nil)
+    network.stop()
     registry.releaseAll()
     events.detach()
   }

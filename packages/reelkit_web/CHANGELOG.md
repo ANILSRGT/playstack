@@ -1,3 +1,9 @@
+## 0.1.0-dev.5
+
+* Milestone 5: network status from `navigator.onLine` and
+  `navigator.connection`; preload buffer limits are reported as
+  `notImplemented`.
+
 ## 0.1.0-dev.4
 
 * Milestone 4: version alignment; browsers do not report decoder

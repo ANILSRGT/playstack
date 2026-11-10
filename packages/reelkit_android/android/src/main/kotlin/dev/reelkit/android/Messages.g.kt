@@ -261,6 +261,78 @@ enum class PlatformTrackType(val raw: Int) {
   }
 }
 
+enum class PlatformNetworkType(val raw: Int) {
+  NONE(0),
+  WIFI(1),
+  CELLULAR(2),
+  ETHERNET(3),
+  OTHER(4),
+  UNKNOWN(5);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformNetworkType? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
+/**
+ * Connectivity as seen by the operating system.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformNetworkStatus (
+  val isConnected: Boolean,
+  /** Billed by data volume (Android NOT_METERED missing, iOS isExpensive). */
+  val isMetered: Boolean,
+  /** The user asked to save data (Android Data Saver, iOS Low Data Mode). */
+  val isConstrained: Boolean,
+  val type: PlatformNetworkType
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformNetworkStatus {
+      val isConnected = pigeonVar_list[0] as Boolean
+      val isMetered = pigeonVar_list[1] as Boolean
+      val isConstrained = pigeonVar_list[2] as Boolean
+      val type = pigeonVar_list[3] as PlatformNetworkType
+      return PlatformNetworkStatus(isConnected, isMetered, isConstrained, type)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      isConnected,
+      isMetered,
+      isConstrained,
+      type,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformNetworkStatus
+    return MessagesPigeonUtils.deepEquals(this.isConnected, other.isConnected) && MessagesPigeonUtils.deepEquals(this.isMetered, other.isMetered) && MessagesPigeonUtils.deepEquals(this.isConstrained, other.isConstrained) && MessagesPigeonUtils.deepEquals(this.type, other.type)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.isConnected)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.isMetered)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.isConstrained)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.type)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformNetworkStatus(isConnected=$isConnected, isMetered=$isMetered, isConstrained=$isConstrained, type=$type)"
+  }
+}
+
 /**
  * One selectable audio, video or text track of the current source.
  *
@@ -525,7 +597,11 @@ data class PlatformCapabilities (
   /** Selecting a specific video rendition (quality). */
   val supportsVideoTrackSelection: Boolean,
   /** Capping adaptive video by bitrate and resolution. */
-  val supportsVideoQualityLimit: Boolean
+  val supportsVideoQualityLimit: Boolean,
+  /** `setPreloadBufferLimit` bounds forward buffering of paused players. */
+  val supportsPreloadBufferLimit: Boolean,
+  /** `getNetworkStatus` and `networkEvents` report real connectivity. */
+  val supportsNetworkStatus: Boolean
 )
  {
   companion object {
@@ -543,7 +619,9 @@ data class PlatformCapabilities (
       val supportsTrackSelection = pigeonVar_list[10] as Boolean
       val supportsVideoTrackSelection = pigeonVar_list[11] as Boolean
       val supportsVideoQualityLimit = pigeonVar_list[12] as Boolean
-      return PlatformCapabilities(engineName, engineVersion, recommendedMaxPlayers, maxHardwareDecoderInstances, totalMemoryBytes, isLowRamDevice, supportsHls, supportsDash, supportsDiskCache, supportsMemorySource, supportsTrackSelection, supportsVideoTrackSelection, supportsVideoQualityLimit)
+      val supportsPreloadBufferLimit = pigeonVar_list[13] as Boolean
+      val supportsNetworkStatus = pigeonVar_list[14] as Boolean
+      return PlatformCapabilities(engineName, engineVersion, recommendedMaxPlayers, maxHardwareDecoderInstances, totalMemoryBytes, isLowRamDevice, supportsHls, supportsDash, supportsDiskCache, supportsMemorySource, supportsTrackSelection, supportsVideoTrackSelection, supportsVideoQualityLimit, supportsPreloadBufferLimit, supportsNetworkStatus)
     }
   }
   fun toList(): List<Any?> {
@@ -561,6 +639,8 @@ data class PlatformCapabilities (
       supportsTrackSelection,
       supportsVideoTrackSelection,
       supportsVideoQualityLimit,
+      supportsPreloadBufferLimit,
+      supportsNetworkStatus,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -571,7 +651,7 @@ data class PlatformCapabilities (
       return true
     }
     val other = other as PlatformCapabilities
-    return MessagesPigeonUtils.deepEquals(this.engineName, other.engineName) && MessagesPigeonUtils.deepEquals(this.engineVersion, other.engineVersion) && MessagesPigeonUtils.deepEquals(this.recommendedMaxPlayers, other.recommendedMaxPlayers) && MessagesPigeonUtils.deepEquals(this.maxHardwareDecoderInstances, other.maxHardwareDecoderInstances) && MessagesPigeonUtils.deepEquals(this.totalMemoryBytes, other.totalMemoryBytes) && MessagesPigeonUtils.deepEquals(this.isLowRamDevice, other.isLowRamDevice) && MessagesPigeonUtils.deepEquals(this.supportsHls, other.supportsHls) && MessagesPigeonUtils.deepEquals(this.supportsDash, other.supportsDash) && MessagesPigeonUtils.deepEquals(this.supportsDiskCache, other.supportsDiskCache) && MessagesPigeonUtils.deepEquals(this.supportsMemorySource, other.supportsMemorySource) && MessagesPigeonUtils.deepEquals(this.supportsTrackSelection, other.supportsTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoTrackSelection, other.supportsVideoTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoQualityLimit, other.supportsVideoQualityLimit)
+    return MessagesPigeonUtils.deepEquals(this.engineName, other.engineName) && MessagesPigeonUtils.deepEquals(this.engineVersion, other.engineVersion) && MessagesPigeonUtils.deepEquals(this.recommendedMaxPlayers, other.recommendedMaxPlayers) && MessagesPigeonUtils.deepEquals(this.maxHardwareDecoderInstances, other.maxHardwareDecoderInstances) && MessagesPigeonUtils.deepEquals(this.totalMemoryBytes, other.totalMemoryBytes) && MessagesPigeonUtils.deepEquals(this.isLowRamDevice, other.isLowRamDevice) && MessagesPigeonUtils.deepEquals(this.supportsHls, other.supportsHls) && MessagesPigeonUtils.deepEquals(this.supportsDash, other.supportsDash) && MessagesPigeonUtils.deepEquals(this.supportsDiskCache, other.supportsDiskCache) && MessagesPigeonUtils.deepEquals(this.supportsMemorySource, other.supportsMemorySource) && MessagesPigeonUtils.deepEquals(this.supportsTrackSelection, other.supportsTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoTrackSelection, other.supportsVideoTrackSelection) && MessagesPigeonUtils.deepEquals(this.supportsVideoQualityLimit, other.supportsVideoQualityLimit) && MessagesPigeonUtils.deepEquals(this.supportsPreloadBufferLimit, other.supportsPreloadBufferLimit) && MessagesPigeonUtils.deepEquals(this.supportsNetworkStatus, other.supportsNetworkStatus)
   }
 
   override fun hashCode(): Int {
@@ -589,10 +669,12 @@ data class PlatformCapabilities (
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsTrackSelection)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsVideoTrackSelection)
     result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsVideoQualityLimit)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsPreloadBufferLimit)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.supportsNetworkStatus)
     return result
   }
   override fun toString(): String {
-    return "PlatformCapabilities(engineName=$engineName, engineVersion=$engineVersion, recommendedMaxPlayers=$recommendedMaxPlayers, maxHardwareDecoderInstances=$maxHardwareDecoderInstances, totalMemoryBytes=$totalMemoryBytes, isLowRamDevice=$isLowRamDevice, supportsHls=$supportsHls, supportsDash=$supportsDash, supportsDiskCache=$supportsDiskCache, supportsMemorySource=$supportsMemorySource, supportsTrackSelection=$supportsTrackSelection, supportsVideoTrackSelection=$supportsVideoTrackSelection, supportsVideoQualityLimit=$supportsVideoQualityLimit)"
+    return "PlatformCapabilities(engineName=$engineName, engineVersion=$engineVersion, recommendedMaxPlayers=$recommendedMaxPlayers, maxHardwareDecoderInstances=$maxHardwareDecoderInstances, totalMemoryBytes=$totalMemoryBytes, isLowRamDevice=$isLowRamDevice, supportsHls=$supportsHls, supportsDash=$supportsDash, supportsDiskCache=$supportsDiskCache, supportsMemorySource=$supportsMemorySource, supportsTrackSelection=$supportsTrackSelection, supportsVideoTrackSelection=$supportsVideoTrackSelection, supportsVideoQualityLimit=$supportsVideoQualityLimit, supportsPreloadBufferLimit=$supportsPreloadBufferLimit, supportsNetworkStatus=$supportsNetworkStatus)"
   }
 }
 
@@ -1100,71 +1182,81 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         }
       }
       133.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTrack.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformNetworkType.ofRaw(it.toInt())
         }
       }
       134.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSource.fromList(it)
+          PlatformNetworkStatus.fromList(it)
         }
       }
       135.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerOptions.fromList(it)
+          PlatformTrack.fromList(it)
         }
       }
       136.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerCreation.fromList(it)
+          PlatformSource.fromList(it)
         }
       }
       137.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCapabilities.fromList(it)
+          PlatformPlayerOptions.fromList(it)
         }
       }
       138.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPosition.fromList(it)
+          PlatformPlayerCreation.fromList(it)
         }
       }
       139.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformInitializedEvent.fromList(it)
+          PlatformCapabilities.fromList(it)
         }
       }
       140.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformStateEvent.fromList(it)
+          PlatformPosition.fromList(it)
         }
       }
       141.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformIsPlayingEvent.fromList(it)
+          PlatformInitializedEvent.fromList(it)
         }
       }
       142.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformVideoSizeEvent.fromList(it)
+          PlatformStateEvent.fromList(it)
         }
       }
       143.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformFirstFrameEvent.fromList(it)
+          PlatformIsPlayingEvent.fromList(it)
         }
       }
       144.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformErrorEvent.fromList(it)
+          PlatformVideoSizeEvent.fromList(it)
         }
       }
       145.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTracksChangedEvent.fromList(it)
+          PlatformFirstFrameEvent.fromList(it)
         }
       }
       146.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformErrorEvent.fromList(it)
+        }
+      }
+      147.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformTracksChangedEvent.fromList(it)
+        }
+      }
+      148.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
           PlatformCuesEvent.fromList(it)
         }
@@ -1190,60 +1282,68 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(132)
         writeValue(stream, value.raw.toLong())
       }
-      is PlatformTrack -> {
+      is PlatformNetworkType -> {
         stream.write(133)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformSource -> {
+      is PlatformNetworkStatus -> {
         stream.write(134)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerOptions -> {
+      is PlatformTrack -> {
         stream.write(135)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerCreation -> {
+      is PlatformSource -> {
         stream.write(136)
         writeValue(stream, value.toList())
       }
-      is PlatformCapabilities -> {
+      is PlatformPlayerOptions -> {
         stream.write(137)
         writeValue(stream, value.toList())
       }
-      is PlatformPosition -> {
+      is PlatformPlayerCreation -> {
         stream.write(138)
         writeValue(stream, value.toList())
       }
-      is PlatformInitializedEvent -> {
+      is PlatformCapabilities -> {
         stream.write(139)
         writeValue(stream, value.toList())
       }
-      is PlatformStateEvent -> {
+      is PlatformPosition -> {
         stream.write(140)
         writeValue(stream, value.toList())
       }
-      is PlatformIsPlayingEvent -> {
+      is PlatformInitializedEvent -> {
         stream.write(141)
         writeValue(stream, value.toList())
       }
-      is PlatformVideoSizeEvent -> {
+      is PlatformStateEvent -> {
         stream.write(142)
         writeValue(stream, value.toList())
       }
-      is PlatformFirstFrameEvent -> {
+      is PlatformIsPlayingEvent -> {
         stream.write(143)
         writeValue(stream, value.toList())
       }
-      is PlatformErrorEvent -> {
+      is PlatformVideoSizeEvent -> {
         stream.write(144)
         writeValue(stream, value.toList())
       }
-      is PlatformTracksChangedEvent -> {
+      is PlatformFirstFrameEvent -> {
         stream.write(145)
         writeValue(stream, value.toList())
       }
-      is PlatformCuesEvent -> {
+      is PlatformErrorEvent -> {
         stream.write(146)
+        writeValue(stream, value.toList())
+      }
+      is PlatformTracksChangedEvent -> {
+        stream.write(147)
+        writeValue(stream, value.toList())
+      }
+      is PlatformCuesEvent -> {
+        stream.write(148)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1287,6 +1387,13 @@ interface ReelKitHostApi {
   fun selectTrack(playerId: Long, type: PlatformTrackType, trackId: String?)
   /** Caps adaptive video selection. Null values remove the respective cap. */
   fun setVideoQualityLimit(playerId: Long, maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?)
+  /**
+   * Stops forward buffering at [maxBufferMs] while the player is not
+   * playing; null removes the limit. Used for players prepared ahead of
+   * time so they do not download whole videos the user may never watch.
+   */
+  fun setPreloadBufferLimit(playerId: Long, maxBufferMs: Long?)
+  fun getNetworkStatus(): PlatformNetworkStatus
 
   companion object {
     /** The codec used by ReelKitHostApi. */
@@ -1576,6 +1683,40 @@ interface ReelKitHostApi {
           channel.setMessageHandler(null)
         }
       }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.setPreloadBufferLimit$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long
+            val maxBufferMsArg = args[1] as Long?
+            val wrapped: List<Any?> = try {
+              api.setPreloadBufferLimit(playerIdArg, maxBufferMsArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.reelkit_android.ReelKitHostApi.getNetworkStatus$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.getNetworkStatus())
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
     }
   }
 }
@@ -1657,6 +1798,51 @@ abstract class PlayerEventsStreamHandler : MessagesPigeonEventChannelWrapper<Pla
 
   // Implement methods from MessagesPigeonEventChannelWrapper
   override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformPlayerEvent>) {}
+
+  override fun onCancel(p0: Any?) {}
+}
+      
+/** A typed channel for communicating with the Flutter application using asynchronous event streams. */
+class NetworkEventsEventChannel(messenger: BinaryMessenger, instanceName: String = "") {
+  private val channel: EventChannel
+
+  init {
+    var channelName = "dev.flutter.pigeon.reelkit_android.ReelKitEventApi.networkEvents"
+    if (instanceName.isNotEmpty()) {
+      channelName += ".$instanceName"
+    }
+    channel = EventChannel(messenger, channelName, MessagesPigeonMethodCodec)
+  }
+
+  /**
+   * Sets the stream handler for this channel, replacing any previous handler.
+   *
+   * Pass `null` to remove the event channel registration.
+   */
+  fun setStreamHandler(streamHandler: NetworkEventsStreamHandler?) {
+    val internalHandler = streamHandler?.let { MessagesPigeonStreamHandler<PlatformNetworkStatus>(it) }
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+abstract class NetworkEventsStreamHandler : MessagesPigeonEventChannelWrapper<PlatformNetworkStatus> {
+  companion object {
+    /**
+     * Creates and returns a new event channel that calls the provided stream handler.
+     *
+     * The returned channel can be stored to allow changing or removing the stream handler.
+     * If the handler will not be changed for the lifetime of the engine associated with the messenger,
+     * the return value can be ignored.
+     */
+    fun register(messenger: BinaryMessenger, streamHandler: NetworkEventsStreamHandler, instanceName: String = ""): NetworkEventsEventChannel {
+      val channel = NetworkEventsEventChannel(messenger, instanceName)
+      channel.setStreamHandler(streamHandler)
+      return channel
+    }
+  }
+
+  // Implement methods from MessagesPigeonEventChannelWrapper
+  override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformNetworkStatus>) {}
 
   override fun onCancel(p0: Any?) {}
 }

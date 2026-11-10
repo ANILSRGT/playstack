@@ -19,6 +19,8 @@ class ReelPlatformCapabilities {
     required this.supportsTrackSelection,
     this.supportsVideoTrackSelection = false,
     this.supportsVideoQualityLimit = false,
+    this.supportsPreloadBufferLimit = false,
+    this.supportsNetworkStatus = false,
     this.maxHardwareDecoderInstances,
     this.totalMemoryBytes,
   });
@@ -52,6 +54,12 @@ class ReelPlatformCapabilities {
   /// Capping adaptive video by bitrate and resolution.
   final bool supportsVideoQualityLimit;
 
+  /// Bounding the forward buffer of paused, preloaded players.
+  final bool supportsPreloadBufferLimit;
+
+  /// Reporting connectivity, metering and data saver state.
+  final bool supportsNetworkStatus;
+
   @override
   bool operator ==(Object other) =>
       other is ReelPlatformCapabilities &&
@@ -67,7 +75,9 @@ class ReelPlatformCapabilities {
       other.supportsMemorySource == supportsMemorySource &&
       other.supportsTrackSelection == supportsTrackSelection &&
       other.supportsVideoTrackSelection == supportsVideoTrackSelection &&
-      other.supportsVideoQualityLimit == supportsVideoQualityLimit;
+      other.supportsVideoQualityLimit == supportsVideoQualityLimit &&
+      other.supportsPreloadBufferLimit == supportsPreloadBufferLimit &&
+      other.supportsNetworkStatus == supportsNetworkStatus;
 
   @override
   int get hashCode => Object.hash(
@@ -84,6 +94,8 @@ class ReelPlatformCapabilities {
     supportsTrackSelection,
     supportsVideoTrackSelection,
     supportsVideoQualityLimit,
+    supportsPreloadBufferLimit,
+    supportsNetworkStatus,
   );
 
   @override

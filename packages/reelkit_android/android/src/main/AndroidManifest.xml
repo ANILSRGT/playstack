@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Network video sources require Internet access. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Network-aware preloading reads connectivity and metering. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

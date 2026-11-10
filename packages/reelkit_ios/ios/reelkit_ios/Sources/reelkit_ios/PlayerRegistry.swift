@@ -6,6 +6,7 @@ import Foundation
 final class PlayerRegistry: ReelKitHostApi {
   private let textureRegistry: FlutterTextureRegistry
   private let events: PlayerEventDispatcher
+  private let network: NetworkMonitor
   private let sources: SourceResolver
   private var players: [Int64: NativePlayer] = [:]
   private var nextPlayerId: Int64 = 1
@@ -13,10 +14,12 @@ final class PlayerRegistry: ReelKitHostApi {
 
   init(
     textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher,
+    network: NetworkMonitor,
     assetLookup: @escaping (String, String?) -> String
   ) {
     self.textureRegistry = textureRegistry
     self.events = events
+    self.network = network
     sources = SourceResolver(assetLookup: assetLookup)
   }
 
@@ -64,6 +67,19 @@ final class PlayerRegistry: ReelKitHostApi {
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
       player.seek(toMilliseconds: positionMs) { continuation.resume() }
     }
+  }
+
+  func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws {
+    if let maxBufferMs, maxBufferMs < 0 {
+      throw PigeonError(
+        code: "invalidArgument", message: "Buffer limit must be >= 0, got \(maxBufferMs).",
+        details: nil)
+    }
+    try requirePlayer(playerId).setPreloadBufferLimit(milliseconds: maxBufferMs)
+  }
+
+  func getNetworkStatus() throws -> PlatformNetworkStatus {
+    network.current()
   }
 
   func setLooping(playerId: Int64, looping: Bool) throws {

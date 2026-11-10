@@ -26,6 +26,10 @@ import 'web_player.dart';
 ///   Muted playback (volume 0) is allowed.
 /// * Browsers expose no decoder limits; the recommended pool size is derived
 ///   from `navigator.deviceMemory` where available.
+/// * Forward buffering of paused videos cannot be bounded; browsers decide
+///   how much of a `preload="auto"` video they download.
+/// * Network status: `navigator.onLine` everywhere; metering and data saver
+///   only where `navigator.connection` exists (Chromium).
 class ReelKitWeb extends ReelKitPlatform {
   /// Registers this class as the default [ReelKitPlatform] implementation.
   static void registerWith(Registrar registrar) {
@@ -78,6 +82,7 @@ class ReelKitWeb extends ReelKitPlatform {
       // Subtitle tracks exposed by the browser (for example HLS subtitles in
       // Safari) and, where the browser exposes them, audio tracks.
       supportsTrackSelection: true,
+      supportsNetworkStatus: true,
     );
   }
 
@@ -227,6 +232,101 @@ class ReelKitWeb extends ReelKitPlatform {
       ReelKitErrorCode.notImplemented,
       'Browsers choose <video> renditions themselves; a quality limit '
       'cannot be applied.',
+    );
+  }
+
+  @override
+  Future<void> setPreloadBufferLimit(int playerId, Duration? limit) async {
+    _require(playerId);
+    if (limit == null) return;
+    throw const ReelKitException(
+      ReelKitErrorCode.notImplemented,
+      'Browsers decide how much of a <video> they buffer; a preload buffer '
+      'limit cannot be applied.',
+    );
+  }
+
+  @override
+  Future<ReelNetworkStatus> getNetworkStatus() async => _readNetwork();
+
+  @override
+  Stream<ReelNetworkStatus> get networkStatusChanges => _network.stream;
+
+  // Lives as long as the registered engine. Browser listeners are attached
+  // only while the stream has a listener.
+  // ignore: close_sinks
+  late final StreamController<ReelNetworkStatus> _network =
+      StreamController<ReelNetworkStatus>.broadcast(
+        onListen: _startNetworkEvents,
+        onCancel: _stopNetworkEvents,
+      );
+  late final JSFunction _networkListener = ((
+    web.Event _,
+  ) => _emitNetwork()).toJS;
+  web.NetworkInformation? _observedConnection;
+  ReelNetworkStatus? _lastNetwork;
+
+  void _startNetworkEvents() {
+    web.window.addEventListener('online', _networkListener);
+    web.window.addEventListener('offline', _networkListener);
+    _observedConnection = _connection()
+      ?..addEventListener('change', _networkListener);
+    _lastNetwork = null;
+    _emitNetwork();
+  }
+
+  void _stopNetworkEvents() {
+    web.window.removeEventListener('online', _networkListener);
+    web.window.removeEventListener('offline', _networkListener);
+    _observedConnection?.removeEventListener('change', _networkListener);
+    _observedConnection = null;
+  }
+
+  void _emitNetwork() {
+    final status = _readNetwork();
+    if (status == _lastNetwork) return;
+    _lastNetwork = status;
+    _network.add(status);
+  }
+
+  static web.NetworkInformation? _connection() {
+    final navigator = web.window.navigator;
+    if (!(navigator as JSObject).has('connection')) return null;
+    return navigator.connection;
+  }
+
+  static ReelNetworkStatus _readNetwork() {
+    final online = web.window.navigator.onLine;
+    final connection = _connection();
+    if (!online) {
+      return ReelNetworkStatus(
+        isConnected: false,
+        isConstrained: connection?.saveData ?? false,
+        type: ReelNetworkType.none,
+      );
+    }
+    if (connection == null) return ReelNetworkStatus.unknown;
+    final rawType = (connection as JSObject)
+        .getProperty<JSString?>('type'.toJS)
+        ?.toDart;
+    final type = switch (rawType) {
+      'wifi' => ReelNetworkType.wifi,
+      'cellular' => ReelNetworkType.cellular,
+      'ethernet' => ReelNetworkType.ethernet,
+      'none' => ReelNetworkType.none,
+      null || 'unknown' => ReelNetworkType.unknown,
+      _ => ReelNetworkType.other,
+    };
+    final effectiveType = connection.has('effectiveType')
+        ? connection.effectiveType
+        : null;
+    final saveData = connection.has('saveData') && connection.saveData;
+    return ReelNetworkStatus(
+      isConnected: true,
+      isMetered: type == ReelNetworkType.cellular,
+      isConstrained:
+          saveData || effectiveType == 'slow-2g' || effectiveType == '2g',
+      type: type,
     );
   }
 

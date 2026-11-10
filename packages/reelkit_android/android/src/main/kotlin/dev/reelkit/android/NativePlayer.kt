@@ -28,7 +28,8 @@ internal class NativePlayer(
     private val events: PlayerEventDispatcher,
     options: PlatformPlayerOptions,
 ) : Player.Listener {
-  private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build()
+  private val loadControl = PreloadLoadControl()
+  private val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).setLoadControl(loadControl).build()
   private val tracks = TrackSelection(exoPlayer)
   private var released = false
   private var generation = NO_SOURCE
@@ -82,6 +83,11 @@ internal class NativePlayer(
 
   fun setVideoQualityLimit(maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?) =
       tracks.limitVideo(maxBitrate, maxWidth, maxHeight)
+
+  /** Caps forward buffering while paused; null removes the cap. */
+  fun setPreloadBufferLimit(maxBufferMs: Long?) {
+    loadControl.pausedBufferLimitUs = maxBufferMs?.let { it * 1000 } ?: C.TIME_UNSET
+  }
 
   fun play() = exoPlayer.play()
 

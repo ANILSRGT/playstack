@@ -13,6 +13,7 @@ internal class PlayerRegistry(
     private val textureRegistry: TextureRegistry,
     flutterAssets: FlutterAssets,
     private val events: PlayerEventDispatcher,
+    private val network: NetworkMonitor,
 ) : ReelKitHostApi {
   private val players = HashMap<Long, NativePlayer>()
   private val sources = MediaSourceBuilder(context, flutterAssets)
@@ -80,6 +81,15 @@ internal class PlayerRegistry(
       maxWidth: Long?,
       maxHeight: Long?,
   ) = requirePlayer(playerId).setVideoQualityLimit(maxBitrate, maxWidth, maxHeight)
+
+  override fun setPreloadBufferLimit(playerId: Long, maxBufferMs: Long?) {
+    if (maxBufferMs != null && maxBufferMs < 0) {
+      throw FlutterError("invalidArgument", "Buffer limit must be >= 0, got $maxBufferMs.", null)
+    }
+    requirePlayer(playerId).setPreloadBufferLimit(maxBufferMs)
+  }
+
+  override fun getNetworkStatus(): PlatformNetworkStatus = network.current()
 
   fun releaseAll() {
     players.values.forEach { it.release() }

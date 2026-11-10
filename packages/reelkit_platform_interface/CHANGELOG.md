@@ -1,3 +1,9 @@
+## 0.1.0-dev.5
+
+* Milestone 5: `setPreloadBufferLimit`, `getNetworkStatus`,
+  `networkStatusChanges`, `ReelNetworkStatus`, capability flags
+  `supportsPreloadBufferLimit` and `supportsNetworkStatus`.
+
 ## 0.1.0-dev.4
 
 * Milestone 4: `ReelKitErrorCode.decoderUnavailable` for decoders that exist

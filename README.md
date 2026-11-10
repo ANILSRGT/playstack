@@ -4,15 +4,17 @@ ReelKit is a video playback manager for Flutter, built for fast-scrolling video
 feeds and for single players. It handles native players, pooling, lifecycle and
 errors. You build the whole UI.
 
-> **Status: milestone 4 (player manager), development preview.**
+> **Status: milestone 5 (feed manager and preloading), development preview.**
 > Playback works on Android (Media3), iOS (AVPlayer) and web (`<video>`):
 > network, asset, file and memory sources; play, pause, stop, seek, loop,
 > volume, mute and speed; source replacement; audio and subtitle tracks with
 > subtitle text delivered to your UI; video quality caps; video metadata; a
 > position stream; and pause/resume with the app lifecycle. Many controllers
 > share a bounded, priority-based player pool with exclusive playback,
-> decoder-shortage handling and memory-pressure release. Feed preloading,
-> caching, fullscreen and audio sessions come in later milestones.
+> decoder-shortage handling and memory-pressure release. `ReelFeedManager`
+> plays the item in view of any scrolling UI and prepares the next ones
+> within network, memory and decoder limits. Caching, fullscreen and audio
+> sessions come in later milestones.
 
 ## Packages
 
@@ -67,6 +69,28 @@ await controller.release();        // give the native player back, keep controll
 await manager.dispose();           // releases every controller and player
 ```
 
+### Feeds
+
+```dart
+final feed = manager.createFeed(
+  [for (final post in posts) ReelFeedItem(ReelSource.network(post.url), id: post.id)],
+  config: const ReelFeedConfig(preloadAhead: 2, preloadBehind: 1),
+);
+
+PageView.builder(
+  scrollDirection: Axis.vertical,
+  itemCount: feed.length,
+  onPageChanged: feed.setActiveIndex,   // plays it, prepares the next ones
+  itemBuilder: (context, index) => ReelVideoView(
+    controller: feed.controllerAt(index),
+    fit: BoxFit.cover,
+  ),
+);
+feed.setActiveIndex(0);
+feed.addAll(nextPage);                  // endless feeds; ids keep state stable
+feed.pause();                           // another route covers the feed
+```
+
 ## Concepts
 
 - **`ReelKitManager`** owns the engine, the native player pool and its
@@ -92,6 +116,21 @@ await manager.dispose();           // releases every controller and player
   `poolStats.decoderLimitReductions` counts these events.
 - **Memory pressure** destroys idle native players and releases the players
   of `background` controllers.
+- **Feeds.** `ReelFeedManager` (from `manager.createFeed`) works with any
+  scrolling widget: report the item in view with `setActiveIndex`. It plays
+  that item and prepares the window around it, next item first, only after
+  the active item is prepared, `maxConcurrentPreloads` at a time. Items that
+  leave the window give their player back at once, cancelling preparations
+  in flight, so fast scrolling does not queue work. Items are identified by
+  id across `insert`, `removeAt`, `replaceAll` and `updateSource`.
+  `feed.stats` reports the preload hit rate and start latency.
+- **Preload limits.** The window shrinks on metered networks (1 ahead),
+  with data saver (none), offline (network items are not preloaded), on
+  low-RAM devices, for 30 s after a memory warning, and to `maxPlayers - 1`
+  (items behind give way first). Prepared-ahead videos buffer only
+  `ReelPlayerConfig.preloadBufferDuration` (5 s) until they play.
+  `manager.networkStatus` exposes the connectivity the engine reports; an
+  active item that failed for lack of network restarts on reconnection.
 - **`release()`** gives a controller's native player back to the pool
   without disposing it; the pool detaches the source so the idle player
   holds no decoder or network resources.
@@ -133,19 +172,22 @@ await manager.dispose();           // releases every controller and player
 | Video rendition selection | Yes | No: AVFoundation chooses; listed for information | No |
 | Video quality limit (bitrate, size) | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
 | Metadata: frame rate, bitrate, codec, live | Yes | Yes | Live flag only |
+| Preload buffer limit (paused, prepared-ahead videos) | Yes (load control, hard limit) | Yes (`preferredForwardBufferDuration`, a preference) | No: browsers decide |
+| Network status | Yes (`ConnectivityManager`; adds `ACCESS_NETWORK_STATE`) | Yes (`NWPathMonitor`, incl. Low Data Mode) | `navigator.onLine`; metering and data saver only where `navigator.connection` exists (Chromium) |
 | Audio session / focus | Milestone 6 (host app's settings apply) | Milestone 6 (host app's `AVAudioSession` applies) | n/a |
 
 `ReelPlatformCapabilities` reports these flags at runtime and never claims a
 feature the engine does not provide.
 
 Verified on device: the integration suite in
-`packages/reelkit/example/integration_test` (24 tests: preparation, first
+`packages/reelkit/example/integration_test` (28 tests: preparation, first
 frame while paused, rotation, completion and restart, pause, loop, seek,
 volume/mute/speed, memory source, missing source, pooled source switching,
 100-source churn, metadata, audio and subtitle track selection with subtitle
 text, source replacement, stop, position stream, quality limit, app
 lifecycle, exclusive and concurrent playback, memory pressure, disposing a
-manager mid-preparation) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
+manager mid-preparation, feed playback with a prepared next item, 100 rapid
+feed index changes, removing the active item, network status) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
 reference frame on both. The decoder-shortage retry is covered by unit tests
 only: emulators and simulators do not run out of decoders on demand, so it
 still needs a physical low-end device. Web is compiled (JS and Wasm) but its integration
@@ -192,6 +234,8 @@ flutter test integration_test -d <device-id>
 4. Player manager — **done**: exclusive playback and active controller,
    decoder-shortage pool sizing with retry, memory-pressure release,
    per-priority pool stats.
-5. Feed manager and intelligent preloading.
+5. Feed manager and preloading — **done**: `ReelFeedManager`, preload window
+   bounded by network, memory and pool, preload cancellation, buffer limits
+   for prepared-ahead videos, network status, start-latency metrics.
 6. Cache, fullscreen and orientation coordination, audio sessions, retry.
 7. Benchmarks, documentation, release.

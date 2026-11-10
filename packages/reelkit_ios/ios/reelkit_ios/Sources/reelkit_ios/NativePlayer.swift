@@ -89,6 +89,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     videoOutput = output
     legibleOutput = legible
     observe(item)
+    applyBufferLimit(to: item)
     player.replaceCurrentItem(with: item)
     awaitingFrame = true
     updateDisplayLink()
@@ -100,11 +101,29 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   }
 
   func play() {
+    // Playing uses AVFoundation's automatic buffering again.
+    item?.preferredForwardBufferDuration = 0
     player.rate = playbackSpeed
   }
 
   func pause() {
     player.pause()
+    if let item { applyBufferLimit(to: item) }
+  }
+
+  /// Caps forward buffering while paused (`preferredForwardBufferDuration`);
+  /// nil restores automatic buffering. AVFoundation treats the value as a
+  /// preference, not a hard limit.
+  func setPreloadBufferLimit(milliseconds: Int64?) {
+    pausedBufferLimit = milliseconds.map { TimeInterval($0) / 1000 }
+    guard let item else { return }
+    if player.rate == 0 {
+      applyBufferLimit(to: item)
+    }
+  }
+
+  private func applyBufferLimit(to item: AVPlayerItem) {
+    item.preferredForwardBufferDuration = pausedBufferLimit ?? 0
   }
 
   func seek(toMilliseconds positionMs: Int64, completion: @escaping () -> Void) {
@@ -115,6 +134,8 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
       DispatchQueue.main.async(execute: completion)
     }
   }
+
+  private var pausedBufferLimit: TimeInterval?
 
   func setLooping(_ looping: Bool) {
     self.looping = looping

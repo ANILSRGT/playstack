@@ -10,6 +10,8 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   FakeReelKitPlatform({
     this.recommendedMaxPlayers = 3,
     this.autoPrepare = true,
+    this.isLowRamDevice = false,
+    this.supportsNetworkStatus = true,
     this.videoInfo = const ReelVideoInfo(
       width: 1080,
       height: 1920,
@@ -18,6 +20,29 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   });
 
   final int recommendedMaxPlayers;
+  final bool isLowRamDevice;
+  final bool supportsNetworkStatus;
+
+  /// Reported by getNetworkStatus; change with [setNetwork].
+  ReelNetworkStatus network = const ReelNetworkStatus(
+    isConnected: true,
+    type: ReelNetworkType.wifi,
+  );
+
+  final StreamController<ReelNetworkStatus> _network =
+      StreamController<ReelNetworkStatus>.broadcast(sync: true);
+
+  /// Buffer limit last applied per player.
+  final Map<int, Duration?> bufferLimits = <int, Duration?>{};
+
+  /// Sources whose setSource never answers (no event), for in-flight tests.
+  final Set<ReelSource> hangingSources = <ReelSource>{};
+
+  void setNetwork(ReelNetworkStatus status) {
+    network = status;
+    _network.add(status);
+  }
+
   final ReelVideoInfo videoInfo;
 
   /// When true, every setSource is answered with an initialized event and a
@@ -74,12 +99,14 @@ class FakeReelKitPlatform extends ReelKitPlatform {
       engineName: 'fake',
       engineVersion: '1.0',
       recommendedMaxPlayers: recommendedMaxPlayers,
-      isLowRamDevice: false,
+      isLowRamDevice: isLowRamDevice,
       supportsHls: true,
       supportsDash: true,
       supportsDiskCache: false,
       supportsMemorySource: false,
       supportsTrackSelection: false,
+      supportsPreloadBufferLimit: true,
+      supportsNetworkStatus: supportsNetworkStatus,
     );
   }
 
@@ -139,7 +166,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
       );
       return;
     }
-    if (!autoPrepare) return;
+    if (!autoPrepare || hangingSources.contains(source)) return;
     scheduleMicrotask(() {
       emit(
         ReelInitializedEvent(
@@ -265,6 +292,19 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     _check('setVideoQualityLimit');
     _requireLive(playerId);
   }
+
+  @override
+  Future<void> setPreloadBufferLimit(int playerId, Duration? limit) async {
+    calls.add('setPreloadBufferLimit($playerId, ${limit?.inMilliseconds})');
+    _requireLive(playerId);
+    bufferLimits[playerId] = limit;
+  }
+
+  @override
+  Future<ReelNetworkStatus> getNetworkStatus() async => network;
+
+  @override
+  Stream<ReelNetworkStatus> get networkStatusChanges => _network.stream;
 
   @override
   Stream<ReelPlatformEvent> get events => _events.stream;

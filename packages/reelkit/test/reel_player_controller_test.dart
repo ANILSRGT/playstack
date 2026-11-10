@@ -671,4 +671,46 @@ void main() {
     expect(manager.poolStats.leased, 0);
     expect(manager.controllers, isEmpty);
   });
+
+  test('preload priority bounds buffering until play', () async {
+    final controller = manager.createController(source)
+      ..priority = ReelPlayerPriority.preload;
+    await controller.initialize();
+    final playerId = platform.livePlayers.single;
+    expect(platform.bufferLimits[playerId], const Duration(seconds: 5));
+
+    await controller.play();
+    expect(platform.bufferLimits[playerId], isNull);
+
+    await controller.pause();
+    controller.priority = ReelPlayerPriority.background;
+    await flush();
+    expect(platform.bufferLimits[playerId], const Duration(seconds: 5));
+  });
+
+  test('metrics record preparation and start timing', () async {
+    final controller = manager.createController(source);
+    await controller.play();
+    await flush();
+    final metrics = controller.metrics;
+    expect(metrics.preparations, 1);
+    expect(metrics.lastPreparationTime, isNotNull);
+    expect(metrics.lastTimeToFirstFrame, isNotNull);
+    expect(metrics.lastStartLatency, isNotNull);
+  });
+
+  test('release cancels a preparation in flight', () async {
+    platform.hangingSources.add(source);
+    final controller = manager.createController(source);
+    final preparing = controller.initialize();
+    await flush();
+    final cancelled = expectLater(
+      preparing,
+      throwsReelKit(ReelKitErrorCode.cancelled),
+    );
+    await controller.release();
+    await cancelled;
+    expect(controller.value.status, ReelPlaybackStatus.idle);
+    expect(manager.poolStats.leased, 0);
+  });
 }

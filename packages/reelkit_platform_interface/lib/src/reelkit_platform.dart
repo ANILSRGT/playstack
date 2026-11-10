@@ -3,6 +3,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'reel_kit_exception.dart';
 import 'reel_native_player.dart';
+import 'reel_network_status.dart';
 import 'reel_platform_capabilities.dart';
 import 'reel_platform_event.dart';
 import 'reel_source.dart';
@@ -108,6 +109,27 @@ abstract class ReelKitPlatform extends PlatformInterface {
     );
   }
 
+  /// Stops forward buffering at [limit] while the player is not playing;
+  /// null removes the limit. See
+  /// [ReelPlatformCapabilities.supportsPreloadBufferLimit].
+  Future<void> setPreloadBufferLimit(int playerId, Duration? limit) {
+    throw UnimplementedError(
+      'setPreloadBufferLimit() has not been implemented.',
+    );
+  }
+
+  /// Current connectivity. See
+  /// [ReelPlatformCapabilities.supportsNetworkStatus].
+  Future<ReelNetworkStatus> getNetworkStatus() {
+    throw UnimplementedError('getNetworkStatus() has not been implemented.');
+  }
+
+  /// Connectivity changes. Engines monitor the network only while this
+  /// stream has a listener.
+  Stream<ReelNetworkStatus> get networkStatusChanges {
+    throw UnimplementedError('networkStatusChanges has not been implemented.');
+  }
+
   /// Events of all native players of this engine.
   Stream<ReelPlatformEvent> get events {
     throw UnimplementedError('events has not been implemented.');
@@ -141,6 +163,9 @@ class _UnregisteredReelKitPlatform extends ReelKitPlatform {
 
   @override
   Stream<ReelPlatformEvent> get events => const Stream.empty();
+
+  @override
+  Stream<ReelNetworkStatus> get networkStatusChanges => const Stream.empty();
 
   @override
   Widget buildView(int playerId) => const SizedBox.shrink();

@@ -1,5 +1,5 @@
 group = "dev.reelkit.android"
-version = "0.1.0-dev.4"
+version = "0.1.0-dev.5"
 
 buildscript {
     val kotlinVersion = "2.4.0"

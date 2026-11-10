@@ -1,3 +1,8 @@
+## 0.1.0-dev.5
+
+* Milestone 5: preload buffer preference through
+  `preferredForwardBufferDuration`; network status from `NWPathMonitor`.
+
 ## 0.1.0-dev.4
 
 * Milestone 4: `AVError.decoderTemporarilyUnavailable` is reported as

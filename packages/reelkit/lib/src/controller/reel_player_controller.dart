@@ -8,6 +8,7 @@ import '../config/reel_kit_config.dart';
 import '../pool/reel_player_pool.dart';
 import '../util/async_lock.dart';
 import 'reel_playback_state.dart';
+import 'reel_player_metrics.dart';
 import 'reel_position_stream.dart';
 import 'reel_track_state.dart';
 
@@ -15,6 +16,7 @@ import 'reel_track_state.dart';
 @internal
 abstract interface class ReelControllerHost {
   ReelKitPlatform get platform;
+  ReelPlatformCapabilities get capabilities;
   ReelPlayerPool get pool;
   void controllerDisposed(ReelPlayerController controller);
 
@@ -55,6 +57,7 @@ class ReelPlayerController extends ChangeNotifier
     required this._source,
     required ReelPlayerConfig config,
   }) : _initializeTimeout = config.initializeTimeout,
+       _preloadBufferDuration = config.preloadBufferDuration,
        _value = ReelPlaybackState(
          isLooping: config.looping,
          volume: config.volume,
@@ -66,6 +69,7 @@ class ReelPlayerController extends ChangeNotifier
 
   final ReelControllerHost _host;
   final Duration _initializeTimeout;
+  final Duration? _preloadBufferDuration;
   final AsyncLock _commands = AsyncLock();
 
   late final ReelTrackState _tracks;
@@ -80,6 +84,10 @@ class ReelPlayerController extends ChangeNotifier
   Completer<ReelVideoInfo>? _preparation;
   Future<void>? _pendingInitialize;
   bool _disposed = false;
+
+  ReelPlayerMetrics _metrics = const ReelPlayerMetrics();
+  final Stopwatch _preparationClock = Stopwatch();
+  final Stopwatch _startClock = Stopwatch();
 
   /// Set by [play] and cleared by everything that ends the request (pause,
   /// stop, completion, errors, losing the player).
@@ -114,8 +122,17 @@ class ReelPlayerController extends ChangeNotifier
 
   set priority(ReelPlayerPriority value) {
     _throwIfDisposed();
+    if (_priority == value) return;
     _priority = value;
+    final lease = _lease;
+    if (lease != null &&
+        lease.applied.preloadBufferLimit != _desiredPreloadBufferLimit) {
+      unawaited(_command(_applySettings).catchError(_reportBackgroundError));
+    }
   }
+
+  /// Timing of the latest preparation and playback start.
+  ReelPlayerMetrics get metrics => _metrics;
 
   @override
   @internal
@@ -159,6 +176,12 @@ class ReelPlayerController extends ChangeNotifier
       }
       if (_value.status == ReelPlaybackStatus.completed) {
         await _host.platform.seekTo(lease.playerId, Duration.zero);
+      }
+      await _applySettings();
+      if (!_value.isPlaying) {
+        _startClock
+          ..reset()
+          ..start();
       }
       await _host.platform.play(lease.playerId);
     });
@@ -350,7 +373,19 @@ class ReelPlayerController extends ChangeNotifier
   /// controller, for example when a feed item scrolls far out of view. The
   /// state returns to [ReelPlaybackStatus.idle] (video info is kept for
   /// layout) and the next [initialize] or [play] prepares the video again.
-  Future<void> release() => _command(() async {
+  Future<void> release() {
+    // Cancel an in-flight preparation now instead of after it completes, so
+    // that a preload that is no longer wanted stops downloading at once.
+    _failPreparation(
+      const ReelKitException(
+        ReelKitErrorCode.cancelled,
+        'The controller was released while preparing.',
+      ),
+    );
+    return _command(_releaseNow);
+  }
+
+  Future<void> _releaseNow() async {
     if (_lease == null) return;
     _lease = null;
     _endPlaybackRequest();
@@ -364,7 +399,7 @@ class ReelPlayerController extends ChangeNotifier
       ),
     );
     await _host.pool.release(this);
-  });
+  }
 
   /// Reads the current playback and buffer position from the engine.
   ///
@@ -473,6 +508,12 @@ class ReelPlayerController extends ChangeNotifier
           ),
         );
       case ReelFirstFrameEvent():
+        if (_preparationClock.isRunning) {
+          _metrics = _metrics.copyWith(
+            lastTimeToFirstFrame: _preparationClock.elapsed,
+          );
+          _preparationClock.stop();
+        }
         _update(_value.copyWith(hasRenderedFirstFrame: true));
       case ReelTracksChangedEvent():
         unawaited(_refreshTracks().catchError(_reportBackgroundError));
@@ -544,6 +585,10 @@ class ReelPlayerController extends ChangeNotifier
         hasRenderedFirstFrame: false,
       ),
     );
+    _preparationClock
+      ..reset()
+      ..start();
+    _metrics = _metrics.copyWith(preparations: _metrics.preparations + 1);
     try {
       ReelVideoInfo? info;
       try {
@@ -561,6 +606,9 @@ class ReelPlayerController extends ChangeNotifier
       }
       final lease = _lease;
       if (info == null || lease == null || _disposed) return;
+      _metrics = _metrics.copyWith(
+        lastPreparationTime: _preparationClock.elapsed,
+      );
       await _tracks.applyPreferences(lease.playerId);
       _update(
         _value.copyWith(status: ReelPlaybackStatus.ready, videoInfo: info),
@@ -568,10 +616,19 @@ class ReelPlayerController extends ChangeNotifier
       unawaited(_refreshTracks().catchError(_reportBackgroundError));
     } on ReelKitException catch (error) {
       if (_disposed) return;
+      _preparationClock.stop();
       _endPlaybackRequest();
-      if (error.code == ReelKitErrorCode.cancelled && _lease == null) {
-        // Lost the player to a higher-priority controller; the state is
-        // already idle and the next initialize() or play() starts over.
+      if (error.code == ReelKitErrorCode.cancelled) {
+        // Lost the player to a higher-priority controller, or released while
+        // preparing: not an error. The next initialize() or play() starts
+        // over.
+        _update(
+          _value.copyWith(
+            status: ReelPlaybackStatus.idle,
+            isBuffering: false,
+            hasRenderedFirstFrame: false,
+          ),
+        );
         rethrow;
       }
       _update(
@@ -657,6 +714,23 @@ class ReelPlayerController extends ChangeNotifier
       await platform.setPlaybackSpeed(lease.playerId, _value.playbackSpeed);
       applied.playbackSpeed = _value.playbackSpeed;
     }
+    final bufferLimit = _desiredPreloadBufferLimit;
+    if (applied.preloadBufferLimit != bufferLimit) {
+      await platform.setPreloadBufferLimit(lease.playerId, bufferLimit);
+      applied.preloadBufferLimit = bufferLimit;
+    }
+  }
+
+  /// The forward-buffer cap this controller wants on its native player:
+  /// only while it is a paused preload or background controller.
+  Duration? get _desiredPreloadBufferLimit {
+    if (!_host.capabilities.supportsPreloadBufferLimit) return null;
+    if (_playbackRequested) return null;
+    return switch (_priority) {
+      ReelPlayerPriority.preload ||
+      ReelPlayerPriority.background => _preloadBufferDuration,
+      ReelPlayerPriority.visible || ReelPlayerPriority.active => null,
+    };
   }
 
   void _onNativeState(ReelNativePlaybackState state) {
@@ -681,6 +755,10 @@ class ReelPlayerController extends ChangeNotifier
 
   void _onIsPlaying(bool isPlaying) {
     if (!_value.isInitialized) return;
+    if (isPlaying && _startClock.isRunning) {
+      _metrics = _metrics.copyWith(lastStartLatency: _startClock.elapsed);
+      _startClock.stop();
+    }
     if (isPlaying) {
       _update(_value.copyWith(status: ReelPlaybackStatus.playing));
     } else if (_value.status == ReelPlaybackStatus.playing) {

@@ -55,6 +55,8 @@ internal object DeviceCapabilities {
         supportsTrackSelection = true,
         supportsVideoTrackSelection = true,
         supportsVideoQualityLimit = true,
+        supportsPreloadBufferLimit = true,
+        supportsNetworkStatus = true,
     )
   }
 

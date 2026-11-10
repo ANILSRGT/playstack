@@ -5,6 +5,7 @@ library;
 
 export 'src/reel_kit_exception.dart';
 export 'src/reel_native_player.dart';
+export 'src/reel_network_status.dart';
 export 'src/reel_platform_capabilities.dart';
 export 'src/reel_platform_event.dart';
 export 'src/reel_source.dart';
