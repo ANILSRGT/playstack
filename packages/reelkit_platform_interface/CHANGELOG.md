@@ -1,3 +1,8 @@
+## 0.1.0-dev.7
+
+* Every public member is documented (`public_member_api_docs`).
+* Package metadata for publishing.
+
 ## 0.1.0-dev.6
 
 * Milestone 6: `ReelEngineConfig` passed to `initialize`, cache methods,

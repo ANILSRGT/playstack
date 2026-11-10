@@ -16,8 +16,10 @@ import 'reel_track_state.dart';
 /// [ReelPlayerController.interruptions].
 @immutable
 class ReelInterruption {
+  /// Creates an interruption notice.
   const ReelInterruption({required this.type, required this.ended});
 
+  /// What interrupted playback.
   final ReelInterruptionType type;
 
   /// False when the interruption began, true when it ended.
@@ -338,7 +340,14 @@ class ReelPlayerController extends ChangeNotifier
   /// playback resumes if it was playing. Otherwise the new source is used by
   /// the next [initialize] or [play]. Track selections are reset; the video
   /// quality limit is kept.
-  Future<void> setSource(ReelSource source) => _command(() async {
+  Future<void> setSource(ReelSource source) {
+    // A pending automatic retry belongs to the old source: stop it now
+    // instead of queueing the new source behind its delay.
+    if (source != _source) _cancelRetries();
+    return _command(() => _setSourceNow(source));
+  }
+
+  Future<void> _setSourceNow(ReelSource source) async {
     if (source == _source && _value.isInitialized) return;
     final resume = _value.isPlaying;
     _source = source;
@@ -358,7 +367,7 @@ class ReelPlayerController extends ChangeNotifier
     if (resume && lease != null && !_disposed && _host.mayStartPlayback(this)) {
       await _host.platform.play(lease.playerId);
     }
-  });
+  }
 
   /// Selects [track] (from [tracks]).
   ///
@@ -748,7 +757,7 @@ class ReelPlayerController extends ChangeNotifier
       wait.completeError(
         const ReelKitException(
           ReelKitErrorCode.cancelled,
-          'The controller was released while waiting to retry.',
+          'The automatic retry was cancelled.',
         ),
       );
     }

@@ -61,6 +61,8 @@ class ReelFeedManager extends ChangeNotifier {
   }
 
   final ReelFeedHost _host;
+
+  /// Preloading and playback settings of this feed.
   final ReelFeedConfig config;
   final List<ReelFeedItem> _items;
   final Map<String, ReelPlayerController> _controllers =
@@ -86,8 +88,10 @@ class ReelFeedManager extends ChangeNotifier {
   /// The items, in display order.
   List<ReelFeedItem> get items => List<ReelFeedItem>.unmodifiable(_items);
 
+  /// Number of items.
   int get length => _items.length;
 
+  /// Whether the feed has no items.
   bool get isEmpty => _items.isEmpty;
 
   /// Index of the active item, or null before [setActiveIndex] and when the
@@ -107,8 +111,10 @@ class ReelFeedManager extends ChangeNotifier {
   /// Whether [pause] was called without a following [resume].
   bool get isPaused => _paused;
 
+  /// Whether [dispose] was called.
   bool get isDisposed => _disposed;
 
+  /// Preload and start-latency counters since the feed was created.
   ReelFeedStats get stats => _stats;
 
   /// The controller of the item at [index], created on first use.

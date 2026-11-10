@@ -4,19 +4,12 @@ ReelKit is a video playback manager for Flutter, built for fast-scrolling video
 feeds and for single players. It handles native players, pooling, lifecycle and
 errors. You build the whole UI.
 
-> **Status: milestone 6 (cache, fullscreen, audio, retry), development preview.**
-> Playback works on Android (Media3), iOS (AVPlayer) and web (`<video>`):
-> network, asset, file and memory sources; play, pause, stop, seek, loop,
-> volume, mute and speed; source replacement; audio and subtitle tracks with
-> subtitle text delivered to your UI; video quality caps; video metadata; a
-> position stream; and pause/resume with the app lifecycle. Many controllers
-> share a bounded, priority-based player pool with exclusive playback,
-> decoder-shortage handling and memory-pressure release. `ReelFeedManager`
-> plays the item in view of any scrolling UI and prepares the next ones
-> within network, memory and decoder limits. Watched videos are cached on
-> disk (Android, iOS); fullscreen restores the app's orientation; audio
-> focus, interruptions and the iOS audio session are handled; transient
-> failures are retried and resume where they stopped.
+> **Status: 0.1.0-dev.7, development preview (milestone 7 of 7).**
+> Playback, pooling, feeds with preloading, disk cache, fullscreen, audio
+> handling and retry work on Android (Media3) and iOS (AVPlayer), verified
+> on an emulator and a simulator; the web engine (`<video>`) is compiled and
+> unit tested but not yet run in a browser. Not yet verified on physical
+> devices. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
 
 ## Packages
 
@@ -28,7 +21,11 @@ errors. You build the whole UI.
 | [`reelkit_ios`](packages/reelkit_ios) | AVFoundation engine. |
 | [`reelkit_web`](packages/reelkit_web) | `HTMLVideoElement` engine. |
 
-Architecture and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Documentation: [guides](docs/README.md) (installation, quick start,
+controller, manager, feeds, preloading, caching, fullscreen, rendering,
+audio, subtitles, errors, platform support, performance, API reference,
+examples), [architecture](docs/ARCHITECTURE.md) and
+[benchmarks](docs/BENCHMARKS.md).
 
 ## Quick start
 
@@ -179,64 +176,42 @@ feed.pause();                           // another route covers the feed
   controllers that failed offline retry when the network returns.
 - **`ReelVideoView`** renders frames with any `BoxFit`, `Alignment`,
   background color, clipping and border radius, plus optional poster,
-  placeholder and error builders. No controls.
+  placeholder and error builders. No controls. On web, show a controller in
+  one view at a time (one `<video>` element).
+
+Each concept has a guide with examples in [docs/](docs/README.md).
 
 ## Platform support
 
 | | Android | iOS | Web |
 | --- | --- | --- | --- |
-| Engine | Media3 1.11.1 ExoPlayer | AVPlayer | HTMLVideoElement |
-| Rendering | `SurfaceProducer` texture | `FlutterTexture` (`AVPlayerItemVideoOutput`) | Platform view |
-| Play, pause, seek, loop, volume, mute, speed | Yes | Yes | Yes |
-| First frame while paused (preparing ahead) | Yes | Yes | Yes |
-| Rotation metadata | Yes | Yes | Applied by the browser |
-| `ReelSource.network` | Yes | Yes | Yes |
-| Custom HTTP headers | Yes | Yes (`AVURLAssetHTTPHeaderFieldsKey`) | No: `<video>` cannot send them; rejected with `invalidSource` |
-| `ReelSource.asset` | Yes | Yes | Yes |
-| `ReelSource.file` | Yes | Yes | No (`invalidSource`) |
-| `ReelSource.memory` | Yes (in memory) | Yes (staged to a temporary file) | Yes (Blob URL) |
-| HLS | Yes | Yes | Safari only; `unsupportedFormat` elsewhere |
-| DASH | Yes | No (`unsupportedFormat`) | No (`unsupportedFormat`) |
-| Autoplay with sound | Yes | Yes | Blocked by browsers until a user gesture (`playbackNotAllowed`); muted autoplay works |
-| Disk cache (LRU, size limit, inspect, clear, per-source key and bypass) | Yes: progressive + HLS/DASH segments (Media3 `SimpleCache`) | Progressive files (`AVAssetResourceLoader` + sparse files); not HLS | No: browser HTTP cache only, not controllable |
-| Audio track selection | Yes | Yes (media selection) | Only where the browser exposes `audioTracks` (Safari) |
-| Subtitle tracks, text delivered to Dart | Yes (in-band and HLS/DASH) | Yes (legible media selection) | Tracks the browser exposes (for example HLS in Safari); in-band MP4 text is not exposed by Chromium |
-| Video rendition selection | Yes | No: AVFoundation chooses; listed for information | No |
-| Video quality limit (bitrate, size) | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
-| Metadata: frame rate, bitrate, codec, live | Yes | Yes | Live flag only |
-| Preload buffer limit (paused, prepared-ahead videos) | Yes (load control, hard limit) | Yes (`preferredForwardBufferDuration`, a preference) | No: browsers decide |
-| Network status | Yes (`ConnectivityManager`; adds `ACCESS_NETWORK_STATE`) | Yes (`NWPathMonitor`, incl. Low Data Mode) | `navigator.onLine`; metering and data saver only where `navigator.connection` exists (Chromium) |
-| Audio focus / session | Audio focus for audible players, pause on headphones unplugged | Optional `AVAudioSession` category; interruptions and route loss reported, resume after interruption | n/a |
-| Fullscreen | `SystemChrome` (immersive), optional orientation lock, rotate back and restore policy | Same (respects iPad multitasking, where orientation locks are ignored) | Fullscreen API (user gesture); orientation lock where supported |
-| HLS outside Safari | n/a | n/a | With HLS.js loaded by the app (`window.Hls`) |
+| Engine | Media3 1.11.1 ExoPlayer (API 24+) | AVPlayer (iOS 15+) | HTMLVideoElement |
+| Network, asset, memory sources | Yes | Yes | Yes (no custom headers) |
+| File sources | Yes | Yes | No |
+| HLS / DASH | Yes / Yes | Yes / No | Safari or HLS.js / No |
+| Tracks and subtitles | Yes | Yes (no rendition choice) | What the browser exposes |
+| Disk cache | Progressive + HLS/DASH segments | Progressive | Browser cache only |
+| Preload buffer limit | Yes | Preference | No |
+| Fullscreen and orientation | Yes | Yes | Fullscreen API (user gesture) |
+| Audio focus / session | Audio focus | `AVAudioSession` category, interruptions | Browser |
 
-`ReelPlatformCapabilities` reports these flags at runtime and never claims a
-feature the engine does not provide.
+The complete matrix, with every limitation and the error each one raises:
+[docs/guides/platforms.md](docs/guides/platforms.md).
+`ReelPlatformCapabilities` reports these flags at runtime and never claims
+a feature the engine does not provide.
 
-Verified on device: the integration suite in
-`packages/reelkit/example/integration_test` (33 tests: preparation, first
-frame while paused, rotation, completion and restart, pause, loop, seek,
-volume/mute/speed, memory source, missing source, pooled source switching,
-100-source churn, metadata, audio and subtitle track selection with subtitle
-text, source replacement, stop, position stream, quality limit, app
-lifecycle, exclusive and concurrent playback, memory pressure, disposing a
-manager mid-preparation, feed playback with a prepared next item, 100 rapid
-feed index changes, removing the active item, network status, disk cache
-with offline replay, cache bypass, automatic retry against a flaky server,
-landscape fullscreen with portrait restoration three times in a row, and
-fullscreen without orientation change) passes on an Android 16 emulator (API 36) and an iOS simulator. Rendering orientation was checked by screenshot against ffmpeg's
-reference frame on both. The decoder-shortage retry and audio interruptions
-are covered by unit tests only: emulators and simulators do not run out of
-decoders or receive phone calls on demand. HLS.js and the web Fullscreen API
-are compiled but not run in a browser yet. Web is compiled (JS and Wasm) but its integration
-suite has not been run yet (no chromedriver in the development setup).
+Verified: the integration suite in `packages/reelkit/example/integration_test`
+(34 tests, including the benchmark) passes on an Android 16 emulator
+(API 36) and an iOS 26.5 simulator. The decoder-shortage retry and audio
+interruptions are covered by unit tests only; web has not been run in a
+browser yet. Baseline measurements: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Errors
 
 Every failure is a `ReelKitException` with a `ReelKitErrorCode`
 (`network`, `decoder`, `decoderUnavailable`, `sourceNotFound`, `poolExhausted`, `timeout`,
 `notImplemented`, ...). Preparation errors are also exposed in
-`controller.value.error`.
+`controller.value.error`. See [Errors and retry](docs/guides/errors.md).
 
 ## Development
 
@@ -254,12 +229,16 @@ flutter test packages/reelkit/test packages/reelkit_platform_interface/test \
 Adding Swift files to `reelkit_ios` requires `pod install` in the example's
 `ios` folder (CocoaPods snapshots the file list).
 
-Device integration tests:
+Device integration tests and the benchmark:
 
 ```bash
 cd packages/reelkit/example
 flutter test integration_test -d <device-id>
+flutter drive --profile --driver=test_driver/integration_test.dart \
+  --target=integration_test/benchmark_test.dart -d <device-id>
 ```
+
+Releasing: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Roadmap
 
@@ -278,4 +257,8 @@ flutter test integration_test -d <device-id>
 6. Advanced features — **done**: disk cache (Android, iOS), fullscreen with
    orientation restoration, audio focus/session and interruptions,
    automatic and manual retry, cache bypass per source, HLS.js on the web.
-7. Benchmarks, documentation, release.
+7. Optimization and release — **done**: benchmark (start latency,
+   preloading, rapid scrolling, memory) in the example app and as an
+   integration test, documentation guides for every feature, documented
+   public API, release checklist. Publishing waits for a license and
+   physical-device verification.

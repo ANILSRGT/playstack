@@ -30,6 +30,7 @@ typedef ReelErrorBuilder = Widget Function(
 /// Until the first frame is rendered, [poster] or [placeholderBuilder] is
 /// shown. When the controller is in an error state, [errorBuilder] is shown.
 class ReelVideoView extends StatelessWidget {
+  /// Creates a view that renders [controller].
   const ReelVideoView({
     super.key,
     required this.controller,
@@ -43,6 +44,7 @@ class ReelVideoView extends StatelessWidget {
     this.errorBuilder,
   });
 
+  /// The controller whose video is rendered.
   final ReelPlayerController controller;
 
   /// How the video is inscribed into the available space.

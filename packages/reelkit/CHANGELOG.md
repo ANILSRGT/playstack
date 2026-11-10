@@ -1,3 +1,16 @@
+## 0.1.0-dev.7
+
+* Milestone 7: example benchmark (`lib/benchmark`, *Benchmark* page and
+  `integration_test/benchmark_test.dart`) measuring cold, preloaded and
+  swipe start latency until playback advances, rapid feed scrolling and
+  memory across native player create/dispose cycles.
+* `setSource` cancels a pending automatic retry of the previous source
+  instead of waiting for its delay.
+* Every public member is documented (`public_member_api_docs`); guides for
+  every feature in `docs/`.
+* Package metadata (homepage, repository, issue tracker, topics) and
+  aligned dependency constraints for publishing.
+
 ## 0.1.0-dev.6
 
 * Milestone 6: disk cache (`ReelCacheConfig`, `ReelKitManager.cache`),

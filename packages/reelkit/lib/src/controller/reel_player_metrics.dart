@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 /// diagnostics and benchmarks; it does not notify listeners.
 @immutable
 class ReelPlayerMetrics {
+  /// Creates a metrics snapshot.
   const ReelPlayerMetrics({
     this.preparations = 0,
     this.lastPreparationTime,
@@ -26,8 +27,13 @@ class ReelPlayerMetrics {
 
   /// From the last `play` call until the engine reported playback. Short
   /// when the video was prepared ahead of time.
+  ///
+  /// Engines report playback when they accept `play`; the playback clock
+  /// can start moving later, after audio output starts (about 100 ms on
+  /// the devices measured in `docs/BENCHMARKS.md`).
   final Duration? lastStartLatency;
 
+  /// Returns a copy with the given fields replaced.
   ReelPlayerMetrics copyWith({
     int? preparations,
     Duration? lastPreparationTime,

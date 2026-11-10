@@ -82,6 +82,7 @@ class PooledPlayer {
 /// Snapshot of pool usage, intended for diagnostics and benchmarks.
 @immutable
 class ReelPoolStats {
+  /// Creates a statistics snapshot.
   const ReelPoolStats({
     required this.maxPlayers,
     required this.allocated,

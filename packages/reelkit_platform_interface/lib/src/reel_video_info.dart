@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 /// Intrinsic properties of a prepared video.
 @immutable
 class ReelVideoInfo {
+  /// Creates video information.
   const ReelVideoInfo({
     required this.width,
     required this.height,
@@ -67,6 +68,7 @@ class ReelVideoInfo {
     return size.width / size.height;
   }
 
+  /// Returns a copy with the given fields replaced.
   ReelVideoInfo copyWith({
     int? width,
     int? height,

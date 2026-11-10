@@ -74,6 +74,8 @@ enum ReelKitErrorCode {
 
 /// An error raised by ReelKit or by one of its native engines.
 class ReelKitException implements Exception {
+  /// Creates an exception with a [code], a [message] and optional
+  /// [details].
   const ReelKitException(this.code, this.message, {this.details});
 
   /// Maps a [PlatformException] from a native engine. Native engines use
@@ -94,8 +96,13 @@ class ReelKitException implements Exception {
     return ReelKitErrorCode.unknown;
   }
 
+  /// Category of the error, for programmatic handling.
   final ReelKitErrorCode code;
+
+  /// Human-readable description, for logs.
   final String message;
+
+  /// Engine-specific detail (native error code or domain), when available.
   final String? details;
 
   @override

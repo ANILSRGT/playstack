@@ -79,5 +79,6 @@ class HlsJsSession {
 
   final _Hls _hls;
 
+  /// Detaches HLS.js from the element and releases it.
   void destroy() => _hls.destroy();
 }

@@ -9,11 +9,16 @@ import 'reel_feed_config.dart';
 /// network, memory and decoder limits.
 @immutable
 class ReelPreloadWindow {
+  /// Creates a window of [ahead] following and [behind] previous items.
   const ReelPreloadWindow({required this.ahead, required this.behind});
 
+  /// Only the active item is prepared.
   static const none = ReelPreloadWindow(ahead: 0, behind: 0);
 
+  /// Items after the active one that are prepared.
   final int ahead;
+
+  /// Items before the active one that are prepared.
   final int behind;
 
   /// Resolves the effective window.

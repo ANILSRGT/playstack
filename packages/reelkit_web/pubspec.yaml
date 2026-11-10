@@ -1,6 +1,9 @@
 name: reelkit_web
 description: Web implementation of ReelKit, built on HTMLVideoElement.
-version: 0.1.0-dev.6
+version: 0.1.0-dev.7
+homepage: https://github.com/ANILSRGT/reelkit
+repository: https://github.com/ANILSRGT/reelkit/tree/main/packages/reelkit_web
+issue_tracker: https://github.com/ANILSRGT/reelkit/issues
 publish_to: none
 resolution: workspace
 
@@ -21,7 +24,7 @@ dependencies:
     sdk: flutter
   flutter_web_plugins:
     sdk: flutter
-  reelkit_platform_interface: ^0.1.0-dev.1
+  reelkit_platform_interface: ^0.1.0-dev.7
   web: ^1.1.1
 
 dev_dependencies:

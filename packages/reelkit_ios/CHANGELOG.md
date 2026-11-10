@@ -1,3 +1,7 @@
+## 0.1.0-dev.7
+
+* Package metadata and aligned dependency constraints for publishing.
+
 ## 0.1.0-dev.6
 
 * Milestone 6: progressive disk cache through `AVAssetResourceLoader`,

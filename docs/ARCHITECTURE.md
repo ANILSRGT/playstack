@@ -261,11 +261,22 @@ without a release/acquire round trip.
 | No public API for concurrent decode sessions; many `AVPlayer`s with items increase memory and can fail silently. | iOS | Memory-based limit; items are detached from released players; `decoderTemporarilyUnavailable` triggers the decoder-shortage handling. |
 | `AVPlayerItemVideoOutput` + display link costs CPU if left running. | iOS | Display link only while playing or awaiting a frame; paused players keep the last buffer. |
 | HTTP headers use `AVURLAssetHTTPHeaderFieldsKey`, which is not in the public headers. | iOS | Widely used (also by `video_player`); revisit with `AVAssetResourceLoader` if Apple removes it. |
-| Audio session category belongs to the host app. | iOS | ReelKit will not change it unless configured (milestone 6). |
+| Audio session category belongs to the host app. | iOS | ReelKit does not change it unless `ReelAudioConfig.iosAudioSessionCategory` is set, and then only when playback starts. |
 | Autoplay with sound is blocked; only muted autoplay is allowed. | Web | Muted autoplay policy and typed errors (milestone 2/6). |
-| `<video>` cannot send custom HTTP headers; no disk cache guarantees; HLS only native on Safari. | Web | Rejected with typed errors and reported through capabilities. HLS.js (MSE) integration is still open. |
+| `<video>` cannot send custom HTTP headers; no disk cache guarantees; HLS only native on Safari. | Web | Rejected with typed errors and reported through capabilities. HLS.js is used when the app loads it; not yet run in a browser. |
 | Platform views are costlier than textures. | Web | Unavoidable; keep the pool small. |
+| A platform view's element can be in one place only. | Web | One `ReelVideoView` per controller at a time; documented in the rendering and fullscreen guides. |
 | Orientation and fullscreen APIs differ per platform and per window mode (iPad multitasking, Android large screens, browser fullscreen permission). | All | Explicit orientation coordination, restore registered policy (milestone 6). |
+
+## Measuring
+
+Start latency is measured until the playback position moves, not until the
+engine accepts `play`: both engines accept a prepared video's `play` in a
+few milliseconds but start their clock only once audio output runs (about
+100 ms in the baseline). `ReelPlayerMetrics.lastStartLatency` and
+`ReelFeedStats` report the cheaper "accepted" signal because they must not
+poll; the example benchmark polls the position instead. Method and
+baseline: [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Milestone status
 

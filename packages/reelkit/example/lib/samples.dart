@@ -16,3 +16,7 @@ const rotatedAsset = 'assets/videos/rotated_90.mp4';
 /// 3 s clip with two audio tracks (eng, tur) and two mov_text subtitle
 /// tracks (eng: "Hello subtitles", tur: "Merhaba altyazi").
 const multitrackAsset = 'assets/videos/multitrack.mp4';
+
+/// 3 s, 1080x1920 H.264 High profile at 30 fps with AAC audio: a typical
+/// short-video frame size, used by the benchmarks.
+const portraitHdAsset = 'assets/videos/portrait_1080x1920.mp4';

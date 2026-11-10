@@ -108,6 +108,7 @@ sealed class ReelSource {
 
 /// A video loaded over HTTP(S).
 final class ReelNetworkSource extends ReelSource {
+  /// Creates a network source for [url].
   const ReelNetworkSource(
     this.url, {
     this.headers = const <String, String>{},
@@ -118,6 +119,7 @@ final class ReelNetworkSource extends ReelSource {
     super.id,
   });
 
+  /// HTTP or HTTPS URL of the video or manifest.
   final String url;
 
   /// Whether this source uses the disk cache (when caching is enabled).
@@ -173,8 +175,10 @@ final class ReelNetworkSource extends ReelSource {
 
 /// A video stored on the device file system.
 final class ReelFileSource extends ReelSource {
+  /// Creates a source for the file at [path].
   const ReelFileSource(this.path, {super.formatHint, super.id});
 
+  /// Absolute path of the file.
   final String path;
 
   @override
@@ -199,6 +203,7 @@ final class ReelFileSource extends ReelSource {
 
 /// A video bundled as a Flutter asset.
 final class ReelAssetSource extends ReelSource {
+  /// Creates a source for the Flutter asset [assetName].
   const ReelAssetSource(
     this.assetName, {
     this.package,
@@ -206,7 +211,10 @@ final class ReelAssetSource extends ReelSource {
     super.id,
   });
 
+  /// Asset key as declared in `pubspec.yaml`.
   final String assetName;
+
+  /// Package that bundles the asset, or null for the app's own assets.
   final String? package;
 
   @override
@@ -236,10 +244,14 @@ final class ReelAssetSource extends ReelSource {
 /// The bytes are sent to the native engine once per preparation, so this
 /// source is intended for short clips only.
 final class ReelMemorySource extends ReelSource {
+  /// Creates a source from [bytes] of type [mimeType].
   const ReelMemorySource(this.bytes, {required this.mimeType, super.id})
     : super(formatHint: ReelVideoFormat.progressive);
 
+  /// The encoded video file.
   final Uint8List bytes;
+
+  /// MIME type of [bytes], for example `video/mp4`.
   final String mimeType;
 
   @override

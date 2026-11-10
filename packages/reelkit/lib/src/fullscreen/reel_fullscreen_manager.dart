@@ -34,6 +34,7 @@ enum ReelFullscreenOrientation {
 /// time (for example per route).
 @immutable
 class ReelFullscreenConfig {
+  /// Creates a fullscreen configuration.
   const ReelFullscreenConfig({
     this.appOrientations = const <DeviceOrientation>[],
     this.appSystemUiMode = SystemUiMode.edgeToEdge,
@@ -86,6 +87,8 @@ class ReelFullscreenConfig {
 ///
 /// System UI is global, so use one fullscreen manager at a time.
 class ReelFullscreenManager {
+  /// Creates a fullscreen manager. Applications use
+  /// `ReelKitManager.fullscreen` instead of constructing one.
   ReelFullscreenManager(this._platform, ReelFullscreenConfig config)
     : _policy = config {
     Stream<bool> changes;

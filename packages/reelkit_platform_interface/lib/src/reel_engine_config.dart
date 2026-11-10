@@ -19,6 +19,7 @@ enum ReelAudioSessionCategory {
 /// initialization of an engine applies them; later managers share them.
 @immutable
 class ReelEngineConfig {
+  /// Creates an engine configuration.
   const ReelEngineConfig({
     this.cacheEnabled = false,
     this.cacheMaxBytes = 0,
@@ -29,12 +30,25 @@ class ReelEngineConfig {
     this.resumeAfterInterruption = true,
   });
 
+  /// Whether network sources may use the disk cache.
   final bool cacheEnabled;
+
+  /// Disk cache size limit in bytes.
   final int cacheMaxBytes;
+
+  /// Android: request audio focus while audible.
   final bool handleAudioFocus;
+
+  /// Pause when headphones or another audio route are disconnected.
   final bool pauseOnAudioRouteLoss;
+
+  /// iOS audio session category.
   final ReelAudioSessionCategory audioSessionCategory;
+
+  /// iOS: mix with other apps' audio instead of interrupting it.
   final bool mixWithOthers;
+
+  /// iOS: resume playback when an interruption ends and the system allows it.
   final bool resumeAfterInterruption;
 
   @override
@@ -63,20 +77,27 @@ class ReelEngineConfig {
 /// Usage of the engine's disk cache.
 @immutable
 class ReelCacheInfo {
+  /// Creates a cache usage snapshot.
   const ReelCacheInfo({
     required this.enabled,
     required this.usedBytes,
     required this.maxBytes,
   });
 
+  /// Reported by engines without a disk cache, or with the cache disabled.
   static const disabled = ReelCacheInfo(
     enabled: false,
     usedBytes: 0,
     maxBytes: 0,
   );
 
+  /// Whether the engine caches network sources.
   final bool enabled;
+
+  /// Bytes currently stored.
   final int usedBytes;
+
+  /// Size limit in bytes.
   final int maxBytes;
 
   @override

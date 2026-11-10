@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 /// What the engine applies when entering fullscreen.
 @immutable
 class ReelFullscreenRequest {
+  /// Creates a fullscreen request.
   const ReelFullscreenRequest({
     this.orientations,
     this.systemUiMode = SystemUiMode.immersiveSticky,
@@ -20,6 +21,7 @@ class ReelFullscreenRequest {
 /// What the engine restores when leaving fullscreen.
 @immutable
 class ReelFullscreenRestore {
+  /// Creates a restore description.
   const ReelFullscreenRestore({
     required this.orientations,
     required this.systemUiMode,
@@ -32,6 +34,7 @@ class ReelFullscreenRestore {
   /// the app declares.
   final List<DeviceOrientation> orientations;
 
+  /// System bars after fullscreen.
   final SystemUiMode systemUiMode;
 
   /// Overlays for [SystemUiMode.manual].
@@ -53,6 +56,7 @@ class ReelFullscreenRestore {
 /// Flutter cannot read the current preferred orientations, so the policy to
 /// restore comes from the application ([ReelFullscreenRestore]).
 mixin SystemChromeFullscreen {
+  /// Hides the system bars and applies the requested orientations.
   Future<void> enterFullscreen(ReelFullscreenRequest request) async {
     await SystemChrome.setEnabledSystemUIMode(request.systemUiMode);
     final orientations = request.orientations;
@@ -61,6 +65,8 @@ mixin SystemChromeFullscreen {
     }
   }
 
+  /// Restores the system bars, rotates back and restores the orientation
+  /// policy.
   Future<void> exitFullscreen(ReelFullscreenRestore restore) async {
     await SystemChrome.setEnabledSystemUIMode(
       restore.systemUiMode,
@@ -81,5 +87,6 @@ mixin SystemChromeFullscreen {
     await SystemChrome.setPreferredOrientations(allowed);
   }
 
+  /// Fullscreen changes made outside ReelKit; mobile platforms have none.
   Stream<bool> get fullscreenChanges => const Stream<bool>.empty();
 }

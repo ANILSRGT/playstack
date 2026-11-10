@@ -1,6 +1,9 @@
 name: reelkit_android
 description: Android implementation of ReelKit, built on AndroidX Media3 ExoPlayer.
-version: 0.1.0-dev.6
+version: 0.1.0-dev.7
+homepage: https://github.com/ANILSRGT/reelkit
+repository: https://github.com/ANILSRGT/reelkit/tree/main/packages/reelkit_android
+issue_tracker: https://github.com/ANILSRGT/reelkit/issues
 publish_to: none
 resolution: workspace
 
@@ -20,7 +23,8 @@ flutter:
 dependencies:
   flutter:
     sdk: flutter
-  reelkit_platform_interface: ^0.1.0-dev.1
+  meta: ^1.16.0
+  reelkit_platform_interface: ^0.1.0-dev.7
 
 dev_dependencies:
   flutter_test:

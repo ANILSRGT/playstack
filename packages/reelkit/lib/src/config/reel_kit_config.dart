@@ -6,6 +6,7 @@ import '../fullscreen/reel_fullscreen_manager.dart';
 /// Top-level configuration of a `ReelKitManager`.
 @immutable
 class ReelKitConfig {
+  /// Creates a configuration; every argument has a production default.
   const ReelKitConfig({
     this.pool = const ReelPoolConfig(),
     this.player = const ReelPlayerConfig(),
@@ -78,14 +79,19 @@ class ReelKitConfig {
 /// `ReelNetworkSource.cachePolicy`.
 @immutable
 class ReelCacheConfig {
+  /// Creates a cache configuration. The default enables a 256 MB cache.
   const ReelCacheConfig({
     this.enabled = true,
     this.maxBytes = 256 * 1024 * 1024,
   }) : assert(maxBytes >= 0);
 
+  /// Disables the disk cache.
   static const disabled = ReelCacheConfig(enabled: false);
 
+  /// Whether network sources are cached on disk where the engine supports it.
   final bool enabled;
+
+  /// Size limit in bytes; least recently used videos are evicted beyond it.
   final int maxBytes;
 
   @override
@@ -101,6 +107,7 @@ class ReelCacheConfig {
 /// How playback shares audio with the rest of the device.
 @immutable
 class ReelAudioConfig {
+  /// Creates an audio configuration.
   const ReelAudioConfig({
     this.handleAudioFocus = true,
     this.pauseOnAudioRouteLoss = true,
@@ -159,6 +166,7 @@ class ReelAudioConfig {
 /// control center do not pause playback.
 @immutable
 class ReelLifecycleConfig {
+  /// Creates a lifecycle configuration.
   const ReelLifecycleConfig({
     this.pauseOnBackground = true,
     this.resumeOnForeground = true,
@@ -189,6 +197,7 @@ class ReelLifecycleConfig {
 /// controllers instead of allocating one per video.
 @immutable
 class ReelPoolConfig {
+  /// Creates a pool configuration.
   const ReelPoolConfig({
     this.maxPlayers,
     this.maxAdaptivePlayers = 4,
@@ -256,6 +265,8 @@ class ReelPoolConfig {
 /// by [multiplier] up to [maxDelay].
 @immutable
 class ReelRetryConfig {
+  /// Creates a retry configuration. The default retries twice, after 1 s
+  /// and 2 s.
   const ReelRetryConfig({
     this.maxAttempts = 2,
     this.initialDelay = const Duration(seconds: 1),
@@ -269,8 +280,14 @@ class ReelRetryConfig {
 
   /// Retries after the first failure. Zero disables automatic retries.
   final int maxAttempts;
+
+  /// Wait before the first retry.
   final Duration initialDelay;
+
+  /// Upper bound of the wait between retries.
   final Duration maxDelay;
+
+  /// Factor applied to the wait after each retry; at least 1.
   final double multiplier;
 
   /// Whether a failure with [code] is retried automatically.
@@ -303,6 +320,7 @@ class ReelRetryConfig {
 /// Initial playback settings of a controller.
 @immutable
 class ReelPlayerConfig {
+  /// Creates a player configuration.
   const ReelPlayerConfig({
     this.looping = false,
     this.volume = 1.0,
@@ -314,13 +332,16 @@ class ReelPlayerConfig {
   }) : assert(volume >= 0 && volume <= 1),
        assert(playbackSpeed > 0);
 
+  /// Whether playback restarts from the beginning when it reaches the end.
   final bool looping;
 
   /// Volume from 0.0 to 1.0, applied when not [muted].
   final double volume;
 
+  /// Whether the controller starts muted.
   final bool muted;
 
+  /// Initial playback rate; 1.0 is normal speed.
   final double playbackSpeed;
 
   /// Maximum time to wait for a source to finish preparing.
@@ -339,6 +360,7 @@ class ReelPlayerConfig {
   /// Automatic retries after network errors and timeouts.
   final ReelRetryConfig retry;
 
+  /// Returns a copy with the given fields replaced.
   ReelPlayerConfig copyWith({
     bool? looping,
     double? volume,

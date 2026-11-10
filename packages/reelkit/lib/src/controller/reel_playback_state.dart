@@ -36,6 +36,8 @@ enum ReelPlaybackStatus {
 /// `ReelPlayerController.getPosition`.
 @immutable
 class ReelPlaybackState {
+  /// Creates a state snapshot. Controllers create these; applications read
+  /// them.
   const ReelPlaybackState({
     this.status = ReelPlaybackStatus.idle,
     this.videoInfo,
@@ -49,6 +51,7 @@ class ReelPlaybackState {
     this.playbackSpeed = 1.0,
   });
 
+  /// High-level playback status.
   final ReelPlaybackStatus status;
 
   /// Size, duration and orientation of the prepared video. Retained after the
@@ -67,13 +70,16 @@ class ReelPlaybackState {
   /// Whether the current source has drawn at least one frame.
   final bool hasRenderedFirstFrame;
 
+  /// Whether playback restarts at the end.
   final bool isLooping;
 
   /// Volume from 0.0 to 1.0. The audible volume is 0 while [isMuted].
   final double volume;
 
+  /// Whether audio is muted.
   final bool isMuted;
 
+  /// Playback rate; 1.0 is normal speed.
   final double playbackSpeed;
 
   /// Whether the source is prepared.
@@ -85,10 +91,13 @@ class ReelPlaybackState {
     _ => false,
   };
 
+  /// Whether the video is playing.
   bool get isPlaying => status == ReelPlaybackStatus.playing;
 
+  /// Whether [status] is [ReelPlaybackStatus.error]; see [error].
   bool get hasError => status == ReelPlaybackStatus.error;
 
+  /// Duration of the prepared video, or null when unknown or live.
   Duration? get duration => videoInfo?.duration;
 
   /// Display aspect ratio, or null before the size is known.
@@ -98,6 +107,7 @@ class ReelPlaybackState {
     return info.aspectRatio;
   }
 
+  /// Returns a copy with the given fields replaced.
   ReelPlaybackState copyWith({
     ReelPlaybackStatus? status,
     ReelVideoInfo? videoInfo,

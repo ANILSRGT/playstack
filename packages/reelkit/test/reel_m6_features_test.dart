@@ -150,6 +150,38 @@ void main() {
       expect(controller.value.status, ReelPlaybackStatus.idle);
     });
 
+    test('setSource cancels a pending automatic retry', () async {
+      await start(
+        config: const ReelKitConfig(
+          player: ReelPlayerConfig(
+            retry: ReelRetryConfig(initialDelay: Duration(seconds: 10)),
+          ),
+        ),
+      );
+      platform.failingOnce[_source] = _networkError;
+      final controller = manager.createController(_source);
+      final cancelled = expectLater(
+        controller.initialize(),
+        throwsA(
+          isA<ReelKitException>().having(
+            (e) => e.code,
+            'code',
+            ReelKitErrorCode.cancelled,
+          ),
+        ),
+      );
+      await settle();
+      const other = ReelSource.network('https://example.com/b.mp4');
+      final switching = controller.setSource(other);
+      await cancelled;
+      await switching;
+      await controller.initialize();
+      expect(controller.value.status, ReelPlaybackStatus.ready);
+      expect(controller.source, other);
+      // The old source was tried once and never retried.
+      expect(platform.callCount('setSource'), 2);
+    });
+
     test('reconnection retries controllers that failed offline', () async {
       await start(
         config: const ReelKitConfig(

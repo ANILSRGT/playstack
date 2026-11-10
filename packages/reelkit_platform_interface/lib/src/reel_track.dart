@@ -1,7 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 /// Kind of media track.
-enum ReelTrackType { audio, video, text }
+enum ReelTrackType {
+  /// An audio track.
+  audio,
+
+  /// A video track; several video tracks are different qualities.
+  video,
+
+  /// A subtitle or caption track.
+  text,
+}
 
 /// One selectable audio, video (quality) or text (subtitle) track.
 ///
@@ -9,6 +18,7 @@ enum ReelTrackType { audio, video, text }
 /// persist them across sources or platforms.
 @immutable
 class ReelTrack {
+  /// Creates a track description. Engines create these.
   const ReelTrack({
     required this.id,
     required this.type,
@@ -23,8 +33,13 @@ class ReelTrack {
     this.channelCount,
   });
 
+  /// Engine-defined id, used to select the track.
   final String id;
+
+  /// Kind of track.
   final ReelTrackType type;
+
+  /// Whether the track is currently selected.
   final bool isSelected;
 
   /// Human-readable name declared by the media, when present.
@@ -42,7 +57,10 @@ class ReelTrack {
   /// Video height in pixels, for video tracks.
   final int? height;
 
+  /// Frames per second, for video tracks, when known.
   final double? frameRate;
+
+  /// RFC 6381 codec string, when known.
   final String? codecs;
 
   /// Audio channel count, for audio tracks.
@@ -90,6 +108,7 @@ class ReelTrack {
 /// Upper bounds for adaptive video selection. Null fields are unbounded.
 @immutable
 class ReelVideoQualityLimit {
+  /// Creates a limit; null fields are unbounded.
   const ReelVideoQualityLimit({this.maxBitrate, this.maxWidth, this.maxHeight})
     : assert(maxBitrate == null || maxBitrate > 0),
       assert(maxWidth == null || maxWidth > 0),
@@ -100,9 +119,14 @@ class ReelVideoQualityLimit {
 
   /// Bits per second.
   final int? maxBitrate;
+
+  /// Maximum video width in pixels.
   final int? maxWidth;
+
+  /// Maximum video height in pixels.
   final int? maxHeight;
 
+  /// Whether no field is set.
   bool get isUnbounded =>
       maxBitrate == null && maxWidth == null && maxHeight == null;
 

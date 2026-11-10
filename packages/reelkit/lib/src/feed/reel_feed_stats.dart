@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Counters of a `ReelFeedManager`, for diagnostics and benchmarks.
 @immutable
 class ReelFeedStats {
+  /// Creates a statistics snapshot.
   const ReelFeedStats({
     this.transitions = 0,
     this.preparedOnArrival = 0,
@@ -21,17 +22,26 @@ class ReelFeedStats {
   /// Transitions whose new active item was already prepared.
   final int preparedOnArrival;
 
+  /// Preloads started.
   final int preloadsStarted;
+
+  /// Preloads that finished preparing.
   final int preloadsCompleted;
+
+  /// Preloads that failed.
   final int preloadsFailed;
 
   /// Preloads abandoned because the window moved before they finished.
   final int preloadsCancelled;
 
-  /// From the last index change until its item played (autoplay only).
+  /// From the last index change until the engine reported that its item
+  /// plays (autoplay only). See `ReelPlayerMetrics.lastStartLatency`.
   final Duration? lastStartLatency;
 
+  /// Sum of all measured start latencies.
   final Duration totalStartLatency;
+
+  /// Number of starts included in [totalStartLatency].
   final int measuredStarts;
 
   /// Share of transitions that found the item prepared, from 0 to 1.
@@ -42,6 +52,7 @@ class ReelFeedStats {
   Duration? get averageStartLatency =>
       measuredStarts == 0 ? null : totalStartLatency ~/ measuredStarts;
 
+  /// Returns a copy with the given fields replaced.
   ReelFeedStats copyWith({
     int? transitions,
     int? preparedOnArrival,

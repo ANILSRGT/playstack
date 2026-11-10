@@ -20,6 +20,7 @@ import 'reel_track.dart';
 /// Platform implementations must extend this class rather than implement it,
 /// so that new methods can be added without breaking them.
 abstract class ReelKitPlatform extends PlatformInterface {
+  /// Constructs a platform implementation.
   ReelKitPlatform() : super(token: _token);
 
   static final Object _token = Object();
@@ -66,18 +67,22 @@ abstract class ReelKitPlatform extends PlatformInterface {
     throw UnimplementedError('clearSource() has not been implemented.');
   }
 
+  /// Starts or resumes playback.
   Future<void> play(int playerId) {
     throw UnimplementedError('play() has not been implemented.');
   }
 
+  /// Pauses playback.
   Future<void> pause(int playerId) {
     throw UnimplementedError('pause() has not been implemented.');
   }
 
+  /// Seeks to [position].
   Future<void> seekTo(int playerId, Duration position) {
     throw UnimplementedError('seekTo() has not been implemented.');
   }
 
+  /// Sets whether playback restarts at the end.
   Future<void> setLooping(int playerId, bool looping) {
     throw UnimplementedError('setLooping() has not been implemented.');
   }
@@ -87,10 +92,12 @@ abstract class ReelKitPlatform extends PlatformInterface {
     throw UnimplementedError('setVolume() has not been implemented.');
   }
 
+  /// Sets the playback rate; 1.0 is normal speed.
   Future<void> setPlaybackSpeed(int playerId, double speed) {
     throw UnimplementedError('setPlaybackSpeed() has not been implemented.');
   }
 
+  /// Reads the current playback and buffered positions.
   Future<ReelPositionSnapshot> getPosition(int playerId) {
     throw UnimplementedError('getPosition() has not been implemented.');
   }

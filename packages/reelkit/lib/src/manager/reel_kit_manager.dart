@@ -31,6 +31,7 @@ import 'reel_playback_coordinator.dart';
 /// Use one manager per independent playback context (for example one per
 /// feed). Each manager has its own pool limit.
 class ReelKitManager implements ReelControllerHost, ReelFeedHost {
+  /// Creates a manager. Call [initialize] before creating controllers.
   ReelKitManager({
     this.config = const ReelKitConfig(),
     @visibleForTesting ReelKitPlatform? platform,
@@ -39,6 +40,7 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
          exclusive: config.exclusivePlayback,
        );
 
+  /// Configuration of this manager, its pool and its controllers.
   final ReelKitConfig config;
   final ReelKitPlatform? _platformOverride;
   final Set<ReelPlayerController> _controllers = <ReelPlayerController>{};
@@ -73,6 +75,7 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   /// Whether [initialize] completed successfully.
   bool get isInitialized => _pool != null && !_disposed;
 
+  /// Whether [dispose] was called.
   bool get isDisposed => _disposed;
 
   /// Engine and device capabilities. Available after [initialize].

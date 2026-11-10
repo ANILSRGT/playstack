@@ -11,6 +11,8 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 /// The cache is shared by every manager of the app; the first manager's
 /// `ReelCacheConfig` sizes it.
 class ReelCacheManager {
+  /// Creates a cache manager. Applications use `ReelKitManager.cache`
+  /// instead of constructing one.
   ReelCacheManager(this._platform, this._capabilities);
 
   final ReelKitPlatform _platform;

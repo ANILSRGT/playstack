@@ -5,6 +5,7 @@ import '../config/reel_kit_config.dart';
 /// How a `ReelFeedManager` prepares items around the active one.
 @immutable
 class ReelFeedConfig {
+  /// Creates a feed configuration.
   const ReelFeedConfig({
     this.preloadAhead = 2,
     this.preloadBehind = 1,
@@ -97,6 +98,7 @@ class ReelFeedConfig {
 /// window; it never enlarges it.
 @immutable
 class ReelNetworkPreloadPolicy {
+  /// Creates a network preload policy.
   const ReelNetworkPreloadPolicy({
     this.meteredPreloadAhead = 1,
     this.meteredPreloadBehind = 0,

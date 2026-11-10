@@ -4,8 +4,14 @@ import 'package:flutter/foundation.dart';
 enum ReelNetworkType {
   /// No network.
   none,
+
+  /// Wi-Fi.
   wifi,
+
+  /// Mobile data.
   cellular,
+
+  /// Wired Ethernet.
   ethernet,
 
   /// Another transport (VPN, Bluetooth, ...).
@@ -18,6 +24,7 @@ enum ReelNetworkType {
 /// Connectivity as reported by the operating system or browser.
 @immutable
 class ReelNetworkStatus {
+  /// Creates a network status.
   const ReelNetworkStatus({
     required this.isConnected,
     this.isMetered = false,
@@ -41,6 +48,7 @@ class ReelNetworkStatus {
   /// Mode, web `connection.saveData` or a 2G effective type.
   final bool isConstrained;
 
+  /// Transport of the default network.
   final ReelNetworkType type;
 
   @override

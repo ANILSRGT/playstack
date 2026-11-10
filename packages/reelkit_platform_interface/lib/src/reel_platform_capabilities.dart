@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 /// emulated.
 @immutable
 class ReelPlatformCapabilities {
+  /// Creates a capability description. Engines create these.
   const ReelPlatformCapabilities({
     required this.engineName,
     required this.engineVersion,
@@ -25,7 +26,10 @@ class ReelPlatformCapabilities {
     this.totalMemoryBytes,
   });
 
+  /// Name of the playback engine, for example `media3`.
   final String engineName;
+
+  /// Version of the playback engine or platform.
   final String engineVersion;
 
   /// Device-derived recommendation for concurrent native players. This is a
@@ -39,10 +43,19 @@ class ReelPlatformCapabilities {
   /// Total physical memory in bytes, when the platform reports it.
   final int? totalMemoryBytes;
 
+  /// Whether the operating system classifies the device as low on memory.
   final bool isLowRamDevice;
+
+  /// Whether HLS (`.m3u8`) sources play.
   final bool supportsHls;
+
+  /// Whether DASH (`.mpd`) sources play.
   final bool supportsDash;
+
+  /// Whether network sources can be cached on disk.
   final bool supportsDiskCache;
+
+  /// Whether `ReelMemorySource` plays.
   final bool supportsMemorySource;
 
   /// Audio and text (subtitle) track listing and selection.

@@ -12,6 +12,7 @@ import 'hls_js.dart';
 /// source generation; after [clear] nothing is reported until the next
 /// [load].
 class WebPlayer {
+  /// Creates a player backed by a new `<video>` element.
   WebPlayer(this.playerId, ReelNativePlayerOptions options, this._emit)
     : element = web.HTMLVideoElement() {
     element
@@ -46,7 +47,10 @@ class WebPlayer {
 
   static const int _noSource = -1;
 
+  /// The id given to Dart.
   final int playerId;
+
+  /// The element rendered by the platform view.
   final web.HTMLVideoElement element;
   final void Function(ReelPlatformEvent event) _emit;
   final List<(String, JSFunction)> _listeners = <(String, JSFunction)>[];
@@ -59,6 +63,7 @@ class WebPlayer {
   web.TextTrack? _subtitleTrack;
   JSFunction? _cueListener;
 
+  /// Loads [url] as source [generation].
   void load(String url, int generation, {bool ownsObjectUrl = false}) {
     clear();
     _generation = generation;
@@ -88,6 +93,7 @@ class WebPlayer {
     );
   }
 
+  /// Detaches the current source.
   void clear() {
     _hls?.destroy();
     _hls = null;
@@ -105,6 +111,7 @@ class WebPlayer {
     _objectUrl = null;
   }
 
+  /// Starts playback; maps a blocked autoplay to `playbackNotAllowed`.
   Future<void> play() async {
     try {
       await element.play().toDart;
@@ -138,6 +145,7 @@ class WebPlayer {
     if (clamped > 0) element.volume = clamped;
   }
 
+  /// Current playback and buffered positions.
   ReelPositionSnapshot position() {
     final current = element.currentTime;
     var bufferedEnd = current;
@@ -165,6 +173,7 @@ class WebPlayer {
     return media.getProperty<JSObject?>('audioTracks'.toJS);
   }
 
+  /// Audio and text tracks the browser exposes.
   List<ReelTrack> tracks() {
     final result = <ReelTrack>[];
     final audio = _audioTracks;
@@ -200,6 +209,7 @@ class WebPlayer {
     return result;
   }
 
+  /// Selects a track, or disables the type when [trackId] is null.
   void selectTrack(ReelTrackType type, String? trackId) {
     switch (type) {
       case ReelTrackType.video:
@@ -311,6 +321,7 @@ class WebPlayer {
     return text == null || text.isEmpty ? null : text;
   }
 
+  /// Releases the element and any object URL.
   void dispose() {
     clear();
     for (final (type, listener) in _listeners) {

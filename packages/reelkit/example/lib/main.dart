@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'pages/benchmark_page.dart';
 import 'pages/diagnostics_page.dart';
 import 'pages/feed_page.dart';
 import 'pages/grid_page.dart';
@@ -56,6 +57,12 @@ class HomePage extends StatelessWidget {
             title: const Text('Diagnostics'),
             subtitle: const Text('Capabilities and pool usage'),
             onTap: () => open(const DiagnosticsPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.speed),
+            title: const Text('Benchmark'),
+            subtitle: const Text('Start latency, preloading and memory'),
+            onTap: () => open(const BenchmarkPage()),
           ),
         ],
       ),

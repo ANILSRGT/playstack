@@ -1,6 +1,9 @@
 name: reelkit_platform_interface
 description: A common platform interface for the ReelKit video playback plugin.
-version: 0.1.0-dev.6
+version: 0.1.0-dev.7
+homepage: https://github.com/ANILSRGT/reelkit
+repository: https://github.com/ANILSRGT/reelkit/tree/main/packages/reelkit_platform_interface
+issue_tracker: https://github.com/ANILSRGT/reelkit/issues
 publish_to: none
 resolution: workspace
 

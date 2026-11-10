@@ -1,3 +1,8 @@
+## 0.1.0-dev.7
+
+* Internal members documented; package metadata and aligned dependency
+  constraints for publishing.
+
 ## 0.1.0-dev.6
 
 * Milestone 6: HLS through HLS.js when the app loads it, Fullscreen API with
