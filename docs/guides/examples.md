@@ -24,7 +24,9 @@ use ReelKit: an endless vertical feed (`ReelFeedManager` behind a
 before each item starts, fit/fill for landscape videos, fullscreen with
 `matchVideo`, an error panel with `retry()`, and a stats sheet with pool,
 preload, latency, network and cache figures. It plays public test media
-(MP4 and HLS) plus one bundled asset, and loads HLS.js on the web.
+(43 HLS streams: vertical 9:16 reels and landscape test streams), loads
+HLS.js on the web, and has a catalog health check
+(`demo/integration_test/catalog_test.dart`).
 
 ```bash
 cd demo

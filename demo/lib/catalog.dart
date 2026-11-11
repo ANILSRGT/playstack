@@ -15,77 +15,230 @@ class DemoVideo {
   final ReelSource source;
 }
 
-/// Public test media. Most clips are landscape; the feed shows them
-/// letterboxed unless "fill" is switched on.
-const demoCatalog = <DemoVideo>[
-  DemoVideo(
-    title: 'Flower',
-    author: '@mdn',
-    note: 'MP4, CC0',
-    source: ReelSource.network(
-      'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-    ),
+/// Every item is an HLS stream from a public test or demo service.
+///
+/// The vertical reels are Cloudinary's public demo videos, cropped to 9:16
+/// and packaged as adaptive HLS on the fly (`sp_full_hd/c_fill,ar_9:16`),
+/// up to 608x1080. A rendition that nobody requested recently is generated
+/// on first request, so the first play of an item can be slower.
+final List<DemoVideo> demoCatalog = _interleave(_vertical, _landscape);
+
+const _cloudinary = 'https://res.cloudinary.com/demo/video/upload';
+
+DemoVideo _reel(String id, String title) => DemoVideo(
+  title: title,
+  author: '@cloudinary',
+  note: 'HLS 9:16, adaptive up to 1080p',
+  source: ReelSource.network('$_cloudinary/sp_full_hd/c_fill,ar_9:16/$id.m3u8'),
+);
+
+DemoVideo _hls(String url, String title, String author, String note) =>
+    DemoVideo(
+      title: title,
+      author: author,
+      note: note,
+      source: ReelSource.network(url),
+    );
+
+final _vertical = <DemoVideo>[
+  _reel('samples/dance-2', 'Dance'),
+  _reel('samples/sea-turtle', 'Sea turtle'),
+  _reel('skate', 'Skate'),
+  _reel('samples/cld-sample-video', 'City and nature'),
+  _reel('snow_horses', 'Horses in the snow'),
+  _reel('docs/walking_talking', 'Walking and talking'),
+  _reel('rafting', 'Rafting'),
+  _reel('elephants', 'Elephants'),
+  _reel('glide-over-coastal-beach', 'Coastal glide'),
+  _reel('cat', 'Cat'),
+  _reel('outdoors', 'Outdoors'),
+  _reel('sea_turtle', 'Turtle, close up'),
+  _reel('samples/elephants', 'Elephant herd'),
+  _reel('ski_jump', 'Ski jump'),
+  _reel('dog', 'Dog'),
+];
+
+final _landscape = <DemoVideo>[
+  _hls(
+    'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    'Big Buck Bunny',
+    '@mux',
+    'HLS TS, 5 renditions',
   ),
-  DemoVideo(
-    title: 'Big Buck Bunny',
-    author: '@blender',
-    note: 'MP4, 10 s',
-    source: ReelSource.network(
-      'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
-    ),
+  _hls(
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8',
+    'Bip bop (fMP4)',
+    '@apple',
+    'HLS fMP4, alternate audio, subtitles',
   ),
-  DemoVideo(
-    title: 'Vertical test card',
-    author: '@reelkit',
-    note: 'Bundled asset',
-    source: ReelSource.asset('assets/portrait_1080x1920.mp4'),
+  _hls(
+    'https://test-streams.mux.dev/tos_ismc/main.m3u8',
+    'Tears of Steel',
+    '@mux',
+    'HLS with subtitles',
   ),
-  DemoVideo(
-    title: 'Jellyfish',
-    author: '@test-videos',
-    note: 'MP4, 10 s',
-    source: ReelSource.network(
-      'https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_1MB.mp4',
-    ),
+  _hls(
+    'https://stream.mux.com/v69RSHhFelSm4701snP22dYz2jICy4E4FUyk02rW4gxRM.m3u8',
+    'Mux demo 1',
+    '@mux',
+    'HLS up to 1080p',
   ),
-  DemoVideo(
-    title: 'Big Buck Bunny (HLS)',
-    author: '@mux',
-    note: 'Adaptive HLS stream',
-    source: ReelSource.network(
-      'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-    ),
+  _hls(
+    'https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8',
+    'Angel One',
+    '@shaka',
+    'HLS, several audio languages',
   ),
-  DemoVideo(
-    title: 'Sintel',
-    author: '@blender',
-    note: 'MP4, 10 s',
-    source: ReelSource.network(
-      'https://test-videos.co.uk/vids/sintel/mp4/h264/1080/Sintel_1080_10s_5MB.mp4',
-    ),
+  _hls(
+    'https://d2zihajmogu5jn.cloudfront.net/sintel/master.m3u8',
+    'Sintel',
+    '@blender',
+    'HLS',
   ),
-  DemoVideo(
-    title: 'Friday',
-    author: '@mdn',
-    note: 'MP4, CC0',
-    source: ReelSource.network(
-      'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4',
-    ),
+  _hls(
+    '$_cloudinary/sp_auto/samples/sea-turtle.m3u8',
+    'Sea turtle (wide)',
+    '@cloudinary',
+    'HLS 16:9, adaptive',
   ),
-  DemoVideo(
-    title: 'Bip bop',
-    author: '@apple',
-    note: 'HLS fMP4, several renditions',
-    source: ReelSource.network(
-      'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8',
-    ),
+  _hls(
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8',
+    'Bip bop (TS)',
+    '@apple',
+    'HLS TS, many renditions',
   ),
-  DemoVideo(
-    title: 'Sample clip',
-    author: '@samplelib',
-    note: 'MP4 with its index at the end: slower start',
-    source: ReelSource.network(
-      'https://download.samplelib.com/mp4/sample-10s.mp4',
-    ),
+  _hls(
+    'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+    'Tears of Steel (USP)',
+    '@unified-streaming',
+    'HLS packaged on the fly',
+  ),
+  _hls(
+    'https://stream.mux.com/VZtzUzGRv02OhRnZCxcNg49OilvolTqdnFLEqBsTwaxU.m3u8',
+    'Mux demo 2',
+    '@mux',
+    'HLS up to 1080p',
+  ),
+  _hls(
+    'https://storage.googleapis.com/shaka-demo-assets/bbb-dark-truths-hls/hls.m3u8',
+    'Dark Truths',
+    '@shaka',
+    'HLS',
+  ),
+  _hls(
+    'https://d2zihajmogu5jn.cloudfront.net/elephantsdream/hls/ed_hd.m3u8',
+    "Elephants Dream",
+    '@blender',
+    'HLS',
+  ),
+  _hls(
+    'https://cdn.jwplayer.com/manifests/pZxWPRg4.m3u8',
+    'JW Player sample',
+    '@jwplayer',
+    'HLS, 6 renditions',
+  ),
+  _hls(
+    '$_cloudinary/sp_auto/snow_horses.m3u8',
+    'Horses (wide)',
+    '@cloudinary',
+    'HLS 16:9, adaptive',
+  ),
+  _hls(
+    'https://ireplay.tv/test/blender.m3u8',
+    'Blender montage',
+    '@ireplay',
+    'HLS',
+  ),
+  _hls(
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_adv_example_hevc/master.m3u8',
+    'Bip bop (HEVC)',
+    '@apple',
+    'HLS HEVC and H.264',
+  ),
+  _hls(
+    'https://d2zihajmogu5jn.cloudfront.net/big-buck-bunny/master.m3u8',
+    'Big Buck Bunny (CloudFront)',
+    '@blender',
+    'HLS',
+  ),
+  _hls(
+    'https://content.jwplatform.com/manifests/vM7nH0Kl.m3u8',
+    'JW Player cinema',
+    '@jwplayer',
+    'HLS, 2.39:1',
+  ),
+  _hls(
+    '$_cloudinary/sp_auto/skate.m3u8',
+    'Skate (wide)',
+    '@cloudinary',
+    'HLS 16:9, adaptive',
+  ),
+  _hls(
+    'https://storage.googleapis.com/shaka-demo-assets/apple-advanced-stream-fmp4/master.m3u8',
+    'Advanced stream (fMP4)',
+    '@shaka',
+    'HLS fMP4',
+  ),
+  _hls(
+    'https://d2zihajmogu5jn.cloudfront.net/tears-of-steel/playlist.m3u8',
+    'Tears of Steel (CloudFront)',
+    '@blender',
+    'HLS',
+  ),
+  _hls(
+    'https://diceyk6a7voy4.cloudfront.net/e78752a1-2e83-43fa-85ae-3d508be29366/hls/fitfest-sample-1_Ott_Hls_Ts_Avc_Aac_16x9_1280x720p_30Hz_6.0Mbps_qvbr.m3u8',
+    'Fitness sample',
+    '@aws-media',
+    'HLS 720p',
+  ),
+  _hls(
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8',
+    'Bip bop 16:9 (classic)',
+    '@apple',
+    'HLS TS',
+  ),
+  _hls(
+    '$_cloudinary/sp_auto/rafting.m3u8',
+    'Rafting (wide)',
+    '@cloudinary',
+    'HLS 16:9, adaptive',
+  ),
+  _hls(
+    'https://storage.googleapis.com/shaka-demo-assets/apple-advanced-stream-ts/master.m3u8',
+    'Advanced stream (TS)',
+    '@shaka',
+    'HLS TS',
+  ),
+  _hls(
+    'https://d2zihajmogu5jn.cloudfront.net/bipbop-advanced/bipbop_16x9_variant.m3u8',
+    'Bip bop advanced (CloudFront)',
+    '@apple',
+    'HLS',
+  ),
+  _hls(
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8',
+    'Bip bop 4:3 (classic)',
+    '@apple',
+    'HLS TS, 4:3',
+  ),
+  _hls(
+    'https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8',
+    'Big Buck Bunny (single rendition)',
+    '@mux',
+    'HLS media playlist, no ABR',
   ),
 ];
+
+/// Two vertical reels, then one landscape stream, until both run out.
+List<DemoVideo> _interleave(List<DemoVideo> vertical, List<DemoVideo> wide) {
+  final result = <DemoVideo>[];
+  var v = 0;
+  var w = 0;
+  while (v < vertical.length || w < wide.length) {
+    for (var i = 0; i < 2 && v < vertical.length; i++) {
+      result.add(vertical[v++]);
+    }
+    if (w < wide.length) result.add(wide[w++]);
+  }
+  return List.unmodifiable(result);
+}
