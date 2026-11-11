@@ -28,10 +28,10 @@ abstract interface class ReelFeedHost {
 
 /// Playback and preloading for a list of videos shown in any scrolling UI.
 ///
-/// ReelKit provides no feed widget. The app builds its own `PageView`,
-/// `ListView` or custom scroll view, renders `controllerAt(index)` with a
-/// `ReelVideoView`, and reports the item the user is on with
-/// [setActiveIndex]. The feed then:
+/// Show it with `ReelFeedView`, which pages through the items and reports
+/// the item in view. A custom scroll view can drive the feed too: render
+/// `controllerAt(index)` with a `ReelVideoView` and report the item the
+/// user is on with [setActiveIndex]. The feed then:
 ///
 /// * plays the active item (with [ReelFeedConfig.autoplay]) and pauses the
 ///   previous one;
@@ -84,9 +84,16 @@ class ReelFeedManager extends ChangeNotifier {
   VoidCallback? _cancelStartMeasurement;
   bool _paused = false;
   bool _disposed = false;
+  bool? _muted;
 
   /// The items, in display order.
   List<ReelFeedItem> get items => List<ReelFeedItem>.unmodifiable(_items);
+
+  /// The item at [index], without copying the list like [items].
+  ReelFeedItem itemAt(int index) {
+    RangeError.checkValidIndex(index, _items);
+    return _items[index];
+  }
 
   /// Number of items.
   int get length => _items.length;
@@ -113,6 +120,10 @@ class ReelFeedManager extends ChangeNotifier {
 
   /// Whether [dispose] was called.
   bool get isDisposed => _disposed;
+
+  /// The mute state set with [setMuted], or null when every controller
+  /// follows its configuration.
+  bool? get muted => _muted;
 
   /// Preload and start-latency counters since the feed was created.
   ReelFeedStats get stats => _stats;
@@ -184,6 +195,17 @@ class ReelFeedManager extends ChangeNotifier {
     if (!_paused) return;
     _paused = false;
     _schedule(activate: true);
+  }
+
+  /// Mutes or unmutes every item of the feed, including items created
+  /// later, like the sound switch of a short-video app.
+  void setMuted(bool muted) {
+    _throwIfDisposed();
+    _muted = muted;
+    for (final controller in _controllers.values) {
+      unawaited(controller.setMuted(muted).catchError(_ignore));
+    }
+    notifyListeners();
   }
 
   /// Appends [item].
@@ -318,10 +340,15 @@ class ReelFeedManager extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   ReelPlayerController _controllerFor(ReelFeedItem item) {
-    return _controllers[item.id] ??= _host.createFeedController(
-      item.source,
-      config.player,
-    )..priority = ReelPlayerPriority.background;
+    final existing = _controllers[item.id];
+    if (existing != null) return existing;
+    final controller = _host.createFeedController(item.source, config.player)
+      ..priority = ReelPlayerPriority.background;
+    final muted = _muted;
+    if (muted != null && controller.value.isMuted != muted) {
+      unawaited(controller.setMuted(muted).catchError(_ignore));
+    }
+    return _controllers[item.id] = controller;
   }
 
   void _addItems(List<ReelFeedItem> items, {required int at}) {

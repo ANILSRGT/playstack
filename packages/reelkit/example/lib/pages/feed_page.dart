@@ -5,9 +5,10 @@ import 'package:reelkit/reelkit.dart';
 
 import '../samples.dart';
 
-/// A vertical feed: the app owns the `PageView` and every overlay; a
-/// [ReelFeedManager] decides which items hold native players, plays the item
-/// in view and prepares the next ones.
+/// A vertical feed: [ReelFeedView] pages through a [ReelFeedManager], which
+/// decides which items hold native players, plays the item in view and
+/// prepares the next ones. The page keeps ReelKit's default controls and
+/// adds its own label.
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
 
@@ -53,14 +54,6 @@ class _FeedPageState extends State<FeedPage> {
       return;
     }
     setState(() => _feed = feed);
-    feed.setActiveIndex(0);
-  }
-
-  void _onPageChanged(int index) {
-    final feed = _feed!;
-    feed.setActiveIndex(index);
-    // Endless feed: append the next page shortly before the end.
-    if (index >= feed.length - 3) feed.addAll(_page(feed.length));
   }
 
   @override
@@ -83,16 +76,13 @@ class _FeedPageState extends State<FeedPage> {
       ),
       body: feed == null
           ? const Center(child: CircularProgressIndicator())
-          : ListenableBuilder(
-              listenable: feed,
-              builder: (context, _) => PageView.builder(
-                scrollDirection: Axis.vertical,
-                itemCount: feed.length,
-                onPageChanged: _onPageChanged,
-                itemBuilder: (context, index) => _FeedItem(
-                  controller: feed.controllerAt(index),
-                  index: index,
-                ),
+          : ReelFeedView(
+              feed: feed,
+              // Endless feed: append the next page shortly before the end.
+              onEndReached: () => feed.addAll(_page(feed.length)),
+              controlsBuilder: (context, page) => ReelDefaultControls(
+                page: page,
+                child: _Label(page: page),
               ),
             ),
     );
@@ -125,49 +115,25 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _FeedItem extends StatelessWidget {
-  const _FeedItem({required this.controller, required this.index});
+class _Label extends StatelessWidget {
+  const _Label({required this.page});
 
-  final ReelPlayerController controller;
-  final int index;
+  final ReelFeedPage page;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => unawaited(
-        (controller.value.isPlaying ? controller.pause() : controller.play())
-            .catchError((Object _) {}),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ReelVideoView(
-            controller: controller,
-            fit: BoxFit.cover,
-            placeholderBuilder: (_, _) => const Center(
-              child: CircularProgressIndicator(color: Colors.white54),
-            ),
-            errorBuilder: (_, error) => Center(
-              child: Text(
-                error.message,
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        child: ValueListenableBuilder<ReelPlaybackState>(
+          valueListenable: page.controller,
+          builder: (_, state, _) => Text(
+            '#${page.index + 1} · ${state.status.name}'
+            '${state.isBuffering ? ' · buffering' : ''}',
+            style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
-          // Overlay owned by the app.
-          Positioned(
-            left: 16,
-            bottom: 32,
-            child: ValueListenableBuilder<ReelPlaybackState>(
-              valueListenable: controller,
-              builder: (_, state, _) => Text(
-                '#${index + 1} · ${state.status.name}'
-                '${state.isBuffering ? ' · buffering' : ''}',
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

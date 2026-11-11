@@ -1,10 +1,13 @@
 # ReelKit demo
 
-A small short-video app built on ReelKit: an endless vertical feed with
-preloading, tap to pause, double-tap to like, sound toggle, fit/fill for
-landscape videos, fullscreen with orientation lock, an error panel with
-retry, and a live stats sheet (pool, preloading, start latency, network,
-disk cache).
+A small short-video app built on ReelKit. The feed is ReelKit's
+`ReelFeedView`. The demo adds only its own overlay (`lib/reel_overlay.dart`)
+on top of `ReelDefaultControls`: caption, like (also on double tap), a
+feed-wide sound switch, fit/fill for landscape videos and fullscreen with
+orientation lock. The tune button switches the transition (slide,
+parallax, stack, fade, zoom, cube), the swipe direction and reverse. The
+stats button opens a live sheet with pool, preloading, start latency,
+network and disk cache figures.
 
 ```bash
 cd demo
@@ -47,4 +50,11 @@ flutter test integration_test/stall_test.dart -d <device-id>
 
 ```bash
 flutter test integration_test/app_swipe_test.dart -d <device-id>
+```
+
+Hold each transition halfway through a swipe, vertically and
+horizontally, for screenshots (it prints `HOLD <name>` while holding):
+
+```bash
+flutter test integration_test/transitions_test.dart -d <device-id>
 ```

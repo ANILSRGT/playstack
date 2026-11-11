@@ -11,7 +11,7 @@ flutter run            # add --profile for realistic performance
 | Page | Shows |
 | --- | --- |
 | Single player (`lib/pages/player_page.dart`) | Custom controls, seek bar from `positions()`, speed, loop, mute, audio and subtitle track menu, subtitle text overlay, source switching, error display, fullscreen with `matchVideo` |
-| Vertical feed (`lib/pages/feed_page.dart`) | `ReelFeedManager` behind a vertical `PageView`, endless paging with `addAll`, live preload and latency stats |
+| Vertical feed (`lib/pages/feed_page.dart`) | `ReelFeedView` with the default controls plus a label, endless paging with `onEndReached`, live preload and latency stats |
 | Player grid (`lib/pages/grid_page.dart`) | Four controllers, exclusive or concurrent playback |
 | Diagnostics (`lib/pages/diagnostics_page.dart`) | Capabilities, pool usage per priority, creating and disposing controllers, trimming idle players |
 | Benchmark (`lib/pages/benchmark_page.dart`) | Start latency, preloading, rapid scrolling and memory on the device; results as JSON |
@@ -19,10 +19,10 @@ flutter run            # add --profile for realistic performance
 ## Demo app
 
 `demo/` is a minimal short-video app built the way an application would
-use ReelKit: an endless vertical feed (`ReelFeedManager` behind a
-`PageView`), tap to pause, double-tap to like, a sound toggle applied
-before each item starts, fit/fill for landscape videos, fullscreen with
-`matchVideo`, an error panel with `retry()`, and a stats sheet with pool,
+use ReelKit: an endless feed (`ReelFeedView` with the app's overlay on
+`ReelDefaultControls`), a menu to switch transition, direction and
+reverse, double-tap to like, a feed-wide sound switch, fit/fill for
+landscape videos, fullscreen with `matchVideo`, and a stats sheet with pool,
 preload, latency, network and cache figures. It plays public test media
 (43 HLS streams: vertical 9:16 reels and landscape test streams), loads
 HLS.js on the web, and has a catalog health check

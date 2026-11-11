@@ -1,3 +1,21 @@
+## Unreleased
+
+* `ReelFeedView`: a ready-made feed screen over `ReelFeedManager`. It
+  handles paging, vertical or horizontal swiping (`scrollDirection`,
+  `reverse`), transitions, endless loading (`onEndReached`), poster
+  precaching and `autoAdvance` when a video ends. `controlsBuilder` and
+  `videoBuilder` give each page a `ReelFeedPage`. `ReelFeedViewController`
+  moves the view from code.
+* `ReelFeedTransition`: `slide`, `parallax`, `stack`, `fade`, `zoom`,
+  `cube`, or `custom`. Transitions follow the finger and animate moves
+  made from code.
+* `ReelDefaultControls`: tap to pause, a feed-wide sound switch, a progress
+  bar, a buffering indicator that appears only after a long wait, and
+  retry. Its parts are public: `ReelProgressBar`, `ReelBufferingIndicator`
+  and `ReelMuteButton`.
+* `ReelFeedItem` takes a `poster` and app `data`. `ReelFeedManager` gained
+  `setMuted` and `muted` (feed-wide sound) and `itemAt`.
+
 ## 0.1.0-dev.7
 
 * Licensed under the MIT license.

@@ -1,15 +1,25 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:reelkit/reelkit.dart';
 
 import 'catalog.dart';
-import 'reel_tile.dart';
+import 'reel_overlay.dart';
 import 'settings.dart';
 import 'stats_sheet.dart';
 
-/// A vertical, endless short-video feed driven by [ReelFeedManager].
+/// The transitions the demo offers, by name.
+const demoTransitions = <String, ReelFeedTransition>{
+  'Slide': ReelFeedTransition.slide,
+  'Parallax': ReelFeedTransition.parallax,
+  'Stack': ReelFeedTransition.stack,
+  'Fade': ReelFeedTransition.fade,
+  'Zoom': ReelFeedTransition.zoom,
+  'Cube': ReelFeedTransition.cube,
+};
+
+/// An endless short-video feed: ReelKit's [ReelFeedView] with the demo's
+/// overlay on top.
 class ReelsPage extends StatefulWidget {
   const ReelsPage({super.key});
 
@@ -18,19 +28,17 @@ class ReelsPage extends StatefulWidget {
 }
 
 class _ReelsPageState extends State<ReelsPage> {
-  static const _startMuted = kIsWeb;
-
   final ReelKitManager _manager = ReelKitManager(config: demoKitConfig());
-  final PageController _pages = PageController();
-  final Map<String, DemoVideo> _videos = <String, DemoVideo>{};
   final Set<String> _liked = <String>{};
 
   ReelFeedManager? _feed;
   Object? _initError;
   int _batches = 0;
-  bool _muted = _startMuted;
   bool _fill = false;
   bool _fullscreen = false;
+  String _transition = 'Slide';
+  Axis _axis = Axis.vertical;
+  bool _reverse = false;
 
   @override
   void initState() {
@@ -48,22 +56,6 @@ class _ReelsPageState extends State<ReelsPage> {
     if (!mounted) return;
     final feed = _manager.createFeed(_nextBatch(), config: demoFeedConfig);
     setState(() => _feed = feed);
-    feed.setActiveIndex(0);
-    _precachePosters(from: 0);
-  }
-
-  /// Downloads the posters of the next items, so a swipe never shows black
-  /// while the video prepares.
-  void _precachePosters({required int from}) {
-    final feed = _feed!;
-    for (var i = from; i < from + 6 && i < feed.length; i++) {
-      final url = _videos[feed.items[i].id]?.poster;
-      if (url != null) {
-        unawaited(
-          precacheImage(NetworkImage(url), context, onError: (_, _) {}),
-        );
-      }
-    }
   }
 
   /// The catalog again, with fresh ids, for an endless feed.
@@ -71,38 +63,16 @@ class _ReelsPageState extends State<ReelsPage> {
     final batch = _batches++;
     return [
       for (var i = 0; i < demoCatalog.length; i++)
-        () {
-          final id = 'b$batch-$i';
-          _videos[id] = demoCatalog[i];
-          return ReelFeedItem(demoCatalog[i].source, id: id);
-        }(),
+        ReelFeedItem(
+          demoCatalog[i].source,
+          id: 'b$batch-$i',
+          poster: switch (demoCatalog[i].poster) {
+            final url? => NetworkImage(url),
+            null => null,
+          },
+          data: demoCatalog[i],
+        ),
     ];
-  }
-
-  void _onPageChanged(int index) {
-    final feed = _feed!;
-    // Apply the mute state before the feed starts the item.
-    _applyMute(around: index);
-    feed.setActiveIndex(index);
-    _precachePosters(from: index + 1);
-    if (index >= feed.length - 3) {
-      setState(() => feed.addAll(_nextBatch()));
-    }
-  }
-
-  void _applyMute({required int around}) {
-    final feed = _feed!;
-    for (var i = around - 1; i <= around + 2; i++) {
-      if (i < 0 || i >= feed.length) continue;
-      unawaited(
-        feed.controllerAt(i).setMuted(_muted).catchError((Object _) {}),
-      );
-    }
-  }
-
-  void _toggleMute() {
-    setState(() => _muted = !_muted);
-    _applyMute(around: _feed!.activeIndex.value ?? 0);
   }
 
   Future<void> _toggleFullscreen(ReelPlayerController controller) async {
@@ -151,9 +121,88 @@ class _ReelsPageState extends State<ReelsPage> {
     );
   }
 
+  void _showLayout() {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => StatefulBuilder(
+          builder: (context, setSheetState) {
+            void update(VoidCallback change) {
+              setState(change);
+              setSheetState(() {});
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Transition',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final name in demoTransitions.keys)
+                          ChoiceChip(
+                            label: Text(name),
+                            selected: _transition == name,
+                            onSelected: (_) => update(() => _transition = name),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Direction',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    SegmentedButton<Axis>(
+                      segments: const [
+                        ButtonSegment(
+                          value: Axis.vertical,
+                          label: Text('Vertical'),
+                          icon: Icon(Icons.swap_vert),
+                        ),
+                        ButtonSegment(
+                          value: Axis.horizontal,
+                          label: Text('Horizontal'),
+                          icon: Icon(Icons.swap_horiz),
+                        ),
+                      ],
+                      selected: {_axis},
+                      onSelectionChanged: (value) =>
+                          update(() => _axis = value.single),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Reverse'),
+                      subtitle: Text(
+                        _axis == Axis.vertical
+                            ? 'Next video comes from above'
+                            : 'Next video comes from the left',
+                      ),
+                      value: _reverse,
+                      onChanged: (value) => update(() => _reverse = value),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
-    _pages.dispose();
     unawaited(_manager.dispose());
     super.dispose();
   }
@@ -174,36 +223,45 @@ class _ReelsPageState extends State<ReelsPage> {
     } else {
       body = Stack(
         children: [
-          PageView.builder(
-            controller: _pages,
-            scrollDirection: Axis.vertical,
+          ReelFeedView(
+            feed: feed,
+            transition: demoTransitions[_transition]!,
+            scrollDirection: _axis,
+            reverse: _reverse,
             physics: _fullscreen ? const NeverScrollableScrollPhysics() : null,
-            itemCount: feed.length,
-            onPageChanged: _onPageChanged,
-            itemBuilder: (context, index) {
-              final item = feed.items[index];
-              final controller = feed.controllerAt(index);
-              return ValueListenableBuilder<int?>(
-                key: ValueKey(item.id),
-                valueListenable: feed.activeIndex,
-                builder: (context, active, _) => ReelTile(
-                  controller: controller,
-                  video: _videos[item.id]!,
-                  isActive: active == index,
-                  muted: _muted,
-                  fill: _fill,
-                  fullscreen: _fullscreen,
-                  liked: _liked.contains(item.id),
-                  onLike: (liked) => setState(
-                    () => liked ? _liked.add(item.id) : _liked.remove(item.id),
-                  ),
-                  onToggleMute: _toggleMute,
-                  onToggleFill: () => setState(() => _fill = !_fill),
-                  onToggleFullscreen: () =>
-                      unawaited(_toggleFullscreen(controller)),
+            precachePosters: 6,
+            onEndReached: () => feed.addAll(_nextBatch()),
+            videoBuilder: (context, page) =>
+                ValueListenableBuilder<ReelPlaybackState>(
+                  valueListenable: page.controller,
+                  builder: (context, state, _) {
+                    final landscape = isLandscape(
+                      state,
+                      page.data! as DemoVideo,
+                    );
+                    return ReelVideoView(
+                      controller: page.controller,
+                      fit: !landscape || (_fill && !_fullscreen)
+                          ? BoxFit.cover
+                          : BoxFit.contain,
+                      poster: page.item.poster,
+                    );
+                  },
                 ),
-              );
-            },
+            controlsBuilder: (context, page) => ReelOverlay(
+              page: page,
+              fill: _fill,
+              fullscreen: _fullscreen,
+              liked: _liked.contains(page.item.id),
+              onLike: (liked) => setState(
+                () => liked
+                    ? _liked.add(page.item.id)
+                    : _liked.remove(page.item.id),
+              ),
+              onToggleFill: () => setState(() => _fill = !_fill),
+              onToggleFullscreen: () =>
+                  unawaited(_toggleFullscreen(page.controller)),
+            ),
           ),
           if (!_fullscreen)
             SafeArea(
@@ -220,6 +278,14 @@ class _ReelsPageState extends State<ReelsPage> {
                       ),
                     ),
                     const Spacer(),
+                    IconButton(
+                      tooltip: 'Transition and direction',
+                      icon: const Icon(
+                        Icons.tune,
+                        shadows: [Shadow(blurRadius: 6)],
+                      ),
+                      onPressed: _showLayout,
+                    ),
                     IconButton(
                       tooltip: 'Stats',
                       icon: const Icon(

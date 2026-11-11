@@ -1,6 +1,8 @@
 # ReelKit architecture
 
-ReelKit manages native video playback; the application owns the UI. This
+ReelKit manages native video playback. The application owns the look: the
+optional feed view handles paging and transitions, and every control on it
+can be replaced. This
 document records the structure and the decisions behind it. It is updated with
 each milestone.
 
@@ -21,7 +23,7 @@ ReelKit is a federated Flutter plugin developed in a Dart pub workspace.
 ## Layers
 
 ```
- Application UI (PageView, ListView, custom overlays...)
+ Application UI (ReelFeedView + controls, or PageView, ListView...)
         │ commands                    ▲ ValueListenable<ReelPlaybackState>
  ┌──────▼─────────────────────────────┴──────────┐
  │ ReelPlayerController (one per video, cheap)   │  serialized commands,
@@ -167,6 +169,18 @@ shortage lower the limit once. The lowered limit lasts for the manager's
 lifetime. If no player can be taken, the original `decoderUnavailable` error
 is reported. Decoder failures during playback (after preparation) are
 reported, not retried.
+
+**Feed view.** `ReelFeedView` is a thin layer over `ReelFeedManager`.
+It is a `PageView` that reports page changes with `setActiveIndex` and
+follows the feed when the active index moves on its own (items inserted
+above). Pages are keyed by item id, so their state survives insertions.
+Transitions are transforms computed from each page's offset relative to
+the scroll position. There are no custom render objects, so dragging and
+programmatic moves (`animateToPage`) animate the same way. Slide is the
+identity and skips the per-frame work. Everything above the video comes
+from `controlsBuilder`. The defaults (`ReelDefaultControls`) are built
+from small public widgets that apps can reuse. The view never disposes the
+feed.
 
 **Memory pressure.** Idle native players are destroyed and `background`
 controllers lose their players (they prepare again on demand). Releases are

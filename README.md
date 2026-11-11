@@ -78,17 +78,16 @@ final feed = manager.createFeed(
   config: const ReelFeedConfig(preloadAhead: 2, preloadBehind: 1),
 );
 
-PageView.builder(
-  scrollDirection: Axis.vertical,
-  itemCount: feed.length,
-  onPageChanged: feed.setActiveIndex,   // plays it, prepares the next ones
-  itemBuilder: (context, index) => ReelVideoView(
-    controller: feed.controllerAt(index),
-    fit: BoxFit.cover,
+ReelFeedView(
+  feed: feed,                           // plays the item in view, prepares the next
+  transition: ReelFeedTransition.stack, // slide, parallax, stack, fade, zoom, cube
+  scrollDirection: Axis.vertical,       // or horizontal
+  controlsBuilder: (context, page) => ReelDefaultControls(
+    page: page,                         // tap to pause, sound, progress, retry
+    child: MyCaption(post: page.data as Post),
   ),
+  onEndReached: () => feed.addAll(nextPage), // ids keep state stable
 );
-feed.setActiveIndex(0);
-feed.addAll(nextPage);                  // endless feeds; ids keep state stable
 feed.pause();                           // another route covers the feed
 ```
 
@@ -183,6 +182,9 @@ feed.pause();                           // another route covers the feed
   background color, clipping and border radius, plus optional poster,
   placeholder and error builders. No controls. On web, show a controller in
   one view at a time (one `<video>` element).
+- **`ReelFeedView`** is a ready-made feed screen: paging, vertical or
+  horizontal swiping, transitions, posters and endless loading. It shows
+  `ReelDefaultControls` unless you pass your own `controlsBuilder`.
 
 Each concept has a guide with examples in [docs/](docs/README.md).
 

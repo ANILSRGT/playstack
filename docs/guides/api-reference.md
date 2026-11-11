@@ -27,6 +27,8 @@ Library: `package:reelkit/reelkit.dart` (re-exports the types of
 | `ReelSource` (`network`, `asset`, `file`, `memory`), `ReelCachePolicy` | What to play | [Controller](controller.md) |
 | `ReelVideoView` | Renders frames with `fit`, `alignment`, poster, placeholder and error builders | [Rendering](rendering.md) |
 | `ReelFeedManager`, `ReelFeedItem`, `ReelFeedConfig`, `ReelNetworkPreloadPolicy` | Feeds and preloading | [Feeds](feed.md), [Preloading](preloading.md) |
+| `ReelFeedView`, `ReelFeedPage`, `ReelFeedViewController`, `ReelFeedTransition` | Feed screen: paging, direction, transitions, builders | [Feeds](feed.md) |
+| `ReelDefaultControls`, `ReelProgressBar`, `ReelBufferingIndicator`, `ReelMuteButton` | Default feed controls and their parts | [Feeds](feed.md) |
 | `ReelPreloadWindow`, `ReelFeedStats` | Applied window and feed counters | [Preloading](preloading.md) |
 | `ReelPoolConfig`, `ReelPoolStats`, `ReelPlayerPriority` | Native player pool | [Manager](manager.md) |
 | `ReelCacheConfig`, `ReelCacheManager`, `ReelCacheInfo` | Disk cache | [Caching](caching.md) |

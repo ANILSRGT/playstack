@@ -1,11 +1,13 @@
 /// ReelKit: a native video playback manager for Flutter.
 ///
-/// ReelKit manages native players, pooling and lifecycle. You build the UI.
+/// ReelKit manages native players, pooling and lifecycle.
 ///
-/// Start with [ReelKitManager], create a [ReelPlayerController] per video and
-/// display it with [ReelVideoView]. For scrolling feeds, let a
-/// [ReelFeedManager] (`ReelKitManager.createFeed`) assign players and
-/// preload around the item in view.
+/// Start with [ReelKitManager]. For a short-video feed, create a
+/// [ReelFeedManager] (`ReelKitManager.createFeed`) and show it with
+/// [ReelFeedView]: paging, transitions, playback and preloading are handled,
+/// and you supply the controls (or keep [ReelDefaultControls]). For a single
+/// player, create a [ReelPlayerController] and display it with
+/// [ReelVideoView].
 library;
 
 export 'package:reelkit_platform_interface/reelkit_platform_interface.dart'
@@ -42,6 +44,9 @@ export 'src/feed/reel_feed_item.dart';
 export 'src/feed/reel_feed_manager.dart' show ReelFeedManager;
 export 'src/feed/reel_feed_stats.dart';
 export 'src/feed/reel_preload_window.dart';
+export 'src/feed_view/reel_default_controls.dart';
+export 'src/feed_view/reel_feed_transition.dart';
+export 'src/feed_view/reel_feed_view.dart';
 export 'src/fullscreen/reel_fullscreen_manager.dart';
 export 'src/manager/reel_kit_manager.dart';
 export 'src/pool/reel_player_pool.dart' show ReelPlayerPriority, ReelPoolStats;
