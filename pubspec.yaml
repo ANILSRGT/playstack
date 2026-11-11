@@ -12,6 +12,7 @@ workspace:
   - packages/reelkit_android
   - packages/reelkit_ios
   - packages/reelkit_web
+  - demo
 
 dev_dependencies:
   pigeon: ^29.2.0

@@ -16,6 +16,21 @@ flutter run            # add --profile for realistic performance
 | Diagnostics (`lib/pages/diagnostics_page.dart`) | Capabilities, pool usage per priority, creating and disposing controllers, trimming idle players |
 | Benchmark (`lib/pages/benchmark_page.dart`) | Start latency, preloading, rapid scrolling and memory on the device; results as JSON |
 
+## Demo app
+
+`demo/` is a minimal short-video app built the way an application would
+use ReelKit: an endless vertical feed (`ReelFeedManager` behind a
+`PageView`), tap to pause, double-tap to like, a sound toggle applied
+before each item starts, fit/fill for landscape videos, fullscreen with
+`matchVideo`, an error panel with `retry()`, and a stats sheet with pool,
+preload, latency, network and cache figures. It plays public test media
+(MP4 and HLS) plus one bundled asset, and loads HLS.js on the web.
+
+```bash
+cd demo
+flutter run
+```
+
 ## Integration tests
 
 `packages/reelkit/example/integration_test` runs against the real engines:

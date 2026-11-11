@@ -26,6 +26,9 @@ audio, subtitles, errors, platform support, performance, API reference,
 examples), [architecture](docs/ARCHITECTURE.md) and
 [benchmarks](docs/BENCHMARKS.md).
 
+Try it: [`demo/`](demo) is a small short-video app (endless feed, likes,
+sound, fullscreen, live stats) — `cd demo && flutter run`.
+
 ## Quick start
 
 ```dart
