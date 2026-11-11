@@ -10,6 +10,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   FakeReelKitPlatform({
     this.recommendedMaxPlayers = 3,
     this.autoPrepare = true,
+    this.supportsVideoQualityLimit = false,
     this.isLowRamDevice = false,
     this.supportsNetworkStatus = true,
     this.supportsDiskCache = false,
@@ -62,6 +63,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   /// When true, every setSource is answered with an initialized event and a
   /// first-frame event.
   bool autoPrepare;
+  bool supportsVideoQualityLimit;
 
   /// Sources whose preparation fails with this error.
   final Map<ReelSource, ReelKitException> failingSources =
@@ -125,6 +127,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
       supportsMemorySource: false,
       supportsTrackSelection: false,
       supportsPreloadBufferLimit: true,
+      supportsVideoQualityLimit: supportsVideoQualityLimit,
       supportsNetworkStatus: supportsNetworkStatus,
     );
   }
@@ -307,7 +310,9 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     int playerId,
     ReelVideoQualityLimit limit,
   ) async {
-    calls.add('setVideoQualityLimit($playerId, ${limit.maxHeight})');
+    calls.add(
+      'setVideoQualityLimit($playerId, ${limit.maxHeight}, ${limit.maxBitrate})',
+    );
     _check('setVideoQualityLimit');
     _requireLive(playerId);
   }

@@ -25,3 +25,13 @@ a device before a demo:
 ```bash
 flutter test integration_test/catalog_test.dart -d <device-id>
 ```
+
+The settings in `lib/settings.dart` are tuned for swiping two or three
+videos a second: five items prepared ahead, three at a time, each at up
+to ~540p until it plays (then it switches up). Cloudinary and Mux items
+show a poster while they prepare. Measure how many items are ready on
+arrival at that speed:
+
+```bash
+flutter test integration_test/swipe_test.dart -d <device-id>
+```

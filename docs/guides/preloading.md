@@ -7,10 +7,13 @@ video and rendering its first frame while paused.
 ## Order and concurrency
 
 1. The active item is prepared and played first.
-2. Only when it is ready do preloads start: the next item, then the
-   previous one, then the one after next, and so on.
-3. At most `maxConcurrentPreloads` (1) preparations run at once, so
-   preloads never compete with the active item for bandwidth.
+2. Preloads start when it is ready, or after `activeHeadStart` (300 ms)
+   if it is still preparing: the next item, then the previous one, then
+   the one after next, and so on. HLS and DASH startup is mostly round
+   trips, so waiting longer for a slow active item would leave a fast
+   swiper arriving at items nobody started preparing.
+3. At most `maxConcurrentPreloads` (1) preparations run at once besides
+   the active item.
 4. When the active index moves, preloads outside the new window are
    cancelled immediately and their players returned. Scrolling fast through
    a hundred items does not queue a hundred preparations.
@@ -39,6 +42,42 @@ const ReelFeedConfig(
   retryFailedPreloads: true,
 );
 ```
+
+## Fast swiping
+
+At two or three swipes a second the default window (2 ahead, one at a
+time) is outrun: the user reaches items that are still preparing. What
+works, measured with the demo app's HLS feed on an iOS simulator at 350 ms
+per swipe (prepared on arrival: 10-35 % with the defaults, 70-85 % with
+these settings):
+
+```dart
+final manager = ReelKitManager(
+  config: const ReelKitConfig(
+    pool: ReelPoolConfig(maxPlayers: 7),
+    player: ReelPlayerConfig(
+      // Prepare at a low rendition; playing switches up.
+      startupQualityLimit: ReelVideoQualityLimit(maxBitrate: 1600000),
+    ),
+  ),
+);
+final feed = manager.createFeed(
+  items,
+  config: const ReelFeedConfig(
+    preloadAhead: 5,
+    preloadBehind: 1,
+    maxConcurrentPreloads: 3,
+  ),
+);
+```
+
+`startupQualityLimit` matters most: engines start with the first
+rendition of the master playlist, often 1080p, and five parallel 1080p
+starts saturate the connection. The cost is that the first seconds of a
+video play at the startup rendition. Also show a poster
+(`ReelVideoView.poster`, a thumbnail from your video service) so an item
+that is not ready yet never shows black. Measure on your devices and
+network with the demo's `integration_test/swipe_test.dart`.
 
 ## Buffer limit
 

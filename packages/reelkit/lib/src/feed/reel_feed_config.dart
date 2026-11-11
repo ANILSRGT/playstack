@@ -11,6 +11,7 @@ class ReelFeedConfig {
     this.preloadBehind = 1,
     this.autoplay = true,
     this.maxConcurrentPreloads = 1,
+    this.activeHeadStart = const Duration(milliseconds: 300),
     this.network = const ReelNetworkPreloadPolicy(),
     this.lowMemoryPreloadAhead = 1,
     this.memoryPressureCooldown = const Duration(seconds: 30),
@@ -37,6 +38,16 @@ class ReelFeedConfig {
   /// Preparations running at the same time besides the active item. One is
   /// usually best: the next item is ready soonest and bandwidth is not split.
   final int maxConcurrentPreloads;
+
+  /// How long preloads wait for an active item that is still preparing
+  /// before they start anyway.
+  ///
+  /// The active item gets the network first, but HLS and DASH startup is
+  /// bound by round trips rather than bandwidth: if preloads waited for a
+  /// slow active item to finish, a user swiping quickly would arrive at
+  /// item after item that nobody had started preparing. [Duration.zero]
+  /// starts preloads together with the active item.
+  final Duration activeHeadStart;
 
   /// Smaller preload windows on metered, constrained or missing networks.
   final ReelNetworkPreloadPolicy network;
@@ -72,6 +83,7 @@ class ReelFeedConfig {
       other.preloadBehind == preloadBehind &&
       other.autoplay == autoplay &&
       other.maxConcurrentPreloads == maxConcurrentPreloads &&
+      other.activeHeadStart == activeHeadStart &&
       other.network == network &&
       other.lowMemoryPreloadAhead == lowMemoryPreloadAhead &&
       other.memoryPressureCooldown == memoryPressureCooldown &&
@@ -85,6 +97,7 @@ class ReelFeedConfig {
     preloadBehind,
     autoplay,
     maxConcurrentPreloads,
+    activeHeadStart,
     network,
     lowMemoryPreloadAhead,
     memoryPressureCooldown,

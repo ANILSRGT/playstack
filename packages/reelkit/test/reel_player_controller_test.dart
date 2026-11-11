@@ -564,7 +564,7 @@ void main() {
       await controller.initialize();
       final id = platform.livePlayers.single;
       expect(platform.calls, contains('selectTrack($id, audio, a:1)'));
-      expect(platform.calls, contains('setVideoQualityLimit($id, 480)'));
+      expect(platform.calls, contains('setVideoQualityLimit($id, 480, null)'));
     });
 
     test('selections before preparation are applied on preparation', () async {
@@ -744,5 +744,89 @@ void main() {
     await cancelled;
     expect(controller.value.status, ReelPlaybackStatus.idle);
     expect(manager.poolStats.leased, 0);
+  });
+
+  group('startup quality', () {
+    const startup = ReelVideoQualityLimit(maxBitrate: 1000000);
+
+    Future<ReelKitManager> managerWithLimitSupport() async {
+      await manager.dispose();
+      platform = FakeReelKitPlatform(supportsVideoQualityLimit: true);
+      return manager = await createManager();
+    }
+
+    int limitCall(String prefix) =>
+        platform.calls.indexWhere((c) => c.startsWith(prefix));
+
+    test('caps preparation before the source and lifts it on play', () async {
+      await managerWithLimitSupport();
+      final controller = manager.createController(
+        source,
+        config: const ReelPlayerConfig(startupQualityLimit: startup),
+      );
+      await controller.initialize();
+      final id = platform.livePlayers.single;
+      final cap = limitCall('setVideoQualityLimit($id, null, 1000000)');
+      expect(cap, greaterThanOrEqualTo(0));
+      expect(cap, lessThan(limitCall('setSource')));
+
+      platform.calls.clear();
+      await controller.play();
+      expect(
+        platform.calls,
+        containsAllInOrder([
+          'setVideoQualityLimit($id, null, null)',
+          startsWith('play'),
+        ]),
+      );
+
+      // Pausing and playing again keeps the full quality.
+      await controller.pause();
+      platform.calls.clear();
+      await controller.play();
+      expect(platform.callCount('setVideoQualityLimit'), 0);
+    });
+
+    test('the lower of the app limit and the startup limit applies', () async {
+      await managerWithLimitSupport();
+      final controller = manager.createController(
+        source,
+        config: const ReelPlayerConfig(startupQualityLimit: startup),
+      );
+      await controller.setVideoQualityLimit(
+        const ReelVideoQualityLimit(maxBitrate: 500000, maxHeight: 720),
+      );
+      await controller.initialize();
+      final id = platform.livePlayers.single;
+      expect(
+        platform.calls,
+        contains('setVideoQualityLimit($id, 720, 500000)'),
+      );
+
+      await controller.play();
+      // The app's own limit stays after the startup cap is lifted.
+      expect(
+        platform.calls.where((c) => c.startsWith('setVideoQualityLimit')),
+        isNot(contains('setVideoQualityLimit($id, null, null)')),
+      );
+    });
+
+    test('a reused player drops the previous controller limit', () async {
+      await manager.dispose();
+      platform = FakeReelKitPlatform(supportsVideoQualityLimit: true);
+      manager = await createManager(maxPlayers: 1);
+      final limited = manager.createController(source);
+      await limited.setVideoQualityLimit(
+        const ReelVideoQualityLimit(maxHeight: 480),
+      );
+      await limited.initialize();
+      await limited.dispose();
+
+      platform.calls.clear();
+      final next = manager.createController(other);
+      await next.initialize();
+      final id = platform.livePlayers.single;
+      expect(platform.calls, contains('setVideoQualityLimit($id, null, null)'));
+    });
   });
 }

@@ -85,8 +85,12 @@ class _ReelTileState extends State<ReelTile> {
     return ValueListenableBuilder<ReelPlaybackState>(
       valueListenable: _controller,
       builder: (context, state, _) {
+        // Known from the catalog before the video is prepared, so the
+        // poster is laid out like the video.
         final aspect = state.aspectRatio;
-        final landscape = aspect != null && aspect > 1;
+        final landscape = aspect == null
+            ? !widget.video.isVertical
+            : aspect > 1;
         final fit = !landscape || (widget.fill && !widget.fullscreen)
             ? BoxFit.cover
             : BoxFit.contain;
@@ -107,19 +111,17 @@ class _ReelTileState extends State<ReelTile> {
               child: ReelVideoView(
                 controller: _controller,
                 fit: fit,
+                poster: switch (widget.video.poster) {
+                  final url? => NetworkImage(url),
+                  null => null,
+                },
                 errorBuilder: (context, error) => _ErrorPanel(
                   error: error,
                   onRetry: () => unawaited(_controller.retry()),
                 ),
               ),
             ),
-            if (loading)
-              const Center(
-                child: SizedBox.square(
-                  dimension: 36,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-              ),
+            if (loading) const _DelayedSpinner(),
             if (_showPauseIcon && state.status == ReelPlaybackStatus.paused)
               const IgnorePointer(
                 child: Center(
@@ -267,6 +269,47 @@ class _ReelTileState extends State<ReelTile> {
           color: Colors.white,
         );
       },
+    );
+  }
+}
+
+/// A spinner that appears only when loading takes noticeably long, so
+/// quick starts do not flash it.
+class _DelayedSpinner extends StatefulWidget {
+  const _DelayedSpinner();
+
+  @override
+  State<_DelayedSpinner> createState() => _DelayedSpinnerState();
+}
+
+class _DelayedSpinnerState extends State<_DelayedSpinner> {
+  late final Timer _timer;
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) setState(() => _visible = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
+    return const IgnorePointer(
+      child: Center(
+        child: SizedBox.square(
+          dimension: 36,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        ),
+      ),
     );
   }
 }

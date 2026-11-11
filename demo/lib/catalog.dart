@@ -7,12 +7,21 @@ class DemoVideo {
     required this.author,
     required this.source,
     required this.note,
+    this.isVertical = false,
+    this.poster,
   });
 
   final String title;
   final String author;
   final String note;
   final ReelSource source;
+
+  /// Whether the video is portrait, known before it is prepared so that the
+  /// poster is laid out like the video will be.
+  final bool isVertical;
+
+  /// A still of the first frame, shown until the video renders one.
+  final String? poster;
 }
 
 /// Every item is an HLS stream from a public test or demo service.
@@ -21,6 +30,9 @@ class DemoVideo {
 /// and packaged as adaptive HLS on the fly (`sp_full_hd/c_fill,ar_9:16`),
 /// up to 608x1080. A rendition that nobody requested recently is generated
 /// on first request, so the first play of an item can be slower.
+///
+/// Cloudinary and Mux items have a poster: a still of the first frame from
+/// the same service, shown at once while the video prepares.
 final List<DemoVideo> demoCatalog = _interleave(_vertical, _landscape);
 
 const _cloudinary = 'https://res.cloudinary.com/demo/video/upload';
@@ -30,15 +42,39 @@ DemoVideo _reel(String id, String title) => DemoVideo(
   author: '@cloudinary',
   note: 'HLS 9:16, adaptive up to 1080p',
   source: ReelSource.network('$_cloudinary/sp_full_hd/c_fill,ar_9:16/$id.m3u8'),
+  isVertical: true,
+  poster: '$_cloudinary/so_0,c_fill,ar_9:16,w_540,q_auto/$id.jpg',
 );
 
-DemoVideo _hls(String url, String title, String author, String note) =>
-    DemoVideo(
-      title: title,
-      author: author,
-      note: note,
-      source: ReelSource.network(url),
-    );
+DemoVideo _hls(
+  String url,
+  String title,
+  String author,
+  String note, {
+  String? poster,
+}) => DemoVideo(
+  title: title,
+  author: author,
+  note: note,
+  source: ReelSource.network(url),
+  poster: poster ?? _posterFor(url),
+);
+
+/// Cloudinary and Mux serve stills of their own videos.
+String? _posterFor(String url) {
+  if (url.startsWith('$_cloudinary/sp_auto/')) {
+    final id = url
+        .substring('$_cloudinary/sp_auto/'.length)
+        .replaceAll('.m3u8', '');
+    return '$_cloudinary/so_0,w_960,q_auto/$id.jpg';
+  }
+  const mux = 'https://stream.mux.com/';
+  if (url.startsWith(mux)) {
+    final id = url.substring(mux.length).replaceAll('.m3u8', '');
+    return 'https://image.mux.com/$id/thumbnail.jpg?time=1&width=960';
+  }
+  return null;
+}
 
 final _vertical = <DemoVideo>[
   _reel('samples/dance-2', 'Dance'),

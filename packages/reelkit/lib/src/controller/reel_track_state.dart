@@ -65,12 +65,19 @@ class ReelTrackState {
     await _platform().setVideoQualityLimit(playerId, limit);
   }
 
+  /// Records the limit without sending it; the controller applies it as a
+  /// player setting.
+  void storeQualityLimit(ReelVideoQualityLimit limit) => _qualityLimit = limit;
+
   /// Re-applies stored preferences to a freshly prepared player. Features
   /// the engine does not support are skipped; their direct calls already
   /// report `notImplemented` to the application.
-  Future<void> applyPreferences(int playerId) async {
+  Future<void> applyPreferences(
+    int playerId, {
+    bool includeQualityLimit = true,
+  }) async {
     final platform = _platform();
-    if (!_qualityLimit.isUnbounded) {
+    if (includeQualityLimit && !_qualityLimit.isUnbounded) {
       await _ignoreUnsupported(
         () => platform.setVideoQualityLimit(playerId, _qualityLimit),
       );

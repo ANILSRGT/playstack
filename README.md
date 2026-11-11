@@ -119,8 +119,11 @@ feed.pause();                           // another route covers the feed
   of `background` controllers.
 - **Feeds.** `ReelFeedManager` (from `manager.createFeed`) works with any
   scrolling widget: report the item in view with `setActiveIndex`. It plays
-  that item and prepares the window around it, next item first, only after
-  the active item is prepared, `maxConcurrentPreloads` at a time. Items that
+  that item and prepares the window around it, next item first, once the
+  active item is prepared (or after `activeHeadStart`, 300 ms),
+  `maxConcurrentPreloads` at a time. `startupQualityLimit` prepares
+  adaptive streams at a low rendition and switches up when playing, for
+  feeds swiped several times a second. Items that
   leave the window give their player back at once, cancelling preparations
   in flight, so fast scrolling does not queue work. Items are identified by
   id across `insert`, `removeAt`, `replaceAll` and `updateSource`.

@@ -100,8 +100,9 @@ window with network sources for meaningful web numbers.
   item reused one. Preparations of skipped items are cancelled, so the
   last item starts about as fast as a cold start once scrolling stops.
 - **No preloads ran during the rapid scroll** (`preloads_cancelled: 0`):
-  preloads start only after the active item is prepared, which never
-  happened at one change per frame. This is the intended behavior; the
+  preloads start only after the active item is prepared or
+  `activeHeadStart` (300 ms) passed, which never happened at one change
+  per frame. This is the intended behavior; the
   active item gets all bandwidth and decoders.
 - **The first native player is expensive** (about 0.5 s on iOS, 1.1 s on
   the Android emulator, where the first codec initialization in the

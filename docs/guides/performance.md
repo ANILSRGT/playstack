@@ -10,7 +10,9 @@ Dart; measure profile or release builds.
 | Lever | Effect |
 | --- | --- |
 | Preload (`ReelFeedConfig.preloadAhead`, or `initialize()` ahead of time) | Removes preparation from the start: about half of the start on the benchmark devices. The remaining ~100 ms is the engine starting audio output and its clock. |
-| `maxConcurrentPreloads: 1` (default) | The next item is ready soonest; more parallel preloads split bandwidth and decoders. |
+| `maxConcurrentPreloads: 1` (default) | The next item is ready soonest; more parallel preloads split bandwidth and decoders. For fast swiping, raise it together with `preloadAhead` and `startupQualityLimit`; see [Preloading](preloading.md#fast-swiping). |
+| `ReelPlayerConfig.startupQualityLimit` | Prepares HLS/DASH at a low rendition and switches up once playing, so parallel preparations stay small (Android, iOS). |
+| `ReelFeedConfig.activeHeadStart` (300 ms) | How long preloads wait for an active item that is still preparing. |
 | Initialize the manager early | The first native player is the most expensive one (hundreds of ms). |
 | `idleTimeout` | Reusing an idle native player is cheaper than creating one; keep the default 30 s unless memory is tight. |
 | Disk cache | Replays and scrolling back start from disk instead of the network (Android, iOS progressive). |

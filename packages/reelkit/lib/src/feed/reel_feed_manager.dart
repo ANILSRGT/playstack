@@ -443,8 +443,12 @@ class ReelFeedManager extends ChangeNotifier {
     List<int> targets, {
     required bool waitForIdle,
   }) async {
-    // The active item gets the bandwidth and a decoder first.
-    await _settled(active, plan, waitForIdle: waitForIdle);
+    // The active item gets the network and a decoder first, for at most
+    // the head start.
+    await Future.any([
+      _settled(active, plan, waitForIdle: waitForIdle),
+      Future<void>.delayed(config.activeHeadStart),
+    ]);
     if (plan != _plan.value || _disposed) return;
     final queue = [for (final index in targets) _items[index]];
     Future<void> worker() async {

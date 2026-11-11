@@ -18,9 +18,19 @@ import androidx.media3.exoplayer.ExoPlayer
 internal class TrackSelection(private val player: ExoPlayer) {
   private val defaults: TrackSelectionParameters = player.trackSelectionParameters
 
-  /** Restores the player's original selection parameters for a new source. */
+  /**
+   * Restores the player's original selection parameters for a new source.
+   * The video quality limit is a player setting and is kept: ReelKit sets it
+   * before the source, so that it already governs the first rendition.
+   */
   fun reset() {
-    player.trackSelectionParameters = defaults
+    val current = player.trackSelectionParameters
+    player.trackSelectionParameters =
+        defaults
+            .buildUpon()
+            .setMaxVideoBitrate(current.maxVideoBitrate)
+            .setMaxVideoSize(current.maxVideoWidth, current.maxVideoHeight)
+            .build()
   }
 
   fun list(): List<PlatformTrack> {

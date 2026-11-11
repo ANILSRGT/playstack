@@ -100,6 +100,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     legibleOutput = legible
     observe(item)
     applyBufferLimit(to: item)
+    applyQualityLimit(to: item)
     player.replaceCurrentItem(with: item)
     awaitingFrame = true
     updateDisplayLink()
@@ -178,9 +179,20 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     if type == .text && trackId == nil { emitCues([]) }
   }
 
+  /// A player setting: it also applies to every item set afterwards, so a
+  /// limit sent before the source already governs the first rendition.
   func setVideoQualityLimit(maxBitrate: Int64?, maxWidth: Int64?, maxHeight: Int64?) {
+    qualityLimit = (maxBitrate, maxWidth, maxHeight)
     guard let item else { return }
-    TrackSelection.limitVideo(item, maxBitrate: maxBitrate, maxWidth: maxWidth, maxHeight: maxHeight)
+    applyQualityLimit(to: item)
+  }
+
+  private var qualityLimit: (bitrate: Int64?, width: Int64?, height: Int64?) = (nil, nil, nil)
+
+  private func applyQualityLimit(to item: AVPlayerItem) {
+    TrackSelection.limitVideo(
+      item, maxBitrate: qualityLimit.bitrate, maxWidth: qualityLimit.width,
+      maxHeight: qualityLimit.height)
   }
 
   // MARK: AVPlayerItemLegibleOutputPushDelegate

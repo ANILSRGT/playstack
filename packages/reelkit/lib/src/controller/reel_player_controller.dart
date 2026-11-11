@@ -82,6 +82,7 @@ class ReelPlayerController extends ChangeNotifier
     required ReelPlayerConfig config,
   }) : _initializeTimeout = config.initializeTimeout,
        _preloadBufferDuration = config.preloadBufferDuration,
+       _startupQualityLimit = config.startupQualityLimit,
        _retry = config.retry,
        _value = ReelPlaybackState(
          isLooping: config.looping,
@@ -95,7 +96,12 @@ class ReelPlayerController extends ChangeNotifier
   final ReelControllerHost _host;
   final Duration _initializeTimeout;
   final Duration? _preloadBufferDuration;
+  final ReelVideoQualityLimit? _startupQualityLimit;
   final ReelRetryConfig _retry;
+
+  /// Whether the current preparation has started playing, which lifts
+  /// [_startupQualityLimit].
+  bool _startedPlayback = false;
   final StreamController<ReelInterruption> _interruptions =
       StreamController<ReelInterruption>.broadcast();
   Completer<void>? _retryWait;
@@ -216,6 +222,7 @@ class ReelPlayerController extends ChangeNotifier
       if (_value.status == ReelPlaybackStatus.completed) {
         await _host.platform.seekTo(lease.playerId, Duration.zero);
       }
+      _startedPlayback = true;
       await _applySettings();
       if (!_value.isPlaying) {
         _startClock
@@ -366,6 +373,8 @@ class ReelPlayerController extends ChangeNotifier
     await _prepareIfNeeded();
     final lease = _lease;
     if (resume && lease != null && !_disposed && _host.mayStartPlayback(this)) {
+      _startedPlayback = true;
+      await _applySettings();
       await _host.platform.play(lease.playerId);
     }
   }
@@ -393,7 +402,14 @@ class ReelPlayerController extends ChangeNotifier
   /// Caps adaptive video quality, for example on metered networks. Pass
   /// [ReelVideoQualityLimit.none] to remove the cap.
   Future<void> setVideoQualityLimit(ReelVideoQualityLimit limit) =>
-      _command(() => _tracks.setQualityLimit(_preparedPlayerId, limit));
+      _command(() async {
+        if (!_managesQualityLimit) {
+          await _tracks.setQualityLimit(_preparedPlayerId, limit);
+          return;
+        }
+        _tracks.storeQualityLimit(limit);
+        await _applySettings();
+      });
 
   /// Emits the playback position every [interval] while playing, and once
   /// after every state change or seek.
@@ -660,6 +676,7 @@ class ReelPlayerController extends ChangeNotifier
       ..reset()
       ..start();
     _firstFrameMeasured = false;
+    _startedPlayback = false;
     _metrics = _metrics.copyWith(preparations: _metrics.preparations + 1);
     try {
       ReelVideoInfo? info;
@@ -681,7 +698,10 @@ class ReelPlayerController extends ChangeNotifier
       _metrics = _metrics.copyWith(
         lastPreparationTime: _preparationClock.elapsed,
       );
-      await _tracks.applyPreferences(lease.playerId);
+      await _tracks.applyPreferences(
+        lease.playerId,
+        includeQualityLimit: !_managesQualityLimit,
+      );
       _update(
         _value.copyWith(status: ReelPlaybackStatus.ready, videoInfo: info),
       );
@@ -804,6 +824,7 @@ class ReelPlayerController extends ChangeNotifier
     if (resume && _host.mayStartPlayback(this)) {
       _playbackRequested = true;
       _priority = ReelPlayerPriority.active;
+      _startedPlayback = true;
       await _applySettings();
       await _host.platform.play(lease.playerId);
     }
@@ -886,6 +907,35 @@ class ReelPlayerController extends ChangeNotifier
       await platform.setPreloadBufferLimit(lease.playerId, bufferLimit);
       applied.preloadBufferLimit = bufferLimit;
     }
+    if (_managesQualityLimit) {
+      final qualityLimit = _desiredQualityLimit;
+      if (applied.qualityLimit != qualityLimit) {
+        await platform.setVideoQualityLimit(lease.playerId, qualityLimit);
+        applied.qualityLimit = qualityLimit;
+      }
+    }
+  }
+
+  /// Whether the quality limit is a player setting sent by [_applySettings]
+  /// (before the source is set, so it already governs the first rendition).
+  bool get _managesQualityLimit => _host.capabilities.supportsVideoQualityLimit;
+
+  /// The app's limit, tightened by [_startupQualityLimit] until playback
+  /// starts.
+  ReelVideoQualityLimit get _desiredQualityLimit {
+    final limit = _tracks.qualityLimit;
+    final startup = _startupQualityLimit;
+    if (startup == null || _startedPlayback) return limit;
+    int? lower(int? a, int? b) => a == null
+        ? b
+        : b == null
+        ? a
+        : (a < b ? a : b);
+    return ReelVideoQualityLimit(
+      maxBitrate: lower(limit.maxBitrate, startup.maxBitrate),
+      maxWidth: lower(limit.maxWidth, startup.maxWidth),
+      maxHeight: lower(limit.maxHeight, startup.maxHeight),
+    );
   }
 
   /// The forward-buffer cap this controller wants on its native player:

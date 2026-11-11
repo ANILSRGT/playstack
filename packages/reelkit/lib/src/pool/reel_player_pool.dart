@@ -51,6 +51,10 @@ class AppliedPlayerSettings {
 
   /// Native players start without a preload buffer limit.
   Duration? preloadBufferLimit;
+
+  /// Native players start without a quality limit; it applies to every
+  /// source set afterwards.
+  ReelVideoQualityLimit qualityLimit = ReelVideoQualityLimit.none;
 }
 
 /// A native player owned by a [ReelPlayerPool].

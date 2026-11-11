@@ -181,6 +181,27 @@ void main() {
     },
   );
 
+  test('preloads start when the active item is slow to prepare', () async {
+    await start();
+    final feed = manager.createFeed(
+      _items(10),
+      config: const ReelFeedConfig(
+        activeHeadStart: Duration(milliseconds: 100),
+      ),
+    );
+    platform.hangingSources.add(_source(0));
+    feed.setActiveIndex(0);
+    await settle();
+    expect(feed.controllerAt(0).value.status, ReelPlaybackStatus.initializing);
+    expect(feed.controllerAt(1).value.status, ReelPlaybackStatus.idle);
+
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    await settle();
+    expect(feed.controllerAt(1).value.status, ReelPlaybackStatus.ready);
+    expect(feed.controllerAt(2).value.status, ReelPlaybackStatus.ready);
+    expect(feed.controllerAt(0).value.status, ReelPlaybackStatus.initializing);
+  });
+
   test('releasing an item cancels its preparation in flight', () async {
     await start();
     final feed = manager.createFeed(_items(10));

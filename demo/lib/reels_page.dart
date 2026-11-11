@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:reelkit/reelkit.dart';
 
 import 'catalog.dart';
 import 'reel_tile.dart';
+import 'settings.dart';
 import 'stats_sheet.dart';
 
 /// A vertical, endless short-video feed driven by [ReelFeedManager].
@@ -18,22 +18,9 @@ class ReelsPage extends StatefulWidget {
 }
 
 class _ReelsPageState extends State<ReelsPage> {
-  // Browsers block autoplay with sound until the user interacts, so the web
-  // build starts muted; the mute button unmutes from a tap.
   static const _startMuted = kIsWeb;
 
-  final ReelKitManager _manager = ReelKitManager(
-    config: const ReelKitConfig(
-      player: ReelPlayerConfig(looping: true, muted: _startMuted),
-      audio: ReelAudioConfig(
-        // Play with the silent switch on, like video apps do.
-        iosAudioSessionCategory: ReelAudioSessionCategory.playback,
-      ),
-      fullscreen: ReelFullscreenConfig(
-        appOrientations: [DeviceOrientation.portraitUp],
-      ),
-    ),
-  );
+  final ReelKitManager _manager = ReelKitManager(config: demoKitConfig());
   final PageController _pages = PageController();
   final Map<String, DemoVideo> _videos = <String, DemoVideo>{};
   final Set<String> _liked = <String>{};
@@ -59,12 +46,24 @@ class _ReelsPageState extends State<ReelsPage> {
       return;
     }
     if (!mounted) return;
-    final feed = _manager.createFeed(
-      _nextBatch(),
-      config: const ReelFeedConfig(preloadAhead: 2, preloadBehind: 1),
-    );
+    final feed = _manager.createFeed(_nextBatch(), config: demoFeedConfig);
     setState(() => _feed = feed);
     feed.setActiveIndex(0);
+    _precachePosters(from: 0);
+  }
+
+  /// Downloads the posters of the next items, so a swipe never shows black
+  /// while the video prepares.
+  void _precachePosters({required int from}) {
+    final feed = _feed!;
+    for (var i = from; i < from + 6 && i < feed.length; i++) {
+      final url = _videos[feed.items[i].id]?.poster;
+      if (url != null) {
+        unawaited(
+          precacheImage(NetworkImage(url), context, onError: (_, _) {}),
+        );
+      }
+    }
   }
 
   /// The catalog again, with fresh ids, for an endless feed.
@@ -85,6 +84,7 @@ class _ReelsPageState extends State<ReelsPage> {
     // Apply the mute state before the feed starts the item.
     _applyMute(around: index);
     feed.setActiveIndex(index);
+    _precachePosters(from: index + 1);
     if (index >= feed.length - 3) {
       setState(() => feed.addAll(_nextBatch()));
     }
