@@ -24,6 +24,16 @@ class ReelFeedConfig {
        assert(lowMemoryPreloadAhead >= 0),
        assert(controllerRetention >= 0);
 
+  /// Preloading tuned for swiping two or three videos a second: five items
+  /// ahead, one behind, three preparing at a time. `ReelFeedView` uses it
+  /// by default. Use it with `ReelKitConfig.reels`, whose pool has room
+  /// for the window.
+  static const ReelFeedConfig reels = ReelFeedConfig(
+    preloadAhead: 5,
+    preloadBehind: 1,
+    maxConcurrentPreloads: 3,
+  );
+
   /// Items after the active one to prepare (first frame decoded, a few
   /// seconds buffered) before the user reaches them.
   final int preloadAhead;

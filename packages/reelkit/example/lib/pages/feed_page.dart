@@ -5,10 +5,9 @@ import 'package:reelkit/reelkit.dart';
 
 import '../samples.dart';
 
-/// A vertical feed: [ReelFeedView] pages through a [ReelFeedManager], which
-/// decides which items hold native players, plays the item in view and
-/// prepares the next ones. The page keeps ReelKit's default controls and
-/// adds its own label.
+/// An endless vertical feed. [ReelFeedView] does the work: players,
+/// preloading, paging and loading more. The page adds a label on top of the
+/// default controls and shows live stats in the app bar.
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
 
@@ -17,86 +16,64 @@ class FeedPage extends StatefulWidget {
 }
 
 class _FeedPageState extends State<FeedPage> {
-  static const _pageSize = 20;
-
-  final ReelKitManager _manager = ReelKitManager(
-    config: const ReelKitConfig(
-      pool: ReelPoolConfig(maxPlayers: 3),
-      player: ReelPlayerConfig(looping: true),
-    ),
-  );
-  ReelFeedManager? _feed;
+  final _view = ReelFeedViewController();
+  late final List<String> _firstPage = _nextPage();
   Timer? _statsTimer;
+  int _loaded = 0;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_start());
     _statsTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() {}),
     );
   }
 
-  List<ReelFeedItem> _page(int from) => [
-    for (var i = from; i < from + _pageSize; i++)
-      ReelFeedItem(
-        ReelSource.network(sampleVideos[i % sampleVideos.length]),
-        id: 'item-$i',
-      ),
+  /// The next 20 sample URLs, as an API would return them.
+  List<String> _nextPage() => [
+    for (var i = 0; i < 20; i++) sampleVideos[_loaded++ % sampleVideos.length],
   ];
-
-  Future<void> _start() async {
-    await _manager.initialize();
-    final feed = _manager.createFeed(_page(0));
-    if (!mounted) {
-      feed.dispose();
-      return;
-    }
-    setState(() => _feed = feed);
-  }
 
   @override
   void dispose() {
     _statsTimer?.cancel();
-    unawaited(_manager.dispose());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final feed = _feed;
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: feed == null ? null : _Header(manager: _manager, feed: feed),
+        title: _Header(view: _view),
       ),
-      body: feed == null
-          ? const Center(child: CircularProgressIndicator())
-          : ReelFeedView(
-              feed: feed,
-              // Endless feed: append the next page shortly before the end.
-              onEndReached: () => feed.addAll(_page(feed.length)),
-              controlsBuilder: (context, page) => ReelDefaultControls(
-                page: page,
-                child: _Label(page: page),
-              ),
-            ),
+      body: ReelFeedView<String>(
+        items: _firstPage,
+        onLoadMore: () async => _nextPage(),
+        controller: _view,
+        controlsBuilder: (context, page) => ReelDefaultControls(
+          page: page,
+          child: _Label(page: page),
+        ),
+      ),
     );
   }
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.manager, required this.feed});
+  const _Header({required this.view});
 
-  final ReelKitManager manager;
-  final ReelFeedManager feed;
+  final ReelFeedViewController view;
 
   @override
   Widget build(BuildContext context) {
+    final manager = view.manager;
+    final feed = view.feed;
+    if (manager == null || feed == null) return const SizedBox.shrink();
     final pool = manager.poolStats;
     final stats = feed.stats;
     final window = feed.preloadWindow.value;
@@ -118,7 +95,7 @@ class _Header extends StatelessWidget {
 class _Label extends StatelessWidget {
   const _Label({required this.page});
 
-  final ReelFeedPage page;
+  final ReelFeedPage<String> page;
 
   @override
   Widget build(BuildContext context) {

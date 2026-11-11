@@ -2,9 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_demo/catalog.dart';
-import 'package:reelkit_demo/settings.dart';
 
-/// Swipes through the demo feed with the demo's settings at about three
+/// Swipes through the demo catalog with ReelKit's reels presets at about three
 /// videos a second and prints, per swipe, whether the item was prepared on
 /// arrival and when it showed a frame and started moving. A measurement,
 /// not a pass/fail check: results depend on the network.
@@ -15,12 +14,12 @@ void main() {
 
   testWidgets('fast swipes', (tester) async {
     const dwell = Duration(milliseconds: 350);
-    final manager = ReelKitManager(config: demoKitConfig(muted: true));
+    final manager = ReelKitManager(config: ReelKitConfig.reels());
     await manager.initialize();
     final feed = manager.createFeed([
       for (var i = 0; i < demoCatalog.length; i++)
         ReelFeedItem(demoCatalog[i].source, id: '$i'),
-    ], config: demoFeedConfig);
+    ], config: ReelFeedConfig.reels);
     var withFrame = 0;
     var moving = 0;
     for (var i = 0; i < demoCatalog.length; i++) {

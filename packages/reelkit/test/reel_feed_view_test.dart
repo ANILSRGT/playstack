@@ -52,19 +52,20 @@ void main() {
     home: Center(child: SizedBox(width: 300, height: 600, child: child)),
   );
 
-  ReelFeedPageBuilder label(List<ReelFeedPage> seen) => (context, page) {
-    seen.add(page);
-    return Center(
-      child: Text('${page.data} ${page.isActive ? 'active' : 'idle'}'),
-    );
-  };
+  ReelFeedPageBuilder<Object?> label(List<ReelFeedPage<Object?>> seen) =>
+      (context, page) {
+        seen.add(page);
+        return Center(
+          child: Text('${page.data} ${page.isActive ? 'active' : 'idle'}'),
+        );
+      };
 
   testWidgets('activates the first item and follows swipes', (tester) async {
     final feed = await start(tester);
     final changes = <int>[];
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           controlsBuilder: label([]),
           onPageChanged: changes.add,
@@ -86,7 +87,13 @@ void main() {
   testWidgets('starts at initialIndex', (tester) async {
     final feed = await start(tester);
     await tester.pumpWidget(
-      host(ReelFeedView(feed: feed, initialIndex: 3, controlsBuilder: null)),
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          initialIndex: 3,
+          controlsBuilder: null,
+        ),
+      ),
     );
     await settle(tester);
     expect(feed.activeIndex.value, 3);
@@ -97,7 +104,7 @@ void main() {
     final feed = await start(tester);
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           scrollDirection: Axis.horizontal,
           controlsBuilder: null,
@@ -119,7 +126,13 @@ void main() {
     final feed = await start(tester);
     final view = ReelFeedViewController();
     await tester.pumpWidget(
-      host(ReelFeedView(feed: feed, controller: view, controlsBuilder: null)),
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controller: view,
+          controlsBuilder: null,
+        ),
+      ),
     );
     await settle(tester);
     expect(view.isAttached, isTrue);
@@ -149,16 +162,16 @@ void main() {
     tester,
   ) async {
     final feed = await start(tester);
-    await tester.pumpWidget(host(ReelFeedView(feed: feed)));
+    await tester.pumpWidget(host(ReelFeedView<Object?>.feed(feed: feed)));
     await settle(tester);
     expect(find.byType(ReelDefaultControls), findsOneWidget);
     expect(find.byType(ReelMuteButton), findsOneWidget);
     expect(find.byType(ReelVideoView), findsOneWidget);
 
-    final seen = <ReelFeedPage>[];
+    final seen = <ReelFeedPage<Object?>>[];
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           controlsBuilder: label(seen),
           videoBuilder: (context, page) => Text('video ${page.index}'),
@@ -174,7 +187,7 @@ void main() {
     expect(page.item.id, '0');
 
     await tester.pumpWidget(
-      host(ReelFeedView(feed: feed, controlsBuilder: null)),
+      host(ReelFeedView<Object?>.feed(feed: feed, controlsBuilder: null)),
     );
     expect(find.byType(ReelDefaultControls), findsNothing);
     await finish(tester);
@@ -188,11 +201,11 @@ void main() {
     final view = ReelFeedViewController();
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           controller: view,
           controlsBuilder: null,
-          endReachedThreshold: 2,
+          loadMoreThreshold: 2,
           onEndReached: () {
             calls++;
             feed.addAll(_items(5, from: feed.length));
@@ -222,11 +235,11 @@ void main() {
     tester,
   ) async {
     final feed = await start(tester);
-    final seen = <ReelFeedPage>[];
+    final seen = <ReelFeedPage<Object?>>[];
     final view = ReelFeedViewController();
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           controller: view,
           controlsBuilder: label(seen),
@@ -251,7 +264,7 @@ void main() {
     final offsets = <double>[];
     await tester.pumpWidget(
       host(
-        ReelFeedView(
+        ReelFeedView<Object?>.feed(
           feed: feed,
           controlsBuilder: label([]),
           transition: ReelFeedTransition.custom((context, details, child) {
@@ -290,7 +303,7 @@ void main() {
           final feed = await start(tester);
           await tester.pumpWidget(
             host(
-              ReelFeedView(
+              ReelFeedView<Object?>.feed(
                 key: UniqueKey(),
                 feed: feed,
                 transition: transition,
@@ -319,7 +332,7 @@ void main() {
 
   testWidgets('the sound switch mutes the whole feed', (tester) async {
     final feed = await start(tester);
-    await tester.pumpWidget(host(ReelFeedView(feed: feed)));
+    await tester.pumpWidget(host(ReelFeedView<Object?>.feed(feed: feed)));
     await settle(tester);
     expect(feed.controllerAt(0).value.isMuted, isFalse);
 
@@ -337,7 +350,7 @@ void main() {
 
   testWidgets('a tap pauses and resumes', (tester) async {
     final feed = await start(tester);
-    await tester.pumpWidget(host(ReelFeedView(feed: feed)));
+    await tester.pumpWidget(host(ReelFeedView<Object?>.feed(feed: feed)));
     await settle(tester);
     final controller = feed.controllerAt(0);
     expect(controller.value.isPlaying, isTrue);
@@ -360,7 +373,13 @@ void main() {
       player: const ReelPlayerConfig(looping: false),
     );
     await tester.pumpWidget(
-      host(ReelFeedView(feed: feed, autoAdvance: true, controlsBuilder: null)),
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          autoAdvance: true,
+          controlsBuilder: null,
+        ),
+      ),
     );
     await settle(tester);
     final controller = feed.controllerAt(0);
@@ -413,4 +432,191 @@ void main() {
     feed.dispose();
     await finish(tester);
   });
+
+  group('items', () {
+    late FakeReelKitPlatform engine;
+
+    setUp(() {
+      engine = FakeReelKitPlatform();
+      ReelKitPlatform.instance = engine;
+    });
+
+    Future<void> run(WidgetTester tester) async {
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(flush);
+        await tester.pump();
+      }
+    }
+
+    testWidgets('a list of URLs is all it takes', (tester) async {
+      await tester.pumpWidget(
+        host(
+          const ReelFeedView(
+            items: ['https://example.com/a.m3u8', 'https://example.com/b.m3u8'],
+          ),
+        ),
+      );
+      await run(tester);
+      expect(find.byType(ReelDefaultControls), findsOneWidget);
+      expect(engine.calls.where((c) => c.startsWith('play(')), hasLength(1));
+      expect(engine.livePlayers, isNotEmpty);
+
+      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(engine.calls.where((c) => c.startsWith('play(')), hasLength(2));
+
+      // The view created the players, so it releases them all.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      expect(engine.livePlayers, isEmpty);
+    });
+
+    testWidgets('builders get the app item, typed', (tester) async {
+      final posts = [for (var i = 0; i < 3; i++) _Post('p$i')];
+      final seen = <_Post>[];
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<_Post>(
+            items: posts,
+            videoUrl: (post) => post.url,
+            posterUrl: (post) => '${post.url}.jpg',
+            controlsBuilder: (context, page) {
+              seen.add(page.data);
+              return Text('${page.data.id} ${page.isActive}');
+            },
+          ),
+        ),
+      );
+      await run(tester);
+      expect(find.text('p0 true'), findsOneWidget);
+      expect(seen.first, same(posts.first));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('says what is missing without videoUrl', (tester) async {
+      await tester.pumpWidget(host(ReelFeedView<_Post>(items: [_Post('x')])));
+      final error = tester.takeException();
+      expect(error, isArgumentError);
+      expect('$error', contains('videoUrl'));
+    });
+
+    testWidgets('loads more until the source runs dry', (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<String>(
+            items: const ['https://example.com/0.m3u8'],
+            controlsBuilder: null,
+            onLoadMore: () async {
+              calls++;
+              return calls <= 2
+                  ? [
+                      'https://example.com/$calls-a.m3u8',
+                      'https://example.com/$calls-b.m3u8',
+                    ]
+                  : const <String>[];
+            },
+          ),
+        ),
+      );
+      await run(tester);
+      // Near the end from the start: one page of two, then another
+      // (still within three of the end), then the user is far enough.
+      expect(calls, 2);
+      final pageView = tester.widget<PageView>(find.byType(PageView));
+      expect(pageView.childrenDelegate.estimatedChildCount, 5);
+
+      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(calls, 3, reason: 'the empty page ends it');
+      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(calls, 3, reason: 'no more after an empty page');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('a longer items list appends, another one replaces', (
+      tester,
+    ) async {
+      final view = ReelFeedViewController();
+      Widget build(List<String> urls) => host(
+        ReelFeedView<String>(
+          items: urls,
+          controller: view,
+          controlsBuilder: (context, page) => Text(page.data),
+        ),
+      );
+      const a = 'https://example.com/a.m3u8';
+      const b = 'https://example.com/b.m3u8';
+      const c = 'https://example.com/c.m3u8';
+      await tester.pumpWidget(build(const [a]));
+      await run(tester);
+      final first = view.feed!.controllerAt(0);
+
+      await tester.pumpWidget(build(const [a, b]));
+      await run(tester);
+      expect(view.feed!.length, 2);
+      expect(view.feed!.controllerAt(0), same(first), reason: 'kept playing');
+
+      await tester.pumpWidget(build(const [c]));
+      await run(tester);
+      expect(view.feed!.length, 1);
+      expect(find.text(c), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('fullscreen locks swiping and lifts the quality cap', (
+      tester,
+    ) async {
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView(
+            items: const [
+              'https://example.com/a.m3u8',
+              'https://example.com/b.m3u8',
+            ],
+            controller: view,
+          ),
+        ),
+      );
+      await run(tester);
+      final controller = view.feed!.activeController!;
+      final cap = controller.videoQualityLimit;
+
+      await tester.runAsync(view.enterFullscreen);
+      await run(tester);
+      expect(view.isFullscreen, isTrue);
+      expect(engine.fullscreenRequests, hasLength(1));
+      expect(controller.videoQualityLimit, ReelVideoQualityLimit.none);
+      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+      await tester.pumpAndSettle();
+      expect(view.index, 0, reason: 'swiping is locked');
+
+      await tester.runAsync(view.exitFullscreen);
+      await run(tester);
+      expect(view.isFullscreen, isFalse);
+      expect(controller.videoQualityLimit, cap);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+  });
+}
+
+class _Post {
+  _Post(this.id);
+
+  final String id;
+  String get url => 'https://example.com/$id.m3u8';
 }

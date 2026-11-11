@@ -72,23 +72,35 @@ await manager.dispose();           // releases every controller and player
 
 ### Feeds
 
-```dart
-final feed = manager.createFeed(
-  [for (final post in posts) ReelFeedItem(ReelSource.network(post.url), id: post.id)],
-  config: const ReelFeedConfig(preloadAhead: 2, preloadBehind: 1),
-);
+A complete reels screen is one widget:
 
-ReelFeedView(
-  feed: feed,                           // plays the item in view, prepares the next
-  transition: ReelFeedTransition.stack, // slide, parallax, stack, fade, zoom, cube
-  scrollDirection: Axis.vertical,       // or horizontal
+```dart
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  posterUrl: (post) => post.thumbnailUrl,  // optional
+  onLoadMore: () => api.fetchMorePosts(),  // optional; return [] at the end
+)
+```
+
+The widget creates and releases the players, plays the video in view,
+prepares the next ones and loads more items. It also shows default
+controls: tap to pause, sound, fullscreen for landscape videos, progress
+and retry. A list of URLs needs nothing else: `ReelFeedView(items: urls)`.
+
+Customize only what you need:
+
+```dart
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  transition: ReelFeedTransition.stack,  // slide, parallax, stack, fade, zoom, cube
+  scrollDirection: Axis.horizontal,      // stories, carousels
   controlsBuilder: (context, page) => ReelDefaultControls(
-    page: page,                         // tap to pause, sound, progress, retry
-    child: MyCaption(post: page.data as Post),
+    page: page,
+    child: MyCaption(post: page.data),   // page.data is your Post
   ),
-  onEndReached: () => feed.addAll(nextPage), // ids keep state stable
-);
-feed.pause();                           // another route covers the feed
+)
 ```
 
 ## Concepts
@@ -182,9 +194,12 @@ feed.pause();                           // another route covers the feed
   background color, clipping and border radius, plus optional poster,
   placeholder and error builders. No controls. On web, show a controller in
   one view at a time (one `<video>` element).
-- **`ReelFeedView`** is a ready-made feed screen: paging, vertical or
-  horizontal swiping, transitions, posters and endless loading. It shows
-  `ReelDefaultControls` unless you pass your own `controlsBuilder`.
+- **`ReelFeedView`** is a complete feed screen: give it your items. It
+  owns the players and handles paging, vertical or horizontal swiping,
+  transitions, posters, loading more and fullscreen. It shows
+  `ReelDefaultControls` unless you pass your own `controlsBuilder`. Its
+  defaults (`ReelKitConfig.reels`, `ReelFeedConfig.reels`) are tuned for
+  fast swiping.
 
 Each concept has a guide with examples in [docs/](docs/README.md).
 

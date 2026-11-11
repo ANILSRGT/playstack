@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
@@ -16,6 +18,46 @@ class ReelKitConfig {
     this.audio = const ReelAudioConfig(),
     this.fullscreen = const ReelFullscreenConfig(),
   });
+
+  /// Settings tuned for a full-screen short-video feed where users swipe
+  /// two or three videos a second. `ReelFeedView` uses them when it creates
+  /// its own manager.
+  ///
+  /// * Room for the video in view, five ahead and one behind.
+  /// * Videos loop. On the web they start muted, because browsers block
+  ///   autoplay with sound until the user taps.
+  /// * No rendition larger than the screen ([screenQualityLimit]); feed
+  ///   fullscreen lifts this.
+  /// * Preparation at up to ~720p, switching up once playing, so several
+  ///   videos prepare in the time of one swipe.
+  /// * On iOS, sound plays with the silent switch on, like video apps.
+  factory ReelKitConfig.reels() => ReelKitConfig(
+    pool: const ReelPoolConfig(maxPlayers: 7),
+    player: ReelPlayerConfig(
+      looping: true,
+      muted: kIsWeb,
+      videoQualityLimit: screenQualityLimit(),
+      startupQualityLimit: const ReelVideoQualityLimit(maxBitrate: 3400000),
+    ),
+    audio: const ReelAudioConfig(
+      iosAudioSessionCategory: ReelAudioSessionCategory.playback,
+    ),
+  );
+
+  /// A quality limit of the screen's size in physical pixels, portrait:
+  /// as wide as the short side, as tall as the long side. A landscape video
+  /// in a portrait feed is only as wide as the screen, so larger renditions
+  /// are wasted there. Unlimited when the size is not known yet.
+  static ReelVideoQualityLimit screenQualityLimit() {
+    final views = ui.PlatformDispatcher.instance.views;
+    if (views.isEmpty) return ReelVideoQualityLimit.none;
+    final size = views.first.physicalSize;
+    if (size.isEmpty) return ReelVideoQualityLimit.none;
+    return ReelVideoQualityLimit(
+      maxWidth: size.shortestSide.round(),
+      maxHeight: size.longestSide.round(),
+    );
+  }
 
   /// How native players are allocated and reused.
   final ReelPoolConfig pool;

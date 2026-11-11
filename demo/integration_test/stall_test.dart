@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_demo/catalog.dart';
-import 'package:reelkit_demo/settings.dart';
 
 /// Watches the item the user stops on, with the demo's settings: whether
 /// playback ever stops (position not advancing) and when the rendition
@@ -58,12 +57,12 @@ void main() {
   }
 
   testWidgets('playback never stops', (tester) async {
-    final manager = ReelKitManager(config: demoKitConfig(muted: true));
+    final manager = ReelKitManager(config: ReelKitConfig.reels());
     await manager.initialize();
     final feed = manager.createFeed([
       for (var i = 0; i < demoCatalog.length; i++)
         ReelFeedItem(demoCatalog[i].source, id: '$i'),
-    ], config: demoFeedConfig);
+    ], config: ReelFeedConfig.reels);
     var stopped = 0;
     var watched = 0;
     for (var i = 0; i < 8; i++) {

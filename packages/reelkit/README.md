@@ -12,20 +12,15 @@ Engines: AndroidX Media3 ExoPlayer (Android), AVFoundation (iOS) and
 `HTMLVideoElement` (web).
 
 ```dart
-final manager = ReelKitManager();
-await manager.initialize();
-
-final feed = manager.createFeed([
-  for (final post in posts)
-    ReelFeedItem(ReelSource.network(post.url), id: post.id),
-]);
-
-ReelFeedView(
-  feed: feed,
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  posterUrl: (post) => post.thumbnailUrl,
+  onLoadMore: () => api.fetchMorePosts(),
   transition: ReelFeedTransition.stack,
   controlsBuilder: (context, page) =>
-      ReelDefaultControls(page: page, child: MyCaption(page.data)),
-);
+      ReelDefaultControls(page: page, child: MyCaption(post: page.data)),
+)
 ```
 
 Development preview (0.1.0-dev.7): verified on an Android emulator, an

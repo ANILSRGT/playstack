@@ -5,29 +5,21 @@ import 'package:reelkit/reelkit.dart';
 
 import 'catalog.dart';
 
-/// The demo's own layer on a feed page: caption, like and sound buttons, a
-/// heart on double tap and the fullscreen switch. It sits on ReelKit's
-/// default controls, which keep tap to pause, the progress bar, the
-/// delayed buffering indicator and retry.
+/// The demo's own layer on a feed page: caption, a like button and a heart
+/// on double tap. Everything else (tap to pause, sound, fullscreen for
+/// landscape videos, progress, buffering, retry) comes from ReelKit's
+/// default controls underneath.
 class ReelOverlay extends StatefulWidget {
   const ReelOverlay({
     super.key,
     required this.page,
-    required this.fill,
-    required this.fullscreen,
     required this.liked,
     required this.onLike,
-    required this.onToggleFill,
-    required this.onToggleFullscreen,
   });
 
-  final ReelFeedPage page;
-  final bool fill;
-  final bool fullscreen;
+  final ReelFeedPage<DemoVideo> page;
   final bool liked;
   final ValueChanged<bool> onLike;
-  final VoidCallback onToggleFill;
-  final VoidCallback onToggleFullscreen;
 
   @override
   State<ReelOverlay> createState() => _ReelOverlayState();
@@ -35,8 +27,6 @@ class ReelOverlay extends StatefulWidget {
 
 class _ReelOverlayState extends State<ReelOverlay> {
   int _hearts = 0;
-
-  DemoVideo get _video => widget.page.data! as DemoVideo;
 
   void _doubleTap() {
     setState(() => _hearts++);
@@ -49,40 +39,19 @@ class _ReelOverlayState extends State<ReelOverlay> {
     return ReelDefaultControls(
       page: page,
       onDoubleTap: _doubleTap,
-      showMuteButton: false,
-      child: ValueListenableBuilder<ReelPlaybackState>(
-        valueListenable: page.controller,
-        builder: (context, state, _) => Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_hearts > 0) _HeartBurst(key: ValueKey(_hearts)),
-            if (widget.fullscreen)
-              _exitFullscreen()
-            else
-              ..._feedOverlay(state),
-          ],
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_hearts > 0) _HeartBurst(key: ValueKey(_hearts)),
+          if (!page.isFullscreen) ..._feedOverlay(page),
+        ],
       ),
     );
   }
 
-  Widget _exitFullscreen() {
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: IconButton.filledTonal(
-          tooltip: 'Exit fullscreen',
-          icon: const Icon(Icons.fullscreen_exit),
-          onPressed: widget.onToggleFullscreen,
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _feedOverlay(ReelPlaybackState state) {
+  List<Widget> _feedOverlay(ReelFeedPage<DemoVideo> page) {
     const shadow = [Shadow(blurRadius: 8)];
-    final landscape = isLandscape(state, _video);
-    final muted = state.isMuted;
+    final video = page.data;
     return [
       // Darken the bottom so the caption stays readable.
       const IgnorePointer(
@@ -98,33 +67,12 @@ class _ReelOverlayState extends State<ReelOverlay> {
       ),
       Positioned(
         right: 8,
-        bottom: 96,
-        child: Column(
-          children: [
-            _SideButton(
-              icon: widget.liked ? Icons.favorite : Icons.favorite_border,
-              color: widget.liked ? Colors.pinkAccent : null,
-              label: widget.liked ? 'Liked' : 'Like',
-              onTap: () => widget.onLike(!widget.liked),
-            ),
-            _SideButton(
-              icon: muted ? Icons.volume_off : Icons.volume_up,
-              label: muted ? 'Muted' : 'Sound',
-              onTap: () => widget.page.feed.setMuted(!muted),
-            ),
-            if (landscape) ...[
-              _SideButton(
-                icon: widget.fill ? Icons.fit_screen : Icons.zoom_out_map,
-                label: widget.fill ? 'Fit' : 'Fill',
-                onTap: widget.onToggleFill,
-              ),
-              _SideButton(
-                icon: Icons.fullscreen,
-                label: 'Full',
-                onTap: state.isInitialized ? widget.onToggleFullscreen : null,
-              ),
-            ],
-          ],
+        bottom: 120,
+        child: _SideButton(
+          icon: widget.liked ? Icons.favorite : Icons.favorite_border,
+          color: widget.liked ? Colors.pinkAccent : null,
+          label: widget.liked ? 'Liked' : 'Like',
+          onTap: () => widget.onLike(!widget.liked),
         ),
       ),
       Positioned(
@@ -132,52 +80,48 @@ class _ReelOverlayState extends State<ReelOverlay> {
         right: 88,
         bottom: 28,
         child: IgnorePointer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _video.author,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  shadows: shadow,
+          child: ValueListenableBuilder<ReelPlaybackState>(
+            valueListenable: page.controller,
+            builder: (context, state, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  video.author,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    shadows: shadow,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _video.title,
-                style: const TextStyle(fontSize: 15, shadows: shadow),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _describe(state),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white70,
-                  shadows: shadow,
+                const SizedBox(height: 4),
+                Text(
+                  video.title,
+                  style: const TextStyle(fontSize: 15, shadows: shadow),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  _describe(video, state),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.white70,
+                    shadows: shadow,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     ];
   }
 
-  String _describe(ReelPlaybackState state) {
+  String _describe(DemoVideo video, ReelPlaybackState state) {
     final info = state.videoInfo;
     final size = info == null || !info.hasSize
         ? ''
         : ' · ${info.displaySize.width.round()}x${info.displaySize.height.round()}';
-    return '${_video.note}$size';
+    return '${video.note}$size';
   }
-}
-
-/// Whether [video] is wider than tall, from the catalog until the player
-/// knows.
-bool isLandscape(ReelPlaybackState state, DemoVideo video) {
-  final aspect = state.aspectRatio;
-  return aspect == null ? !video.isVertical : aspect > 1;
 }
 
 class _SideButton extends StatelessWidget {

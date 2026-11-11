@@ -9,9 +9,9 @@ import '../feed/reel_feed_manager.dart';
 import 'reel_feed_view.dart';
 
 /// The controls `ReelFeedView` shows when the app supplies none: tap to
-/// pause and play, a sound switch for the whole feed, a thin progress bar,
-/// a buffering indicator that appears only when a wait gets long, and a
-/// retry button on errors.
+/// pause and play, a sound switch for the whole feed, a fullscreen button
+/// for landscape videos, a thin progress bar, a buffering indicator that
+/// appears only when a wait gets long, and a retry button on errors.
 ///
 /// Keep the defaults and add your own layer with [child] (captions, like
 /// buttons), turn parts off, or replace the whole thing with your own
@@ -26,6 +26,7 @@ class ReelDefaultControls extends StatefulWidget {
     this.tapToPause = true,
     this.onDoubleTap,
     this.showMuteButton = true,
+    this.showFullscreenButton = true,
     this.showProgress = true,
     this.showBufferingIndicator = true,
     this.bufferingIndicatorDelay = const Duration(seconds: 2),
@@ -33,11 +34,11 @@ class ReelDefaultControls extends StatefulWidget {
   });
 
   /// The default `ReelFeedView.controlsBuilder`.
-  static Widget builder(BuildContext context, ReelFeedPage page) =>
+  static Widget builder(BuildContext context, ReelFeedPage<Object?> page) =>
       ReelDefaultControls(page: page);
 
   /// The page these controls belong to.
-  final ReelFeedPage page;
+  final ReelFeedPage<Object?> page;
 
   /// The app's own layer, drawn above the video and below the controls'
   /// buttons. Taps it does not handle reach [tapToPause].
@@ -52,6 +53,10 @@ class ReelDefaultControls extends StatefulWidget {
 
   /// Whether a sound switch is shown. It mutes the whole feed.
   final bool showMuteButton;
+
+  /// Whether landscape videos get a fullscreen button. In fullscreen it
+  /// leaves fullscreen.
+  final bool showFullscreenButton;
 
   /// Whether a progress bar runs along the bottom edge.
   final bool showProgress;
@@ -138,20 +143,39 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
                   ),
                 ),
               ),
-            if (widget.showMuteButton)
-              Positioned(
-                right: 4,
-                bottom: 12,
-                child: SafeArea(
-                  top: false,
-                  left: false,
-                  child: ReelMuteButton(
-                    controller: _controller,
-                    feed: page.feed,
-                    color: widget.color,
-                  ),
+            Positioned(
+              right: 4,
+              bottom: 12,
+              child: SafeArea(
+                top: false,
+                left: false,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.showFullscreenButton &&
+                        (page.isFullscreen || (state.aspectRatio ?? 0) > 1))
+                      _IconButton(
+                        icon: page.isFullscreen
+                            ? Icons.fullscreen_exit_rounded
+                            : Icons.fullscreen_rounded,
+                        label: page.isFullscreen
+                            ? 'Exit fullscreen'
+                            : 'Fullscreen',
+                        color: widget.color,
+                        onTap: () => unawaited(
+                          page.view.toggleFullscreen().catchError(_ignore),
+                        ),
+                      ),
+                    if (widget.showMuteButton)
+                      ReelMuteButton(
+                        controller: _controller,
+                        feed: page.feed,
+                        color: widget.color,
+                      ),
+                  ],
                 ),
               ),
+            ),
             if (widget.showProgress)
               Positioned(
                 left: 0,
@@ -415,6 +439,41 @@ class ReelMuteButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  const _IconButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(
+            icon,
+            size: 28,
+            color: color,
+            shadows: const [Shadow(blurRadius: 8)],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:reelkit/reelkit.dart';
 import 'package:reelkit_demo/catalog.dart';
 import 'package:reelkit_demo/reels_page.dart';
-import 'package:reelkit_demo/settings.dart';
 
 /// Holds every transition halfway through a swipe for a few seconds and
 /// prints `HOLD <name>` meanwhile, so a screenshot can be taken from
@@ -15,27 +14,18 @@ void main() {
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
   testWidgets('transitions', (tester) async {
-    final manager = ReelKitManager(config: demoKitConfig(muted: true));
-    await manager.initialize();
     for (final MapEntry(key: name, value: transition)
         in demoTransitions.entries) {
       for (final axis in Axis.values) {
-        final feed = manager.createFeed([
-          for (var i = 0; i < 4; i++)
-            ReelFeedItem(
-              demoCatalog[i].source,
-              id: '$name-$axis-$i',
-              poster: switch (demoCatalog[i].poster) {
-                final url? => NetworkImage(url),
-                null => null,
-              },
-            ),
-        ], config: demoFeedConfig);
+        final view = ReelFeedViewController();
         await tester.pumpWidget(
           MaterialApp(
-            home: ReelFeedView(
+            home: ReelFeedView<DemoVideo>(
               key: UniqueKey(),
-              feed: feed,
+              items: demoCatalog.take(4).toList(),
+              source: (video) => video.source,
+              posterUrl: (video) => video.poster,
+              controller: view,
               transition: transition,
               scrollDirection: axis,
             ),
@@ -61,11 +51,11 @@ void main() {
         }
         await gesture.up();
         await tester.pump(const Duration(seconds: 1));
-        expect(feed.activeIndex.value, 1, reason: '$name ${axis.name}');
+        expect(view.index, 1, reason: '$name ${axis.name}');
         await tester.pumpWidget(const SizedBox());
-        feed.dispose();
+        await tester.pump(const Duration(seconds: 1));
+        view.dispose();
       }
     }
-    await manager.dispose();
   }, timeout: const Timeout(Duration(minutes: 5)));
 }

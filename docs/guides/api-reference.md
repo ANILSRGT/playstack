@@ -27,7 +27,8 @@ Library: `package:reelkit/reelkit.dart` (re-exports the types of
 | `ReelSource` (`network`, `asset`, `file`, `memory`), `ReelCachePolicy` | What to play | [Controller](controller.md) |
 | `ReelVideoView` | Renders frames with `fit`, `alignment`, poster, placeholder and error builders | [Rendering](rendering.md) |
 | `ReelFeedManager`, `ReelFeedItem`, `ReelFeedConfig`, `ReelNetworkPreloadPolicy` | Feeds and preloading | [Feeds](feed.md), [Preloading](preloading.md) |
-| `ReelFeedView`, `ReelFeedPage`, `ReelFeedViewController`, `ReelFeedTransition` | Feed screen: paging, direction, transitions, builders | [Feeds](feed.md) |
+| `ReelFeedView`, `ReelFeedPage`, `ReelFeedViewController`, `ReelFeedTransition` | Complete feed screen from a list of items: players, paging, loading more, direction, transitions, fullscreen, builders | [Feeds](feed.md) |
+| `ReelKitConfig.reels`, `ReelFeedConfig.reels` | Presets tuned for fast swiping | [Feeds](feed.md) |
 | `ReelDefaultControls`, `ReelProgressBar`, `ReelBufferingIndicator`, `ReelMuteButton` | Default feed controls and their parts | [Feeds](feed.md) |
 | `ReelPreloadWindow`, `ReelFeedStats` | Applied window and feed counters | [Preloading](preloading.md) |
 | `ReelPoolConfig`, `ReelPoolStats`, `ReelPlayerPriority` | Native player pool | [Manager](manager.md) |

@@ -2,9 +2,9 @@
 
 A small short-video app built on ReelKit. The feed is ReelKit's
 `ReelFeedView`. The demo adds only its own overlay (`lib/reel_overlay.dart`)
-on top of `ReelDefaultControls`: caption, like (also on double tap), a
-feed-wide sound switch, fit/fill for landscape videos and fullscreen with
-orientation lock. The tune button switches the transition (slide,
+on top of `ReelDefaultControls`: a caption and like (also on double tap).
+Sound, fullscreen for landscape videos, progress and retry come from the
+default controls. The tune button switches the transition (slide,
 parallax, stack, fade, zoom, cube), the swipe direction and reverse. The
 stats button opens a live sheet with pool, preloading, start latency,
 network and disk cache figures.
@@ -29,11 +29,12 @@ a device before a demo:
 flutter test integration_test/catalog_test.dart -d <device-id>
 ```
 
-The settings in `lib/settings.dart` are tuned for swiping two or three
-videos a second: five items prepared ahead, three at a time, each at up
-to ~720p until it plays (then it switches up). Cloudinary and Mux items
-show a poster while they prepare. Measure how many items are ready on
-arrival at that speed:
+The whole feed is one `ReelFeedView` in `lib/reels_page.dart`. Its
+defaults (`ReelKitConfig.reels`, `ReelFeedConfig.reels`) are tuned for
+swiping two or three videos a second: five items prepared ahead, three at
+a time, each at up to ~720p until it plays (then it switches up).
+Cloudinary and Mux items show a poster while they prepare. Measure how
+many items are ready on arrival at that speed:
 
 ```bash
 flutter test integration_test/swipe_test.dart -d <device-id>

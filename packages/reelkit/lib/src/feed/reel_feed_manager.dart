@@ -6,6 +6,7 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import '../config/reel_kit_config.dart';
 import '../controller/reel_playback_state.dart';
 import '../controller/reel_player_controller.dart';
+import '../manager/reel_kit_manager.dart';
 import '../pool/reel_player_pool.dart';
 import 'reel_feed_config.dart';
 import 'reel_feed_item.dart';
@@ -64,6 +65,9 @@ class ReelFeedManager extends ChangeNotifier {
 
   /// Preloading and playback settings of this feed.
   final ReelFeedConfig config;
+
+  /// The manager that created this feed.
+  ReelKitManager get manager => _host as ReelKitManager;
   final List<ReelFeedItem> _items;
   final Map<String, ReelPlayerController> _controllers =
       <String, ReelPlayerController>{};

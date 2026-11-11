@@ -1,8 +1,13 @@
 # Quick start
 
-For a short-video feed, see [Feeds](feed.md): `ReelFeedView` gives a
-complete feed screen and you only supply the controls. This page shows a
-single player, where three objects do the work:
+For a short-video feed you need one widget:
+
+```dart
+ReelFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl)
+```
+
+See [Feeds](feed.md) for controls, transitions and loading more. The rest
+of this page shows a single player, where three objects do the work:
 
 - `ReelKitManager` owns the native engine and a bounded pool of native
   players. Create one per playback context (a feed, a screen).

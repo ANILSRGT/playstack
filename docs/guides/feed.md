@@ -1,54 +1,70 @@
 # Feeds
 
-A short-video feed takes two objects:
-
-- `ReelFeedManager` holds the items and their players. It plays the item
-  in view and prepares the items around it, within pool, network and
-  memory limits.
-- `ReelFeedView` shows the feed. It handles paging, swipe direction,
-  transitions, activation, posters and endless loading. You supply the
-  controls, or keep the default ones.
+A short-video feed is one widget. Give `ReelFeedView` your items and tell
+it where each video is:
 
 ```dart
-final manager = ReelKitManager();
-await manager.initialize();
-
-final feed = manager.createFeed([
-  for (final post in posts)
-    ReelFeedItem(
-      ReelSource.network(post.videoUrl),
-      id: post.id,
-      poster: NetworkImage(post.thumbnailUrl),
-      data: post,
-    ),
-]);
-
-ReelFeedView(
-  feed: feed,
-  onEndReached: () async => feed.addAll(await loadMore()),
-);
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  posterUrl: (post) => post.thumbnailUrl,   // optional, shown until the first frame
+  onLoadMore: () => api.fetchMorePosts(),   // optional, return [] when there are no more
+)
 ```
 
-The view never disposes the feed. Dispose the feed or its manager when the
-screen closes.
+That is all. The view:
+
+- creates the players when it appears and releases them when it goes
+  away
+- plays the video in view and prepares the next ones
+- loads more items when the user nears the end
+- shows default controls: tap to pause, sound, fullscreen for landscape
+  videos, progress and retry
+
+For a list of URLs, pass just the list: `ReelFeedView(items: urls)`. For
+assets, files or HTTP headers, use `source: (post) => ReelSource...`
+instead of `videoUrl`.
+
+Its settings (`ReelKitConfig.reels` and `ReelFeedConfig.reels`) are tuned
+for swiping two or three videos a second. They include:
+
+- five videos prepared ahead
+- looping
+- quality capped to the screen
+- fast startup at lower quality, then switching up while playing
+- muted autoplay on the web
+
+To change them, pass `manager:` (a `ReelKitManager` with your config) or
+`feedConfig:`.
+
+### Updating items
+
+Keep your list in state and pass a new one when it changes:
+
+- A list that starts with the old one appends the new items, so playback
+  continues.
+- Any other list replaces the feed, for example after pull to refresh.
+
+When items can be reordered or removed, pass `itemId: (post) => post.id`.
+Players then follow their items instead of starting over.
 
 ## Controls
 
 `controlsBuilder` draws everything above the video. It is called for each
 page with a `ReelFeedPage`, which gives you:
 
-- `item`: the feed item
-- `data`: your object, from `ReelFeedItem.data`
-- `index`: the item's position in the feed
-- `controller`: the item's `ReelPlayerController`
+- `data`: your item, typed (a `Post` in a `ReelFeedView<Post>`)
+- `controller`: the video's `ReelPlayerController`: play, pause, seek, state
 - `isActive`: whether this item is the one in view
-- `feed`: the `ReelFeedManager`
-- `view`: a `ReelFeedViewController`, to move the view
+- `isFullscreen`: whether the view is in fullscreen
+- `index`: the item's position
+- `view`: a `ReelFeedViewController`: next page, fullscreen, sound
 
 By default the builder is `ReelDefaultControls`:
 
 - tap to pause and resume
-- a sound switch that mutes the whole feed (`feed.setMuted`)
+- a sound switch that mutes the whole feed
+- a fullscreen button on landscape videos
 - a thin progress bar
 - a buffering indicator that appears only when a wait gets long
 - a retry button on errors
@@ -60,13 +76,14 @@ screen it waits 800 ms.
 Keep the defaults and add your own layer:
 
 ```dart
-ReelFeedView(
-  feed: feed,
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
   controlsBuilder: (context, page) => ReelDefaultControls(
     page: page,
-    onDoubleTap: () => like(page.data as Post),
+    onDoubleTap: () => like(page.data),
     showMuteButton: false, // we draw our own
-    child: PostOverlay(post: page.data as Post, controller: page.controller),
+    child: PostOverlay(post: page.data, controller: page.controller),
   ),
 )
 ```
@@ -77,11 +94,12 @@ Or replace the defaults completely. The parts are public: `ReelProgressBar`,
 `ReelBufferingIndicator` and `ReelMuteButton`.
 
 ```dart
-ReelFeedView(
-  feed: feed,
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
   controlsBuilder: (context, page) => Stack(
     children: [
-      MyCaption(post: page.data as Post),
+      MyCaption(post: page.data),
       Positioned(
         bottom: 0, left: 0, right: 0,
         child: ReelProgressBar(controller: page.controller, active: page.isActive),
@@ -94,23 +112,16 @@ ReelFeedView(
 
 Pass `controlsBuilder: null` for no controls at all.
 
-`videoBuilder` replaces the video layer. By default it is a `ReelVideoView`
-with `fit` (default `BoxFit.cover`) and the item's poster. Use it to choose
-the fit per video:
-
-```dart
-videoBuilder: (context, page) => ReelVideoView(
-  controller: page.controller,
-  fit: (page.data as Post).isLandscape ? BoxFit.contain : BoxFit.cover,
-  poster: page.item.poster,
-),
-```
+By default portrait videos fill the page and landscape videos are shown
+whole. Pass `fit:` to use one fit for every video, or `videoBuilder:` to
+replace the video layer.
 
 ## Direction and transitions
 
 ```dart
-ReelFeedView(
-  feed: feed,
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
   scrollDirection: Axis.horizontal, // stories, carousels
   reverse: true,                    // next item from the left (or above)
   transition: ReelFeedTransition.stack,
@@ -151,37 +162,65 @@ transition: ReelFeedTransition.custom((context, details, child) {
 ```dart
 final view = ReelFeedViewController();
 
-ReelFeedView(feed: feed, controller: view);
+ReelFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl, controller: view);
 
-await view.nextPage();      // animated, with transitionDuration and transitionCurve
+await view.nextPage();      // animated with the view's transition
 await view.previousPage();
 await view.animateTo(10, duration: const Duration(milliseconds: 600));
 view.jumpTo(0);
+await view.toggleFullscreen();
+view.setMuted(true);
+view.manager;               // stats, cache, network status
 ```
 
-Builders also get the controller as `page.view`.
+Builders also get the controller as `page.view`. The controller is a
+`Listenable`: wrap an app bar in a `ListenableBuilder` to hide it in
+fullscreen or to show the page number.
+
+Fullscreen turns the screen to match the video and lifts the quality cap.
+Swiping is locked, and the back button leaves fullscreen.
 
 To move to the next video when the current one ends, set `autoAdvance:
-true`. It needs videos that do not loop
-(`ReelPlayerConfig(looping: false)`).
+true`. It needs videos that do not loop:
 
-Lock swiping with `physics: const NeverScrollableScrollPhysics()`, for
-example in fullscreen.
+```dart
+manager: ReelKitManager(
+  config: ReelKitConfig(player: ReelPlayerConfig(looping: false)),
+),
+```
 
-## Endless feeds
+## Posters
 
-`onEndReached` is called when the user is `endReachedThreshold` items
-(default 3) from the end, once per feed length. Append the next page
-there.
-
-The view also downloads the posters of the next `precachePosters` items
+The view downloads the posters of the next `precachePosters` items
 (default 3) ahead of time, so a fast swipe shows a poster rather than
 black.
 
+## Managing the feed yourself
+
+`ReelFeedView.feed` shows a `ReelFeedManager` you create and own. This
+is for cases where your own code adds, inserts and removes items, or
+where several screens share one feed:
+
+```dart
+final manager = ReelKitManager(config: ReelKitConfig.reels());
+await manager.initialize();
+final feed = manager.createFeed(
+  [for (final post in posts) ReelFeedItem(ReelSource.network(post.url), id: post.id, data: post)],
+  config: ReelFeedConfig.reels,
+);
+
+ReelFeedView<Post>.feed(
+  feed: feed,
+  onEndReached: () => feed.addAll(morePosts()),
+)
+```
+
+You dispose the feed (or the manager) yourself.
+
 ## Item identity
 
-Each `ReelFeedItem` has an `id`, taken from the argument, the source's
-`id`, or generated. Controllers follow ids. So a playing video keeps
+This applies to `ReelFeedView.feed`. Each `ReelFeedItem` has an `id`,
+taken from the argument, the source's `id`, or generated. Controllers follow ids. So a playing video keeps
 playing, and `ReelFeedView` keeps it on screen, when items are inserted or
 removed above it.
 

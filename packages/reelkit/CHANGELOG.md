@@ -1,20 +1,26 @@
 ## Unreleased
 
-* `ReelFeedView`: a ready-made feed screen over `ReelFeedManager`. It
-  handles paging, vertical or horizontal swiping (`scrollDirection`,
-  `reverse`), transitions, endless loading (`onEndReached`), poster
-  precaching and `autoAdvance` when a video ends. `controlsBuilder` and
-  `videoBuilder` give each page a `ReelFeedPage`. `ReelFeedViewController`
-  moves the view from code.
+* `ReelFeedView<T>`: a complete feed screen in one widget. Pass `items`
+  and `videoUrl` (and optionally `posterUrl` and `onLoadMore`). The view
+  creates and releases its players and handles paging, vertical or
+  horizontal swiping (`scrollDirection`, `reverse`), transitions, loading
+  more, poster precaching, fullscreen and `autoAdvance` when a video ends.
+  `controlsBuilder` and `videoBuilder` receive a typed `ReelFeedPage<T>`.
+  `ReelFeedView.feed` shows a `ReelFeedManager` you manage yourself.
+  `ReelFeedViewController` (a `Listenable`) moves pages, switches
+  fullscreen and sound, and exposes the feed and the manager.
+* `ReelKitConfig.reels()`, `ReelKitConfig.screenQualityLimit()` and
+  `ReelFeedConfig.reels`: presets tuned for fast swiping, used by
+  `ReelFeedView` by default.
 * `ReelFeedTransition`: `slide`, `parallax`, `stack`, `fade`, `zoom`,
   `cube`, or `custom`. Transitions follow the finger and animate moves
   made from code.
-* `ReelDefaultControls`: tap to pause, a feed-wide sound switch, a progress
-  bar, a buffering indicator that appears only after a long wait, and
+* `ReelDefaultControls`: tap to pause, a feed-wide sound switch, a
+  fullscreen button for landscape videos, a progress bar, a buffering indicator that appears only after a long wait, and
   retry. Its parts are public: `ReelProgressBar`, `ReelBufferingIndicator`
   and `ReelMuteButton`.
 * `ReelFeedItem` takes a `poster` and app `data`. `ReelFeedManager` gained
-  `setMuted` and `muted` (feed-wide sound) and `itemAt`.
+  `setMuted` and `muted` (feed-wide sound), `itemAt` and `manager`.
 
 ## 0.1.0-dev.7
 

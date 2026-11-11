@@ -5,7 +5,6 @@ import 'package:reelkit/reelkit.dart';
 
 import 'catalog.dart';
 import 'reel_overlay.dart';
-import 'settings.dart';
 import 'stats_sheet.dart';
 
 /// The transitions the demo offers, by name.
@@ -18,8 +17,8 @@ const demoTransitions = <String, ReelFeedTransition>{
   'Cube': ReelFeedTransition.cube,
 };
 
-/// An endless short-video feed: ReelKit's [ReelFeedView] with the demo's
-/// overlay on top.
+/// The demo's feed: ReelKit's [ReelFeedView] with the demo's overlay, plus
+/// menus to change the transition and to show stats.
 class ReelsPage extends StatefulWidget {
   const ReelsPage({super.key});
 
@@ -28,95 +27,96 @@ class ReelsPage extends StatefulWidget {
 }
 
 class _ReelsPageState extends State<ReelsPage> {
-  final ReelKitManager _manager = ReelKitManager(config: demoKitConfig());
-  final Set<String> _liked = <String>{};
-
-  ReelFeedManager? _feed;
-  Object? _initError;
-  int _batches = 0;
-  bool _fill = false;
-  bool _fullscreen = false;
+  final _view = ReelFeedViewController();
+  final _liked = <String>{};
   String _transition = 'Slide';
   Axis _axis = Axis.vertical;
   bool _reverse = false;
 
   @override
-  void initState() {
-    super.initState();
-    unawaited(_start());
+  void dispose() {
+    _view.dispose();
+    super.dispose();
   }
 
-  Future<void> _start() async {
-    try {
-      await _manager.initialize();
-    } on Object catch (error) {
-      if (mounted) setState(() => _initError = error);
-      return;
-    }
-    if (!mounted) return;
-    final feed = _manager.createFeed(_nextBatch(), config: demoFeedConfig);
-    setState(() => _feed = feed);
-  }
-
-  /// The catalog again, with fresh ids, for an endless feed.
-  List<ReelFeedItem> _nextBatch() {
-    final batch = _batches++;
-    return [
-      for (var i = 0; i < demoCatalog.length; i++)
-        ReelFeedItem(
-          demoCatalog[i].source,
-          id: 'b$batch-$i',
-          poster: switch (demoCatalog[i].poster) {
-            final url? => NetworkImage(url),
-            null => null,
-          },
-          data: demoCatalog[i],
-        ),
-    ];
-  }
-
-  Future<void> _toggleFullscreen(ReelPlayerController controller) async {
-    final fullscreen = _manager.fullscreen;
-    if (_fullscreen) {
-      setState(() => _fullscreen = false);
-      await fullscreen.exit();
-      await controller.setVideoQualityLimit(screenQualityLimit());
-      return;
-    }
-    setState(() => _fullscreen = true);
-    // Fullscreen shows the video at the screen's long side: allow 1080p.
-    unawaited(
-      controller
-          .setVideoQualityLimit(ReelVideoQualityLimit.none)
-          .catchError((Object _) {}),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          ReelFeedView<DemoVideo>(
+            items: demoCatalog,
+            source: (video) => video.source,
+            posterUrl: (video) => video.poster,
+            // Endless: the catalog again whenever the end is near.
+            onLoadMore: () async => demoCatalog,
+            controller: _view,
+            transition: demoTransitions[_transition]!,
+            scrollDirection: _axis,
+            reverse: _reverse,
+            controlsBuilder: (context, page) => ReelOverlay(
+              page: page,
+              liked: _liked.contains(page.item.id),
+              onLike: (liked) => setState(
+                () => liked
+                    ? _liked.add(page.item.id)
+                    : _liked.remove(page.item.id),
+              ),
+            ),
+          ),
+          ListenableBuilder(
+            listenable: _view,
+            builder: (context, _) =>
+                _view.isFullscreen ? const SizedBox.shrink() : _topBar(),
+          ),
+        ],
+      ),
     );
-    try {
-      await fullscreen.enter(
-        orientation: ReelFullscreenOrientation.matchVideo,
-        controller: controller,
-      );
-    } on ReelKitException catch (error) {
-      if (!mounted) return;
-      setState(() => _fullscreen = false);
-      unawaited(
-        controller
-            .setVideoQualityLimit(screenQualityLimit())
-            .catchError((Object _) {}),
-      );
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.message)));
-    }
+  }
+
+  Widget _topBar() {
+    const shadows = [Shadow(blurRadius: 6)];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            const Text(
+              'ReelKit',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                shadows: shadows,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Transition and direction',
+              icon: const Icon(Icons.tune, shadows: shadows),
+              onPressed: _showLayout,
+            ),
+            IconButton(
+              tooltip: 'Stats',
+              icon: const Icon(Icons.insights, shadows: shadows),
+              onPressed: _showStats,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showStats() {
-    final feed = _feed;
-    if (feed == null) return;
+    final manager = _view.manager;
+    final feed = _view.feed;
+    if (manager == null || feed == null) return;
     unawaited(
       showModalBottomSheet<void>(
         context: context,
         showDragHandle: true,
         isScrollControlled: true,
-        builder: (_) => StatsSheet(manager: _manager, feed: feed),
+        builder: (_) => StatsSheet(manager: manager, feed: feed),
       ),
     );
   }
@@ -133,6 +133,7 @@ class _ReelsPageState extends State<ReelsPage> {
               setSheetState(() {});
             }
 
+            final title = Theme.of(context).textTheme.titleSmall;
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -140,10 +141,7 @@ class _ReelsPageState extends State<ReelsPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Transition',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text('Transition', style: title),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -158,10 +156,7 @@ class _ReelsPageState extends State<ReelsPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'Direction',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text('Direction', style: title),
                     const SizedBox(height: 8),
                     SegmentedButton<Axis>(
                       segments: const [
@@ -198,118 +193,6 @@ class _ReelsPageState extends State<ReelsPage> {
           },
         ),
       ),
-    );
-  }
-
-  @override
-  void dispose() {
-    unawaited(_manager.dispose());
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final feed = _feed;
-    final Widget body;
-    if (_initError case final error?) {
-      body = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text('ReelKit could not start:\n$error'),
-        ),
-      );
-    } else if (feed == null) {
-      body = const Center(child: CircularProgressIndicator());
-    } else {
-      body = Stack(
-        children: [
-          ReelFeedView(
-            feed: feed,
-            transition: demoTransitions[_transition]!,
-            scrollDirection: _axis,
-            reverse: _reverse,
-            physics: _fullscreen ? const NeverScrollableScrollPhysics() : null,
-            precachePosters: 6,
-            onEndReached: () => feed.addAll(_nextBatch()),
-            videoBuilder: (context, page) =>
-                ValueListenableBuilder<ReelPlaybackState>(
-                  valueListenable: page.controller,
-                  builder: (context, state, _) {
-                    final landscape = isLandscape(
-                      state,
-                      page.data! as DemoVideo,
-                    );
-                    return ReelVideoView(
-                      controller: page.controller,
-                      fit: !landscape || (_fill && !_fullscreen)
-                          ? BoxFit.cover
-                          : BoxFit.contain,
-                      poster: page.item.poster,
-                    );
-                  },
-                ),
-            controlsBuilder: (context, page) => ReelOverlay(
-              page: page,
-              fill: _fill,
-              fullscreen: _fullscreen,
-              liked: _liked.contains(page.item.id),
-              onLike: (liked) => setState(
-                () => liked
-                    ? _liked.add(page.item.id)
-                    : _liked.remove(page.item.id),
-              ),
-              onToggleFill: () => setState(() => _fill = !_fill),
-              onToggleFullscreen: () =>
-                  unawaited(_toggleFullscreen(page.controller)),
-            ),
-          ),
-          if (!_fullscreen)
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    const Text(
-                      'ReelKit',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        shadows: [Shadow(blurRadius: 6)],
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: 'Transition and direction',
-                      icon: const Icon(
-                        Icons.tune,
-                        shadows: [Shadow(blurRadius: 6)],
-                      ),
-                      onPressed: _showLayout,
-                    ),
-                    IconButton(
-                      tooltip: 'Stats',
-                      icon: const Icon(
-                        Icons.insights,
-                        shadows: [Shadow(blurRadius: 6)],
-                      ),
-                      onPressed: _showStats,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      );
-    }
-    return PopScope(
-      canPop: !_fullscreen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _fullscreen) {
-          final controller = _feed?.activeController;
-          if (controller != null) unawaited(_toggleFullscreen(controller));
-        }
-      },
-      child: Scaffold(backgroundColor: Colors.black, body: body),
     );
   }
 }

@@ -179,8 +179,16 @@ the scroll position. There are no custom render objects, so dragging and
 programmatic moves (`animateToPage`) animate the same way. Slide is the
 identity and skips the per-frame work. Everything above the video comes
 from `controlsBuilder`. The defaults (`ReelDefaultControls`) are built
-from small public widgets that apps can reuse. The view never disposes the
-feed.
+from small public widgets that apps can reuse.
+
+The main constructor takes the app's own items (`List<T>`). The view
+creates the manager (with the `reels` presets) and the feed, generates
+item ids, and disposes both when it is removed. A junior developer never
+handles ids, managers or batching. A new `items` list that extends the
+previous one is appended; any other list replaces the feed. `onLoadMore`
+runs one call at a time, and an empty result ends the feed.
+`ReelFeedView.feed` keeps the lower-level path for apps that manage a
+`ReelFeedManager` themselves; that feed is never disposed by the view.
 
 **Memory pressure.** Idle native players are destroyed and `background`
 controllers lose their players (they prepare again on demand). Releases are
