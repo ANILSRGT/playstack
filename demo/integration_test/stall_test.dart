@@ -67,7 +67,12 @@ void main() {
     var stopped = 0;
     var watched = 0;
     for (var i = 0; i < 8; i++) {
-      stopped += await watch('pace', feed, i);
+      stopped += await watch(
+        'pace',
+        feed,
+        i,
+        duration: const Duration(seconds: 12),
+      );
       watched++;
     }
     for (var start = 8; start + 5 < demoCatalog.length; start += 6) {

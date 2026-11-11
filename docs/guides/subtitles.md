@@ -78,6 +78,14 @@ await controller.setVideoQualityLimit(
 await controller.setVideoQualityLimit(ReelVideoQualityLimit.none);
 ```
 
+Changing the limit never interrupts playback: it applies at the next
+segment the engine loads, like any adaptive switch. Raising it switches up
+once a few seconds are buffered (Android: one segment's worth, 4 s; iOS:
+AVFoundation decides); lowering it switches down at the next segment. On
+Android the limit is read inside adaptive track selection rather than set
+as `TrackSelectionParameters`, which would discard the buffer of HLS and
+DASH streams and stall.
+
 On Android a specific video track (rendition) can also be selected with
 `selectTrack`.
 

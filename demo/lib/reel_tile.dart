@@ -122,13 +122,14 @@ class _ReelTileState extends State<ReelTile> {
               ),
             ),
             if (loading)
-              // Nothing to look at yet: say so soon. A video already on
-              // screen that waits briefly (a rendition switch, a slow
-              // segment) keeps its frame without a spinner.
+              // Waiting looks like a brief freeze: the last frame (or the
+              // poster) stays on screen. Only a long wait gets a spinner,
+              // sooner when the screen is black.
               _DelayedSpinner(
-                delay: state.hasRenderedFirstFrame
-                    ? const Duration(milliseconds: 1200)
-                    : const Duration(milliseconds: 400),
+                delay:
+                    state.hasRenderedFirstFrame || widget.video.poster != null
+                    ? const Duration(seconds: 2)
+                    : const Duration(milliseconds: 800),
               ),
             if (_showPauseIcon && state.status == ReelPlaybackStatus.paused)
               const IgnorePointer(
@@ -281,8 +282,8 @@ class _ReelTileState extends State<ReelTile> {
   }
 }
 
-/// A spinner that appears only when loading takes noticeably long, so
-/// quick starts do not flash it.
+/// A spinner that fades in only when loading takes long; until then the
+/// screen simply holds its last frame.
 class _DelayedSpinner extends StatefulWidget {
   const _DelayedSpinner({required this.delay});
 
@@ -313,11 +314,17 @@ class _DelayedSpinnerState extends State<_DelayedSpinner> {
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
-    return const IgnorePointer(
+    return IgnorePointer(
       child: Center(
-        child: SizedBox.square(
-          dimension: 36,
-          child: CircularProgressIndicator(strokeWidth: 3),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 250),
+          builder: (context, opacity, child) =>
+              Opacity(opacity: opacity, child: child),
+          child: const SizedBox.square(
+            dimension: 36,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
         ),
       ),
     );

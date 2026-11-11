@@ -20,17 +20,10 @@ internal class TrackSelection(private val player: ExoPlayer) {
 
   /**
    * Restores the player's original selection parameters for a new source.
-   * The video quality limit is a player setting and is kept: ReelKit sets it
-   * before the source, so that it already governs the first rendition.
+   * The video quality limit is not part of them (see [VideoQualityLimit]).
    */
   fun reset() {
-    val current = player.trackSelectionParameters
-    player.trackSelectionParameters =
-        defaults
-            .buildUpon()
-            .setMaxVideoBitrate(current.maxVideoBitrate)
-            .setMaxVideoSize(current.maxVideoWidth, current.maxVideoHeight)
-            .build()
+    player.trackSelectionParameters = defaults
   }
 
   fun list(): List<PlatformTrack> {
@@ -81,18 +74,6 @@ internal class TrackSelection(private val player: ExoPlayer) {
     player.trackSelectionParameters = builder.build()
   }
 
-  fun limitVideo(maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?) {
-    player.trackSelectionParameters =
-        player.trackSelectionParameters
-            .buildUpon()
-            .setMaxVideoBitrate(maxBitrate?.toIntCapped() ?: Int.MAX_VALUE)
-            .setMaxVideoSize(
-                maxWidth?.toIntCapped() ?: Int.MAX_VALUE,
-                maxHeight?.toIntCapped() ?: Int.MAX_VALUE,
-            )
-            .build()
-  }
-
   private fun platformType(type: Int): PlatformTrackType? =
       when (type) {
         C.TRACK_TYPE_AUDIO -> PlatformTrackType.AUDIO
@@ -109,6 +90,4 @@ internal class TrackSelection(private val player: ExoPlayer) {
       }
 
   private fun known(value: Int): Int? = value.takeIf { it != Format.NO_VALUE && it > 0 }
-
-  private fun Long.toIntCapped(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 }

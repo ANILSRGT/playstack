@@ -13,6 +13,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import io.flutter.view.TextureRegistry
 
 /**
@@ -31,9 +32,12 @@ internal class NativePlayer(
     private val engineConfig: PlatformEngineConfig,
 ) : Player.Listener {
   private val loadControl = PreloadLoadControl()
+  private val videoLimit = VideoQualityLimit()
   private val exoPlayer: ExoPlayer =
       ExoPlayer.Builder(context)
           .setLoadControl(loadControl)
+          .setTrackSelector(
+              DefaultTrackSelector(context, LimitedAdaptiveTrackSelectionFactory(videoLimit)))
           .setHandleAudioBecomingNoisy(engineConfig.pauseOnAudioRouteLoss)
           .build()
 
@@ -90,8 +94,12 @@ internal class NativePlayer(
 
   fun selectTrack(type: PlatformTrackType, trackId: String?) = tracks.select(type, trackId)
 
+  /**
+   * A player setting kept across sources. Applied inside adaptive selection
+   * ([VideoQualityLimit]), so changing it never interrupts playback.
+   */
   fun setVideoQualityLimit(maxBitrate: Long?, maxWidth: Long?, maxHeight: Long?) =
-      tracks.limitVideo(maxBitrate, maxWidth, maxHeight)
+      videoLimit.set(maxBitrate, maxWidth, maxHeight)
 
   /** Caps forward buffering while paused; null removes the cap. */
   fun setPreloadBufferLimit(maxBufferMs: Long?) {

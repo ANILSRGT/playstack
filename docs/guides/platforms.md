@@ -20,7 +20,7 @@
 | Audio track selection | Yes | Yes (media selection) | Only where the browser exposes `audioTracks` (Safari) |
 | Subtitle tracks, text delivered to Dart | Yes (in-band and HLS/DASH) | Yes (legible media selection) | Tracks the browser exposes; in-band MP4 text is not exposed by Chromium |
 | Video rendition selection | Yes | No: AVFoundation chooses; listed for information | No |
-| Video quality limit (bitrate, size) | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
+| Video quality limit (bitrate, size) | Yes (inside adaptive selection, no rebuffer) | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
 | Metadata: frame rate, bitrate, codec, live | Yes | Yes | Live flag only |
 | Preload buffer limit | Yes (load control, hard limit) | Yes (`preferredForwardBufferDuration`, a preference) | No: browsers decide |
 | Network status | `ConnectivityManager` (adds `ACCESS_NETWORK_STATE`) | `NWPathMonitor`, including Low Data Mode | `navigator.onLine`; metering and data saver only where `navigator.connection` exists (Chromium) |
