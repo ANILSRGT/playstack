@@ -90,7 +90,8 @@ class ReelPlayerController extends ChangeNotifier
          isMuted: config.muted,
          playbackSpeed: config.playbackSpeed,
        ) {
-    _tracks = ReelTrackState(() => _host.platform);
+    _tracks = ReelTrackState(() => _host.platform)
+      ..storeQualityLimit(config.videoQualityLimit);
   }
 
   final ReelControllerHost _host;

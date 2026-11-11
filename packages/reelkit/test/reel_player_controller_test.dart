@@ -811,6 +811,31 @@ void main() {
       );
     });
 
+    test('the configured limit applies from the first preparation', () async {
+      await managerWithLimitSupport();
+      final controller = manager.createController(
+        source,
+        config: const ReelPlayerConfig(
+          videoQualityLimit: ReelVideoQualityLimit(maxWidth: 1290),
+          startupQualityLimit: startup,
+        ),
+      );
+      expect(
+        controller.videoQualityLimit,
+        const ReelVideoQualityLimit(maxWidth: 1290),
+      );
+      await controller.play();
+      final id = platform.livePlayers.single;
+      final limits = platform.calls
+          .where((c) => c.startsWith('setVideoQualityLimit'))
+          .toList();
+      expect(limits, [
+        'setVideoQualityLimit($id, null, 1000000)',
+        'setVideoQualityLimit($id, null, null)',
+      ]);
+      expect(platform.limits[id], const ReelVideoQualityLimit(maxWidth: 1290));
+    });
+
     test('a reused player drops the previous controller limit', () async {
       await manager.dispose();
       platform = FakeReelKitPlatform(supportsVideoQualityLimit: true);

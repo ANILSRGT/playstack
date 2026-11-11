@@ -110,9 +110,16 @@ class _ReelsPageState extends State<ReelsPage> {
     if (_fullscreen) {
       setState(() => _fullscreen = false);
       await fullscreen.exit();
+      await controller.setVideoQualityLimit(screenQualityLimit());
       return;
     }
     setState(() => _fullscreen = true);
+    // Fullscreen shows the video at the screen's long side: allow 1080p.
+    unawaited(
+      controller
+          .setVideoQualityLimit(ReelVideoQualityLimit.none)
+          .catchError((Object _) {}),
+    );
     try {
       await fullscreen.enter(
         orientation: ReelFullscreenOrientation.matchVideo,
@@ -121,6 +128,11 @@ class _ReelsPageState extends State<ReelsPage> {
     } on ReelKitException catch (error) {
       if (!mounted) return;
       setState(() => _fullscreen = false);
+      unawaited(
+        controller
+            .setVideoQualityLimit(screenQualityLimit())
+            .catchError((Object _) {}),
+      );
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error.message)));
     }

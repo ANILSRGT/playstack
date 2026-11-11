@@ -65,6 +65,9 @@ class FakeReelKitPlatform extends ReelKitPlatform {
   bool autoPrepare;
   bool supportsVideoQualityLimit;
 
+  /// The last quality limit set on each player.
+  final Map<int, ReelVideoQualityLimit> limits = <int, ReelVideoQualityLimit>{};
+
   /// Sources whose preparation fails with this error.
   final Map<ReelSource, ReelKitException> failingSources =
       <ReelSource, ReelKitException>{};
@@ -313,6 +316,7 @@ class FakeReelKitPlatform extends ReelKitPlatform {
     calls.add(
       'setVideoQualityLimit($playerId, ${limit.maxHeight}, ${limit.maxBitrate})',
     );
+    limits[playerId] = limit;
     _check('setVideoQualityLimit');
     _requireLive(playerId);
   }

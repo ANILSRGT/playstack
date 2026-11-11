@@ -328,6 +328,7 @@ class ReelPlayerConfig {
     this.playbackSpeed = 1.0,
     this.initializeTimeout = const Duration(seconds: 30),
     this.preloadBufferDuration = const Duration(seconds: 5),
+    this.videoQualityLimit = ReelVideoQualityLimit.none,
     this.startupQualityLimit,
     this.retry = const ReelRetryConfig(),
   }) : assert(volume >= 0 && volume <= 1),
@@ -358,6 +359,18 @@ class ReelPlayerConfig {
   /// true (Android, iOS; on iOS it is a preference AVFoundation may exceed).
   final Duration? preloadBufferDuration;
 
+  /// Initial `ReelPlayerController.videoQualityLimit`: caps adaptive
+  /// quality (HLS, DASH) for the controller's whole life, until the app
+  /// changes it.
+  ///
+  /// A video shown in part of a phone screen does not need a rendition
+  /// larger than its view; capping to the view's size in physical pixels
+  /// saves bandwidth and avoids switching up to renditions the network
+  /// cannot sustain while preloads run. Lift it with
+  /// `setVideoQualityLimit(ReelVideoQualityLimit.none)`, for example in
+  /// fullscreen.
+  final ReelVideoQualityLimit videoQualityLimit;
+
   /// Caps adaptive quality (HLS, DASH) while the video prepares and until
   /// it starts playing; playing lifts the cap and the engine switches up as
   /// bandwidth allows.
@@ -387,6 +400,7 @@ class ReelPlayerConfig {
     double? playbackSpeed,
     Duration? initializeTimeout,
     Duration? preloadBufferDuration,
+    ReelVideoQualityLimit? videoQualityLimit,
     ReelVideoQualityLimit? startupQualityLimit,
     ReelRetryConfig? retry,
   }) {
@@ -398,6 +412,7 @@ class ReelPlayerConfig {
       initializeTimeout: initializeTimeout ?? this.initializeTimeout,
       preloadBufferDuration:
           preloadBufferDuration ?? this.preloadBufferDuration,
+      videoQualityLimit: videoQualityLimit ?? this.videoQualityLimit,
       startupQualityLimit: startupQualityLimit ?? this.startupQualityLimit,
       retry: retry ?? this.retry,
     );
@@ -412,6 +427,7 @@ class ReelPlayerConfig {
       other.playbackSpeed == playbackSpeed &&
       other.initializeTimeout == initializeTimeout &&
       other.preloadBufferDuration == preloadBufferDuration &&
+      other.videoQualityLimit == videoQualityLimit &&
       other.startupQualityLimit == startupQualityLimit &&
       other.retry == retry;
 
@@ -423,6 +439,7 @@ class ReelPlayerConfig {
     playbackSpeed,
     initializeTimeout,
     preloadBufferDuration,
+    videoQualityLimit,
     startupQualityLimit,
     retry,
   );

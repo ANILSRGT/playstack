@@ -28,10 +28,23 @@ flutter test integration_test/catalog_test.dart -d <device-id>
 
 The settings in `lib/settings.dart` are tuned for swiping two or three
 videos a second: five items prepared ahead, three at a time, each at up
-to ~540p until it plays (then it switches up). Cloudinary and Mux items
+to ~720p until it plays (then it switches up). Cloudinary and Mux items
 show a poster while they prepare. Measure how many items are ready on
 arrival at that speed:
 
 ```bash
 flutter test integration_test/swipe_test.dart -d <device-id>
+```
+
+Renditions are also capped to the screen size (lifted in fullscreen), so
+switching up never asks for more than the screen shows. Check that
+playback never stops, at a normal pace and after bursts of swipes, and
+when the loading spinner appears in the real UI:
+
+```bash
+flutter test integration_test/stall_test.dart -d <device-id>
+```
+
+```bash
+flutter test integration_test/app_swipe_test.dart -d <device-id>
 ```

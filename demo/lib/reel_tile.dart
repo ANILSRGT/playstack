@@ -121,7 +121,15 @@ class _ReelTileState extends State<ReelTile> {
                 ),
               ),
             ),
-            if (loading) const _DelayedSpinner(),
+            if (loading)
+              // Nothing to look at yet: say so soon. A video already on
+              // screen that waits briefly (a rendition switch, a slow
+              // segment) keeps its frame without a spinner.
+              _DelayedSpinner(
+                delay: state.hasRenderedFirstFrame
+                    ? const Duration(milliseconds: 1200)
+                    : const Duration(milliseconds: 400),
+              ),
             if (_showPauseIcon && state.status == ReelPlaybackStatus.paused)
               const IgnorePointer(
                 child: Center(
@@ -276,7 +284,9 @@ class _ReelTileState extends State<ReelTile> {
 /// A spinner that appears only when loading takes noticeably long, so
 /// quick starts do not flash it.
 class _DelayedSpinner extends StatefulWidget {
-  const _DelayedSpinner();
+  const _DelayedSpinner({required this.delay});
+
+  final Duration delay;
 
   @override
   State<_DelayedSpinner> createState() => _DelayedSpinnerState();
@@ -289,7 +299,7 @@ class _DelayedSpinnerState extends State<_DelayedSpinner> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 400), () {
+    _timer = Timer(widget.delay, () {
       if (mounted) setState(() => _visible = true);
     });
   }

@@ -79,6 +79,14 @@ video play at the startup rendition. Also show a poster
 that is not ready yet never shows black. Measure on your devices and
 network with the demo's `integration_test/swipe_test.dart`.
 
+Cap quality to the view as well (`ReelPlayerConfig.videoQualityLimit`, in
+physical pixels): a landscape video in a portrait feed is only as wide as
+the screen, and switching up to its 1080p rendition while the next items
+preload can outrun the network, so playback stops until the segment
+arrives. Some streams declare less bandwidth than their 1080p rendition
+needs, which makes this worse. Lift the limit in fullscreen. The demo's
+`integration_test/stall_test.dart` reports any time playback stops.
+
 ## Buffer limit
 
 A prepared item that is not playing buffers only
