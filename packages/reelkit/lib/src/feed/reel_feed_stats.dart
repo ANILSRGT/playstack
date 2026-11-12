@@ -16,19 +16,19 @@ class ReelFeedStats {
     this.measuredStarts = 0,
   });
 
-  /// Changes of the active item.
+  /// How many times the item in view changed (swipes and moves from code).
   final int transitions;
 
   /// Transitions whose new active item was already prepared.
   final int preparedOnArrival;
 
-  /// Preloads started.
+  /// How many items started preparing ahead of the user.
   final int preloadsStarted;
 
-  /// Preloads that finished preparing.
+  /// How many of those finished preparing, ready to start at once.
   final int preloadsCompleted;
 
-  /// Preloads that failed.
+  /// How many of those failed, for example on a network error.
   final int preloadsFailed;
 
   /// Preloads abandoned because the window moved before they finished.
@@ -38,7 +38,7 @@ class ReelFeedStats {
   /// plays (autoplay only). See `ReelPlayerMetrics.lastStartLatency`.
   final Duration? lastStartLatency;
 
-  /// Sum of all measured start latencies.
+  /// Sum of all measured start times, the basis of `averageStartLatency`.
   final Duration totalStartLatency;
 
   /// Number of starts included in [totalStartLatency].

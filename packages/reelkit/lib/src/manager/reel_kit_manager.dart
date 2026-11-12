@@ -14,8 +14,11 @@ import '../fullscreen/reel_fullscreen_manager.dart';
 import '../pool/reel_player_pool.dart';
 import 'reel_playback_coordinator.dart';
 
-/// Entry point of ReelKit: owns the playback engine, the native player pool
-/// and every controller created through it.
+/// The entry point of ReelKit: starts the native video engine, keeps a
+/// limited set of native players and creates the controllers that use them.
+///
+/// You need one only outside `ReelFeedView(items: ...)`, which creates its
+/// own. For a single player or your own layout:
 ///
 /// ```dart
 /// final manager = ReelKitManager();
@@ -24,14 +27,17 @@ import 'reel_playback_coordinator.dart';
 ///   ReelSource.network('https://example.com/video.mp4'),
 /// );
 /// await controller.play();
-/// // ...
+/// // when the screen closes:
 /// await manager.dispose(); // disposes all controllers and native players
 /// ```
 ///
-/// Use one manager per independent playback context (for example one per
-/// feed). Each manager has its own pool limit.
+/// Native players are expensive (each holds a decoder and buffers), so the
+/// manager keeps a bounded pool and lends players to controllers as needed;
+/// see [ReelPoolConfig]. Use one manager per independent screen or feed;
+/// each has its own pool.
 class ReelKitManager implements ReelControllerHost, ReelFeedHost {
-  /// Creates a manager. Call [initialize] before creating controllers.
+  /// Creates a manager with [config]. Nothing starts until [initialize]; call
+  /// it before creating controllers or feeds.
   ReelKitManager({
     this.config = const ReelKitConfig(),
     @visibleForTesting ReelKitPlatform? platform,
@@ -40,7 +46,7 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
          exclusive: config.exclusivePlayback,
        );
 
-  /// Configuration of this manager, its pool and its controllers.
+  /// The settings this manager was created with: pool, player defaults, cache, audio, lifecycle, fullscreen.
   final ReelKitConfig config;
   final ReelKitPlatform? _platformOverride;
   final Set<ReelPlayerController> _controllers = <ReelPlayerController>{};
@@ -72,40 +78,45 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
     return pool;
   }
 
-  /// Whether [initialize] completed successfully.
+  /// Whether [initialize] finished successfully and the manager is not disposed.
   bool get isInitialized => _pool != null && !_disposed;
 
-  /// Whether [dispose] was called.
+  /// Whether [dispose] was called. A disposed manager cannot be used again.
   bool get isDisposed => _disposed;
 
-  /// Engine and device capabilities. Available after [initialize].
+  /// What the engine on this device supports: formats, track selection,
+  /// quality caps, recommended player count. Throws before [initialize].
   @override
   ReelPlatformCapabilities get capabilities =>
       _capabilities ?? (throw _notInitialized());
 
-  /// Pool usage snapshot. Available after [initialize].
+  /// How many native players exist and how many are in use, by priority.
+  /// Useful for diagnostics. Throws before [initialize].
   ReelPoolStats get poolStats => pool.stats;
 
-  /// Controllers created by this manager that are not disposed.
+  /// All controllers created by this manager that are not disposed yet.
   List<ReelPlayerController> get controllers =>
       List<ReelPlayerController>.unmodifiable(_controllers);
 
-  /// The engine's disk cache. Available after [initialize].
+  /// The disk cache of network videos: its size and a way to clear it. Throws before [initialize].
   ReelCacheManager get cache => _cache ?? (throw _notInitialized());
 
-  /// Fullscreen and orientation coordination. Available after [initialize].
+  /// Enters and leaves fullscreen and restores orientation afterwards.
+  /// `ReelFeedView` uses it for you. Throws before [initialize].
   ReelFullscreenManager get fullscreen =>
       _fullscreen ?? (throw _notInitialized());
 
-  /// Connectivity reported by the engine. [ReelNetworkStatus.unknown] on
-  /// engines without network status (see
-  /// [ReelPlatformCapabilities.supportsNetworkStatus]) and before
-  /// [initialize].
+  /// The device's connection: offline, Wi-Fi, mobile data, metered, data
+  /// saver. Feeds use it to preload less on mobile data; show it to the user
+  /// if you like. [ReelNetworkStatus.unknown] before [initialize] and on
+  /// engines that cannot tell (see
+  /// [ReelPlatformCapabilities.supportsNetworkStatus]).
   @override
   ValueListenable<ReelNetworkStatus> get networkStatus => _network;
 
-  /// The playing controller that started most recently, or null when none
-  /// plays. With exclusive playback this is the only playing controller.
+  /// The controller that is playing (the one that started most recently when
+  /// several play), or null when nothing plays. Listen to it to show a mini
+  /// player or to react to the playing video changing.
   ValueListenable<ReelPlayerController?> get activeController =>
       _coordinator.active;
 
@@ -225,7 +236,7 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
     return feed;
   }
 
-  /// Pauses every playing controller of this manager.
+  /// Pauses every playing controller of this manager, for example when a dialog opens.
   Future<void> pauseAll() async {
     await Future.wait([
       for (final controller in List<ReelPlayerController>.of(_controllers))
@@ -233,7 +244,8 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
     ]);
   }
 
-  /// Destroys native players that are not assigned to any controller.
+  /// Destroys native players that no controller uses right now, to free
+  /// memory at once instead of waiting for [ReelPoolConfig.idleTimeout].
   Future<void> trimIdlePlayers() => _pool?.trimIdle() ?? Future<void>.value();
 
   /// Disposes every controller and native player. Safe to call more than

@@ -27,27 +27,40 @@ abstract interface class ReelFeedHost {
   void feedDisposed(ReelFeedManager feed);
 }
 
-/// Playback and preloading for a list of videos shown in any scrolling UI.
+/// The engine behind a video feed: a list of videos, their players, and
+/// which ones play and preload.
 ///
-/// Show it with `ReelFeedView`, which pages through the items and reports
-/// the item in view. A custom scroll view can drive the feed too: render
-/// `controllerAt(index)` with a `ReelVideoView` and report the item the
-/// user is on with [setActiveIndex]. The feed then:
+/// Most apps never touch it: `ReelFeedView(items: ...)` creates and manages
+/// one. Create your own (`ReelKitManager.createFeed`) when your code edits
+/// the list (insert, remove, update a URL) or when several screens share a
+/// feed, and show it with `ReelFeedView.feed`:
 ///
-/// * plays the active item (with [ReelFeedConfig.autoplay]) and pauses the
-///   previous one;
-/// * prepares the items around it, next item first, so that the next
-///   transition shows a decoded first frame immediately;
-/// * bounds that work by the pool size, the network (metered, data saver,
-///   offline), device memory and memory warnings;
-/// * gives native players of items that leave the window back to the pool,
-///   cancelling preparations still in flight, so rapid scrolling never
-///   piles up work;
-/// * keeps ids stable across [insert], [removeAt], [replaceAll] and
-///   [updateSource].
+/// ```dart
+/// final feed = manager.createFeed(
+///   [for (final post in posts) ReelFeedItem(ReelSource.network(post.url), id: post.id, data: post)],
+///   config: ReelFeedConfig.reels,
+/// );
+/// ReelFeedView<Post>.feed(feed: feed);
+/// feed.insert(0, ReelFeedItem(ReelSource.network(newPost.url), id: newPost.id, data: newPost));
+/// ```
 ///
-/// Create feeds with `ReelKitManager.createFeed`. A feed notifies its
-/// listeners when its items change.
+/// A custom scroll view can drive a feed too: show `controllerAt(index)` in a
+/// `ReelVideoView` and report the item in view with [setActiveIndex].
+///
+/// Whenever the item in view changes, the feed:
+///
+/// * plays it (with [ReelFeedConfig.autoplay]) and pauses the previous one;
+/// * prepares the items around it, next item first, so the next swipe shows
+///   a frame at once;
+/// * limits that work by the pool size, the network (mobile data, data
+///   saver, offline), device memory and memory warnings;
+/// * hands the players of items that leave the window back to the pool and
+///   cancels their unfinished preparations, so fast scrolling never piles
+///   up work.
+///
+/// Item ids stay stable across [insert], [removeAt], [replaceAll] and
+/// [updateSource], so a playing video keeps playing. The feed notifies its
+/// listeners when its items change. Dispose it, or its manager, when done.
 class ReelFeedManager extends ChangeNotifier {
   /// Use `ReelKitManager.createFeed` instead.
   @internal
@@ -63,10 +76,10 @@ class ReelFeedManager extends ChangeNotifier {
 
   final ReelFeedHost _host;
 
-  /// Preloading and playback settings of this feed.
+  /// How many items this feed prepares ahead and behind, and its other preloading settings.
   final ReelFeedConfig config;
 
-  /// The manager that created this feed.
+  /// The manager that created this feed and lends it native players.
   ReelKitManager get manager => _host as ReelKitManager;
   final List<ReelFeedItem> _items;
   final Map<String, ReelPlayerController> _controllers =
@@ -90,7 +103,7 @@ class ReelFeedManager extends ChangeNotifier {
   bool _disposed = false;
   bool? _muted;
 
-  /// The items, in display order.
+  /// A copy of the items, in display order. For one item use [itemAt], which does not copy.
   List<ReelFeedItem> get items => List<ReelFeedItem>.unmodifiable(_items);
 
   /// The item at [index], without copying the list like [items].
@@ -99,7 +112,7 @@ class ReelFeedManager extends ChangeNotifier {
     return _items[index];
   }
 
-  /// Number of items.
+  /// Number of items in the feed.
   int get length => _items.length;
 
   /// Whether the feed has no items.
@@ -109,7 +122,8 @@ class ReelFeedManager extends ChangeNotifier {
   /// feed is empty.
   ValueListenable<int?> get activeIndex => _activeIndex;
 
-  /// The active item's controller, or null.
+  /// The controller of the item in view, or null before [setActiveIndex] and
+  /// when the feed is empty. Use it to pause, seek or read the playing video.
   ReelPlayerController? get activeController {
     final id = _activeId;
     return id == null ? null : _controllers[id];
@@ -119,17 +133,19 @@ class ReelFeedManager extends ChangeNotifier {
   /// memory and pool limits.
   ValueListenable<ReelPreloadWindow> get preloadWindow => _window;
 
-  /// Whether [pause] was called without a following [resume].
+  /// Whether the feed was paused with [pause] and not resumed yet.
   bool get isPaused => _paused;
 
-  /// Whether [dispose] was called.
+  /// Whether [dispose] was called. A disposed feed cannot be used again.
   bool get isDisposed => _disposed;
 
   /// The mute state set with [setMuted], or null when every controller
   /// follows its configuration.
   bool? get muted => _muted;
 
-  /// Preload and start-latency counters since the feed was created.
+  /// Counters since the feed was created: how often the next video was ready
+  /// on arrival, how long starts took, how many preloads ran or were
+  /// cancelled. Useful to tune [ReelFeedConfig].
   ReelFeedStats get stats => _stats;
 
   /// The controller of the item at [index], created on first use.
@@ -153,7 +169,7 @@ class ReelFeedManager extends ChangeNotifier {
     return index < 0 ? null : _controllerFor(_items[index]);
   }
 
-  /// Index of the item with [id], or -1.
+  /// Index of the item with [id], or -1 when there is none.
   int indexOf(String id) => _items.indexWhere((item) => item.id == id);
 
   /// Makes the item at [index] the active one: it plays (with autoplay) and
@@ -212,7 +228,7 @@ class ReelFeedManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Appends [item].
+  /// Adds [item] at the end.
   void add(ReelFeedItem item) => insertAll(_items.length, [item]);
 
   /// Appends [items], for example the next page of an endless feed.

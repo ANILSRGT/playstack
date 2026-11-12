@@ -5,10 +5,22 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
 import '../fullscreen/reel_fullscreen_manager.dart';
 
-/// Top-level configuration of a `ReelKitManager`.
+/// All settings of a `ReelKitManager`, grouped by topic. Every setting has a
+/// sensible default, so pass only what you change:
+///
+/// ```dart
+/// final manager = ReelKitManager(
+///   config: const ReelKitConfig(
+///     player: ReelPlayerConfig(looping: true, muted: true),
+///     cache: ReelCacheConfig(maxBytes: 512 * 1024 * 1024),
+///   ),
+/// );
+/// ```
+///
+/// For a short-video feed, start from [ReelKitConfig.reels].
 @immutable
 class ReelKitConfig {
-  /// Creates a configuration; every argument has a production default.
+  /// Creates a configuration. Every argument has a default suitable for production.
   const ReelKitConfig({
     this.pool = const ReelPoolConfig(),
     this.player = const ReelPlayerConfig(),
@@ -59,13 +71,17 @@ class ReelKitConfig {
     );
   }
 
-  /// How native players are allocated and reused.
+  /// How many native players may exist and how they are reused. The default
+  /// adapts to the device.
   final ReelPoolConfig pool;
 
-  /// Default settings of controllers created by the manager.
+  /// Starting settings of every controller the manager creates: looping,
+  /// volume, mute, speed, quality caps, retries. A controller can change them
+  /// later.
   final ReelPlayerConfig player;
 
-  /// How playback reacts to the app moving to the background.
+  /// Whether playback pauses when the app goes to the background and resumes
+  /// when it comes back. Both on by default.
   final ReelLifecycleConfig lifecycle;
 
   /// Whether at most one controller of the manager plays at a time.
@@ -78,14 +94,16 @@ class ReelKitConfig {
   /// such as a muted preview grid.
   final bool exclusivePlayback;
 
-  /// Disk cache of network videos (engine-wide; the first manager's
-  /// configuration applies).
+  /// Disk cache of network videos, 256 MB by default. Shared by the whole
+  /// app: the first manager's setting applies.
   final ReelCacheConfig cache;
 
-  /// Audio focus and audio session behaviour (engine-wide).
+  /// How playback shares audio with other apps: audio focus on Android, the
+  /// audio session on iOS. Shared by the whole app.
   final ReelAudioConfig audio;
 
-  /// The app's orientation and system UI policy restored after fullscreen.
+  /// The app's normal orientations and system bars, restored when fullscreen
+  /// ends.
   final ReelFullscreenConfig fullscreen;
 
   @override
@@ -121,19 +139,22 @@ class ReelKitConfig {
 /// `ReelNetworkSource.cachePolicy`.
 @immutable
 class ReelCacheConfig {
-  /// Creates a cache configuration. The default enables a 256 MB cache.
+  /// Creates a cache configuration. By default the cache is on with a 256 MB
+  /// limit.
   const ReelCacheConfig({
     this.enabled = true,
     this.maxBytes = 256 * 1024 * 1024,
   }) : assert(maxBytes >= 0);
 
-  /// Disables the disk cache.
+  /// No disk cache: every video is downloaded each time it plays. Use it when
+  /// the app has its own cache or must not store videos.
   static const disabled = ReelCacheConfig(enabled: false);
 
-  /// Whether network sources are cached on disk where the engine supports it.
+  /// Whether network videos are cached on disk where the engine supports it. True by default.
   final bool enabled;
 
-  /// Size limit in bytes; least recently used videos are evicted beyond it.
+  /// Size limit of the cache in bytes, 256 MB by default. Beyond it, the
+  /// least recently watched videos are removed first.
   final int maxBytes;
 
   @override
@@ -146,10 +167,13 @@ class ReelCacheConfig {
   int get hashCode => Object.hash(enabled, maxBytes);
 }
 
-/// How playback shares audio with the rest of the device.
+/// How video sound coexists with other apps' audio, such as music players
+/// and calls. The defaults suit most apps.
 @immutable
 class ReelAudioConfig {
-  /// Creates an audio configuration.
+  /// Creates an audio configuration. Defaults: audio focus handled, pause when
+  /// headphones are unplugged, the iOS session left to the app, no mixing,
+  /// resume after interruptions.
   const ReelAudioConfig({
     this.handleAudioFocus = true,
     this.pauseOnAudioRouteLoss = true,
@@ -208,18 +232,20 @@ class ReelAudioConfig {
 /// control center do not pause playback.
 @immutable
 class ReelLifecycleConfig {
-  /// Creates a lifecycle configuration.
+  /// Creates a lifecycle configuration. By default playback pauses when the
+  /// app is hidden and resumes when it is shown again.
   const ReelLifecycleConfig({
     this.pauseOnBackground = true,
     this.resumeOnForeground = true,
   });
 
-  /// Pauses every playing controller of the manager when the app is hidden.
-  /// Disable for background audio, which also requires the platform's
-  /// background audio setup.
+  /// Pauses every playing video of the manager when the app is hidden. True
+  /// by default. Turn it off only for background audio, which also needs the
+  /// platform's background audio setup.
   final bool pauseOnBackground;
 
-  /// Resumes the controllers that were paused because the app was hidden.
+  /// Resumes the videos that were paused because the app was hidden, when it
+  /// is shown again. True by default. Videos the user paused stay paused.
   final bool resumeOnForeground;
 
   @override
@@ -239,7 +265,8 @@ class ReelLifecycleConfig {
 /// controllers instead of allocating one per video.
 @immutable
 class ReelPoolConfig {
-  /// Creates a pool configuration.
+  /// Creates a pool configuration. By default the player limit adapts to the
+  /// device, up to 4, and idle players are kept 30 seconds for reuse.
   const ReelPoolConfig({
     this.maxPlayers,
     this.maxAdaptivePlayers = 4,
@@ -254,7 +281,8 @@ class ReelPoolConfig {
   /// [maxAdaptivePlayers].
   final int? maxPlayers;
 
-  /// Ceiling for the adaptive limit when [maxPlayers] is null.
+  /// The most players the adaptive limit allows when [maxPlayers] is null, 4
+  /// by default.
   final int maxAdaptivePlayers;
 
   /// How long a released native player is kept for reuse before it is
@@ -307,8 +335,7 @@ class ReelPoolConfig {
 /// by [multiplier] up to [maxDelay].
 @immutable
 class ReelRetryConfig {
-  /// Creates a retry configuration. The default retries twice, after 1 s
-  /// and 2 s.
+  /// Creates a retry configuration. By default failures are retried twice, after 1 s and then 2 s.
   const ReelRetryConfig({
     this.maxAttempts = 2,
     this.initialDelay = const Duration(seconds: 1),
@@ -320,16 +347,18 @@ class ReelRetryConfig {
   /// No automatic retries. `ReelPlayerController.retry` still works.
   static const none = ReelRetryConfig(maxAttempts: 0);
 
-  /// Retries after the first failure. Zero disables automatic retries.
+  /// How many times a failure is retried automatically, 2 by default. Zero
+  /// turns automatic retries off.
   final int maxAttempts;
 
-  /// Wait before the first retry.
+  /// Wait before the first retry, 1 second by default.
   final Duration initialDelay;
 
-  /// Upper bound of the wait between retries.
+  /// Longest wait between retries, however many retries there were. 8 seconds by default.
   final Duration maxDelay;
 
-  /// Factor applied to the wait after each retry; at least 1.
+  /// How much the wait grows after each retry, 2 by default: 1 s, 2 s, 4 s...
+  /// At least 1.
   final double multiplier;
 
   /// Whether a failure with [code] is retried automatically.
@@ -359,10 +388,17 @@ class ReelRetryConfig {
       Object.hash(maxAttempts, initialDelay, maxDelay, multiplier);
 }
 
-/// Initial playback settings of a controller.
+/// Starting settings of a `ReelPlayerController`: looping, volume, speed,
+/// quality caps, timeouts and retries.
+///
+/// Set them for all controllers in `ReelKitConfig.player`, or for one
+/// controller in `ReelKitManager.createController(config: ...)`. A
+/// controller can change most of them later (`setLooping`, `setVolume`...).
 @immutable
 class ReelPlayerConfig {
-  /// Creates a player configuration.
+  /// Creates player settings. Defaults: no looping, full volume, not muted,
+  /// normal speed, 30-second preparation timeout, 5 seconds buffered ahead
+  /// while preloading, no quality caps, two automatic retries.
   const ReelPlayerConfig({
     this.looping = false,
     this.volume = 1.0,
@@ -376,19 +412,22 @@ class ReelPlayerConfig {
   }) : assert(volume >= 0 && volume <= 1),
        assert(playbackSpeed > 0);
 
-  /// Whether playback restarts from the beginning when it reaches the end.
+  /// Whether the video starts over when it ends. False by default; reels usually loop.
   final bool looping;
 
-  /// Volume from 0.0 to 1.0, applied when not [muted].
+  /// Volume from 0.0 (silent) to 1.0 (full), 1.0 by default. Not heard while [muted].
   final double volume;
 
-  /// Whether the controller starts muted.
+  /// Whether the video starts without sound. False by default. On the web,
+  /// browsers only autoplay muted videos until the user taps.
   final bool muted;
 
-  /// Initial playback rate; 1.0 is normal speed.
+  /// Starting speed: 1.0 (default) is normal, 2.0 double speed.
   final double playbackSpeed;
 
-  /// Maximum time to wait for a source to finish preparing.
+  /// How long a video may take to prepare before it fails with
+  /// `ReelKitErrorCode.timeout`, 30 seconds by default. Timeouts are retried
+  /// like network errors (see [retry]).
   final Duration initializeTimeout;
 
   /// How far ahead a paused controller with priority
@@ -431,7 +470,8 @@ class ReelPlayerConfig {
   /// iOS); browsers choose renditions themselves.
   final ReelVideoQualityLimit? startupQualityLimit;
 
-  /// Automatic retries after network errors and timeouts.
+  /// Automatic retries after network errors and timeouts: twice by default,
+  /// after 1 s and 2 s. [ReelRetryConfig.none] turns them off.
   final ReelRetryConfig retry;
 
   /// Returns a copy with the given fields replaced.

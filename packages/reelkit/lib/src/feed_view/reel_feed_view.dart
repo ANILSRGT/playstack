@@ -17,16 +17,38 @@ import '../view/reel_video_view.dart';
 import 'reel_default_controls.dart';
 import 'reel_feed_transition.dart';
 
-/// Builds part of a page of a [ReelFeedView].
+/// Signature of [ReelFeedView.controlsBuilder] and [ReelFeedView.videoBuilder].
+///
+/// Called for every page that is built (the page in view and its neighbors)
+/// and again when the page becomes active or inactive, or when fullscreen
+/// changes. [page] tells which item the page shows and gives its controller.
 typedef ReelFeedPageBuilder<T> = Widget Function(
   BuildContext context,
   ReelFeedPage<T> page,
 );
 
-/// Everything a [ReelFeedView] builder needs to know about one page.
+/// One page of a [ReelFeedView], as passed to its builders.
+///
+/// Use it to draw the page's controls:
+///
+/// ```dart
+/// controlsBuilder: (context, page) => Stack(
+///   children: [
+///     Text(page.data.title),                  // your item, typed
+///     if (page.isActive) LiveBadge(),         // only on the page in view
+///     IconButton(
+///       icon: const Icon(Icons.skip_next),
+///       onPressed: page.view.nextPage,        // move the feed
+///     ),
+///   ],
+/// ),
+/// ```
+///
+/// A new [ReelFeedPage] is created on every rebuild; do not keep it.
 @immutable
 class ReelFeedPage<T> {
-  /// Creates page details. [ReelFeedView] creates these.
+  /// Creates the details of one page. [ReelFeedView] creates these for its
+  /// builders; apps do not need to.
   const ReelFeedPage({
     required this.feed,
     required this.view,
@@ -37,28 +59,52 @@ class ReelFeedPage<T> {
     required this.isFullscreen,
   });
 
-  /// Your item: an element of [ReelFeedView.items].
+  /// Your item for this page: the element of [ReelFeedView.items] it shows,
+  /// with its type. In a `ReelFeedView<Post>`, `page.data` is a `Post`.
+  ///
+  /// With [ReelFeedView.feed] it is the [ReelFeedItem.data] you attached.
   T get data => item.data as T;
 
-  /// The item's player controller: play, pause, seek, state.
+  /// The video player of this page.
+  ///
+  /// Read its state to draw controls (`controller.value.isPlaying`,
+  /// `isBuffering`, `duration`), and call it to act: `play()`, `pause()`,
+  /// `seekTo(...)`, `setMuted(...)`. Rebuild from its state with a
+  /// `ValueListenableBuilder<ReelPlaybackState>`.
+  ///
+  /// The feed plays and pauses it as the user swipes; you only call it for
+  /// actions of your own, such as a play button.
   final ReelPlayerController controller;
 
-  /// Whether this is the item in view (the one that plays).
+  /// Whether this page is the one in view, the one that plays.
+  ///
+  /// Neighbor pages are built too, ready for the next swipe, with
+  /// `isActive` false. Use it to run things only on the visible page, such as
+  /// a progress bar or an animation.
   final bool isActive;
 
-  /// Whether the view is in fullscreen.
+  /// Whether the feed is in fullscreen (see
+  /// [ReelFeedViewController.enterFullscreen]). Hide captions and buttons
+  /// there, or show an exit button.
   final bool isFullscreen;
 
-  /// Index of the item in the feed.
+  /// Position of this page in the feed, starting at 0. It changes when items
+  /// are inserted above; use [ReelFeedItem.id] of [item] to identify the item.
   final int index;
 
-  /// Moves the view and switches fullscreen and sound.
+  /// Controls the whole feed from inside a page: [ReelFeedViewController.nextPage],
+  /// [ReelFeedViewController.toggleFullscreen],
+  /// [ReelFeedViewController.setMuted] and more.
   final ReelFeedViewController view;
 
-  /// The feed the page belongs to.
+  /// The feed behind the view: the list of entries, their players and
+  /// preloading. Most apps never need it; it is here for advanced use such as
+  /// reading [ReelFeedManager.stats].
   final ReelFeedManager feed;
 
-  /// The feed entry of the item (id, source, poster).
+  /// The feed entry of this page: its [ReelFeedItem.id], the
+  /// [ReelFeedItem.source] being played and the [ReelFeedItem.poster]. Your own
+  /// object is [data].
   final ReelFeedItem item;
 
   @override
@@ -77,15 +123,37 @@ class ReelFeedPage<T> {
       Object.hash(feed, view, item, index, controller, isActive, isFullscreen);
 }
 
-/// Controls a [ReelFeedView] from code: next and previous page, fullscreen,
-/// sound.
+/// Controls a [ReelFeedView] from code: move to the next or previous page,
+/// enter fullscreen, mute.
 ///
-/// Builders get the view's controller as [ReelFeedPage.view]. To use it
-/// outside the view, create one and pass it to [ReelFeedView.controller].
-/// It notifies its listeners when the page in view, the items or
-/// fullscreen change, so a `ListenableBuilder` can show them, for example
-/// to hide an app bar in fullscreen.
+/// Inside builders, use [ReelFeedPage.view]. To control the view from
+/// elsewhere (an app bar, a button outside the feed), create a controller,
+/// pass it to [ReelFeedView.controller] and dispose it with your state:
+///
+/// ```dart
+/// final view = ReelFeedViewController();
+///
+/// ReelFeedView(items: urls, controller: view);
+/// IconButton(icon: const Icon(Icons.skip_next), onPressed: view.nextPage);
+///
+/// @override
+/// void dispose() {
+///   view.dispose();
+///   super.dispose();
+/// }
+/// ```
+///
+/// It is a [Listenable]: listeners are notified when the page in view, the
+/// items or fullscreen change. Wrap widgets that show its state in a
+/// `ListenableBuilder`, for example to hide an app bar in fullscreen.
+///
+/// Methods that move the view throw a [StateError] while no view uses the
+/// controller (see [isAttached]).
 class ReelFeedViewController extends ChangeNotifier {
+  /// Creates a controller. Pass it to [ReelFeedView.controller] and call
+  /// [dispose] when your state is disposed.
+  ReelFeedViewController();
+
   _ReelFeedViewState<dynamic>? _view;
 
   void _changed() {
@@ -109,29 +177,43 @@ class ReelFeedViewController extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Whether a [ReelFeedView] uses this controller.
+  /// Whether a [ReelFeedView] currently uses this controller. False before the
+  /// view is built and after it is removed.
   bool get isAttached => _view != null;
 
-  /// The feed shown, or null until the view has started it.
+  /// The feed shown by the view, or null until the view has started it (the
+  /// first frame after the view appears) and after it is removed.
   ReelFeedManager? get feed => _view?._feed;
 
-  /// The manager playing the feed, for stats, cache or network status.
+  /// The manager that plays the feed, or null until the view has started.
+  /// Use it for diagnostics: [ReelKitManager.poolStats],
+  /// [ReelKitManager.networkStatus], [ReelKitManager.cache].
   ReelKitManager? get manager => feed?.manager;
 
-  /// Index of the page in view, or null.
+  /// Index of the page in view, or null before the view has started or when
+  /// the feed is empty. Changes as soon as a swipe passes the middle of the
+  /// screen.
   int? get index => feed?.activeIndex.value;
 
-  /// The scroll position in pages (fractional while moving), or null.
+  /// The exact scroll position in pages: 2.0 when the third page fills the
+  /// screen, 2.5 halfway to the fourth. Null before the view is laid out.
+  /// Useful for custom animations tied to scrolling.
   double? get page {
     final pages = _view?._pages;
     if (pages == null || !pages.hasClients) return null;
     return pages.page;
   }
 
-  /// Whether the view is in fullscreen.
+  /// Whether the view is in fullscreen. Listen to the controller to rebuild
+  /// when it changes.
   bool get isFullscreen => _view?._isFullscreen ?? false;
 
-  /// Animates to the next page. Does nothing on the last page.
+  /// Animates to the next page with the view's transition, like a swipe up.
+  /// Does nothing on the last page.
+  ///
+  /// [duration] and [curve] default to [ReelFeedView.transitionDuration] and
+  /// [ReelFeedView.transitionCurve]. The returned future completes when the
+  /// animation ends.
   Future<void> nextPage({Duration? duration, Curve? curve}) {
     final length = _attached._feed?.length ?? 0;
     final next = (index ?? -1) + 1;
@@ -139,7 +221,11 @@ class ReelFeedViewController extends ChangeNotifier {
     return animateTo(next, duration: duration, curve: curve);
   }
 
-  /// Animates to the previous page. Does nothing on the first page.
+  /// Animates to the previous page with the view's transition, like a swipe
+  /// down. Does nothing on the first page.
+  ///
+  /// [duration] and [curve] default to [ReelFeedView.transitionDuration] and
+  /// [ReelFeedView.transitionCurve].
   Future<void> previousPage({Duration? duration, Curve? curve}) {
     _attached;
     final previous = (index ?? 0) - 1;
@@ -147,7 +233,13 @@ class ReelFeedViewController extends ChangeNotifier {
     return animateTo(previous, duration: duration, curve: curve);
   }
 
-  /// Animates to the page at [index], with the view's transition.
+  /// Animates to the page at [index], passing the pages in between, with the
+  /// view's transition. Throws a [RangeError] when [index] is not a valid
+  /// page.
+  ///
+  /// [duration] and [curve] default to [ReelFeedView.transitionDuration] and
+  /// [ReelFeedView.transitionCurve]. For far jumps, [jumpTo] is usually
+  /// better.
   Future<void> animateTo(int index, {Duration? duration, Curve? curve}) {
     final view = _attached;
     final pages = view._checkedPages(index);
@@ -159,23 +251,35 @@ class ReelFeedViewController extends ChangeNotifier {
     );
   }
 
-  /// Shows the page at [index] without animation.
+  /// Shows the page at [index] immediately, without animation, for example
+  /// to open a feed at a tapped thumbnail. Throws a [RangeError] when [index]
+  /// is not a valid page.
   void jumpTo(int index) {
     _attached._checkedPages(index)?.jumpToPage(index);
   }
 
-  /// Shows the video in view fullscreen, rotated to match it, at full
-  /// quality. Swiping is locked and the back button leaves fullscreen.
+  /// Shows the video in view fullscreen.
+  ///
+  /// The screen rotates to match the video (landscape videos turn the phone
+  /// sideways), system bars hide, the quality cap is lifted so the video plays
+  /// at full resolution, and swiping is locked. The back button leaves
+  /// fullscreen. Builders see [ReelFeedPage.isFullscreen] as true.
+  ///
+  /// Does nothing when already fullscreen or when no video is in view.
   Future<void> enterFullscreen() => _attached._enterFullscreen();
 
-  /// Leaves fullscreen.
+  /// Leaves fullscreen: restores the orientation, the system bars, the
+  /// quality cap and swiping.
   Future<void> exitFullscreen() => _attached._exitFullscreen();
 
-  /// Enters or leaves fullscreen.
+  /// Enters fullscreen, or leaves it when already fullscreen. Handy for a
+  /// single fullscreen button.
   Future<void> toggleFullscreen() =>
       isFullscreen ? exitFullscreen() : enterFullscreen();
 
-  /// Mutes or unmutes every video of the feed.
+  /// Mutes ([muted] true) or unmutes every video of the feed, including videos
+  /// added later, like the sound switch of a short-video app. Does nothing
+  /// before the view has started.
   void setMuted(bool muted) => feed?.setMuted(muted);
 
   _ReelFeedViewState<dynamic> get _attached {
@@ -187,38 +291,53 @@ class ReelFeedViewController extends ChangeNotifier {
   }
 }
 
-/// A complete short-video feed screen.
+/// A complete short-video feed screen, like Reels, Shorts or TikTok.
 ///
-/// Give it your items and say where each video is. It creates the players,
-/// plays the video in view, prepares the next ones, loads more items when
-/// the user nears the end and cleans up when it leaves the screen:
+/// Give it your items and say where each item's video is:
 ///
 /// ```dart
 /// ReelFeedView<Post>(
 ///   items: posts,
 ///   videoUrl: (post) => post.videoUrl,
-///   posterUrl: (post) => post.thumbnailUrl,      // optional
-///   onLoadMore: () => api.fetchPosts(after: ...), // optional
+///   posterUrl: (post) => post.thumbnailUrl,   // optional
+///   onLoadMore: () => api.fetchMorePosts(),   // optional
 /// )
 /// ```
 ///
-/// A list of URLs needs nothing else: `ReelFeedView(items: urls)`.
+/// A list of URL strings needs nothing else: `ReelFeedView(items: urls)`.
 ///
-/// It shows [ReelDefaultControls]: tap to pause, sound, progress, a
-/// fullscreen button for landscape videos, retry. Draw your own with
-/// [controlsBuilder], which gets each page with your item as
-/// [ReelFeedPage.data]. Change how pages move with [transition] and
-/// [scrollDirection].
+/// The view then does all the work:
 ///
-/// The defaults ([ReelKitConfig.reels], [ReelFeedConfig.reels]) are tuned
-/// for fast swiping; pass [manager] or [feedConfig] to change them. To
-/// manage the items yourself, create a feed and use [ReelFeedView.feed].
+/// * creates the video players when it appears and releases them when it is
+///   removed;
+/// * plays the video in view and pauses the others;
+/// * prepares the next videos ahead of time, so a swipe starts them at once;
+/// * loads more items through [onLoadMore] when the user nears the end;
+/// * downloads posters of the next items;
+/// * handles fullscreen, the back button in fullscreen, and app lifecycle.
+///
+/// What you can change:
+///
+/// * the controls above each video: [controlsBuilder] (defaults to
+///   [ReelDefaultControls]);
+/// * the swipe direction: [scrollDirection], [reverse];
+/// * how pages move: [transition];
+/// * how videos fit: [fit], or the whole video layer with [videoBuilder];
+/// * playback and preloading settings: [manager], [feedConfig].
+///
+/// The defaults ([ReelKitConfig.reels], [ReelFeedConfig.reels]) are tuned for
+/// swiping two or three videos a second.
+///
+/// To add, insert and remove items from your own code, or to share a feed
+/// between screens, create a [ReelFeedManager] and use [ReelFeedView.feed].
 class ReelFeedView<T> extends StatefulWidget {
   /// Creates a feed of [items].
   ///
-  /// Where the video of an item is: [videoUrl], or [source] for assets,
-  /// files and headers. Items that are themselves URL strings or
-  /// [ReelSource]s need neither.
+  /// Tell the view where each item's video is with [videoUrl] (a URL) or
+  /// [source] (assets, files, HTTP headers). Items that are already URL
+  /// strings or [ReelSource]s need neither. If the view cannot find a video
+  /// for an item, it throws an [ArgumentError] that names the missing
+  /// argument.
   const ReelFeedView({
     super.key,
     required List<T> this.items,
@@ -252,9 +371,21 @@ class ReelFeedView<T> extends StatefulWidget {
        assert(loadMoreThreshold >= 0),
        assert(precachePosters >= 0);
 
-  /// Shows a [ReelFeedManager] you created and manage: you add and remove
-  /// items, and dispose it. Your item is the [ReelFeedItem.data] of each
-  /// entry.
+  /// Shows a [ReelFeedManager] that you create and own.
+  ///
+  /// Use this when your code changes the list itself (insert, remove, update
+  /// sources) or when several screens share one feed. You add items to the
+  /// feed (see [onEndReached]) and dispose it, or its manager, yourself. Your
+  /// object is the [ReelFeedItem.data] of each entry and arrives in builders as
+  /// [ReelFeedPage.data].
+  ///
+  /// ```dart
+  /// final feed = manager.createFeed(entries, config: ReelFeedConfig.reels);
+  /// ReelFeedView<Post>.feed(
+  ///   feed: feed,
+  ///   onEndReached: () => feed.addAll(nextEntries()),
+  /// )
+  /// ```
   const ReelFeedView.feed({
     super.key,
     required ReelFeedManager this.feed,
@@ -288,106 +419,214 @@ class ReelFeedView<T> extends StatefulWidget {
        assert(loadMoreThreshold >= 0),
        assert(precachePosters >= 0);
 
-  /// Your items, in order. When you pass a new list that starts with the
-  /// old one, the new items are appended; any other list replaces the feed.
+  /// Your items, in display order: posts, videos, URLs, anything.
+  ///
+  /// Keep the list in your state rather than creating it in `build`. When you
+  /// pass a different list:
+  ///
+  /// * if it starts with the previous items, the extra items are appended and
+  ///   playback continues;
+  /// * otherwise the feed is replaced, for example after pull to refresh.
+  ///
+  /// Items loaded through [onLoadMore] are added on top; you do not need to
+  /// add them to this list.
   final List<T>? items;
 
-  /// The URL of an item's video (HLS, DASH or a file such as MP4).
+  /// Returns the URL of an item's video: an HLS (`.m3u8`) or DASH (`.mpd`)
+  /// stream, or a file such as MP4.
+  ///
+  /// ```dart
+  /// videoUrl: (post) => post.videoUrl,
+  /// ```
+  ///
+  /// Not needed when the items are URL strings. Use [source] instead for
+  /// assets, local files or HTTP headers.
   final String Function(T item)? videoUrl;
 
-  /// An item's video as a [ReelSource], for assets, files or HTTP headers.
+  /// Returns an item's video as a [ReelSource], when a URL is not enough:
+  ///
+  /// ```dart
+  /// source: (post) => ReelSource.network(post.url, headers: {'Authorization': token}),
+  /// source: (clip) => ReelSource.asset('assets/${clip.file}'),
+  /// ```
+  ///
+  /// Takes precedence over [videoUrl]. Not needed when the items are
+  /// [ReelSource]s.
   final ReelSource Function(T item)? source;
 
-  /// The URL of an image shown until the video's first frame, usually the
-  /// first frame itself. Without a poster the page is black meanwhile.
+  /// Returns the URL of an image shown until the video's first frame appears,
+  /// usually a thumbnail of that frame. Return null for items without one.
+  ///
+  /// Recommended: without a poster the page stays black while the video
+  /// loads. Posters of the next items are downloaded ahead of time (see
+  /// [precachePosters]).
   final String? Function(T item)? posterUrl;
 
-  /// Like [posterUrl], for any image (an asset, a memory image).
+  /// Like [posterUrl], for any image: an asset (`AssetImage`), a file or a
+  /// cached network image provider. Takes precedence over [posterUrl].
   final ImageProvider? Function(T item)? poster;
 
-  /// A unique, stable id of an item. Needed only when you pass a new
-  /// [items] list that reorders or removes items: players then follow
-  /// their items instead of starting over.
+  /// Returns a unique, stable id of an item, such as a post id.
+  ///
+  /// Only needed when you pass a new [items] list that reorders or removes
+  /// items: with ids, videos keep playing and prepared videos stay prepared.
+  /// Without it, a replaced list starts over. Ids must be unique; the same
+  /// id twice throws an [ArgumentError].
   final String Function(T item)? itemId;
 
-  /// Called when the user nears the end; return the next items, or an
-  /// empty list when there are no more. Called again only after the
-  /// previous call completed. Errors are reported to `FlutterError` and
-  /// the next approach to the end tries again.
+  /// Loads the next items, for an endless feed.
+  ///
+  /// Called when the user is [loadMoreThreshold] items from the end. Return
+  /// the next items; return an empty list when there are no more, and the
+  /// view stops asking.
+  ///
+  /// ```dart
+  /// onLoadMore: () => api.fetchPosts(page: ++page),
+  /// ```
+  ///
+  /// Only one call runs at a time. If it throws, the error is reported to
+  /// `FlutterError.onError` and the next approach to the end tries again.
   final Future<List<T>> Function()? onLoadMore;
 
-  /// The manager that plays the feed. By default the view creates one with
-  /// [ReelKitConfig.reels] and disposes it with the view. A manager you
-  /// pass is initialized if needed and never disposed by the view.
+  /// The manager that plays the videos, to change playback settings.
+  ///
+  /// By default the view creates one with [ReelKitConfig.reels] and disposes
+  /// it when the view is removed. Pass your own to change settings, for
+  /// example videos that do not loop:
+  ///
+  /// ```dart
+  /// manager: ReelKitManager(
+  ///   config: ReelKitConfig(player: ReelPlayerConfig(looping: false)),
+  /// ),
+  /// ```
+  ///
+  /// A manager you pass is initialized by the view if needed, and you dispose
+  /// it.
   final ReelKitManager? manager;
 
-  /// Preloading settings, [ReelFeedConfig.reels] by default.
+  /// How many videos are prepared ahead and behind, and how they are limited
+  /// on mobile data or low memory. Defaults to [ReelFeedConfig.reels]: five
+  /// ahead, one behind. Lower it to save data and memory.
   final ReelFeedConfig feedConfig;
 
-  /// The feed of [ReelFeedView.feed].
+  /// The feed shown by [ReelFeedView.feed]; null with the main constructor.
   final ReelFeedManager? feed;
 
   /// [ReelFeedView.feed] only: called when the user is [loadMoreThreshold]
-  /// items from the end, once per feed length. Append items to the feed
-  /// there.
+  /// items from the end, once per feed length. Append the next items to your
+  /// feed there. With the main constructor use [onLoadMore] instead.
   final VoidCallback? onEndReached;
 
-  /// Controls the view from code. Optional: builders get the view's
-  /// controller as [ReelFeedPage.view].
+  /// Controls the view from outside it: next page, fullscreen, mute, current
+  /// index. Optional; builders get a controller as [ReelFeedPage.view]
+  /// anyway. You create and dispose it.
   final ReelFeedViewController? controller;
 
-  /// The page shown first.
+  /// The page shown first, 0 by default. Use it to open the feed at a tapped
+  /// item. Ignored when the feed already has a page in view (a rebuilt
+  /// [ReelFeedView.feed]).
   final int initialIndex;
 
-  /// The swipe direction: [Axis.vertical] for reels, [Axis.horizontal] for
-  /// stories or a carousel.
+  /// The swipe direction. [Axis.vertical] (default) for a reels feed,
+  /// [Axis.horizontal] for stories or a carousel.
   final Axis scrollDirection;
 
-  /// Whether the next item comes from above (vertical) or from the left
-  /// (horizontal) instead.
+  /// Reverses the swipe direction: the next item comes from above (vertical)
+  /// or from the left (horizontal). False by default.
   final bool reverse;
 
-  /// How pages move from one to the next.
+  /// How pages move from one to the next while the user swipes and when the
+  /// view moves from code. [ReelFeedTransition.slide] by default; also
+  /// [ReelFeedTransition.parallax], [ReelFeedTransition.stack],
+  /// [ReelFeedTransition.fade], [ReelFeedTransition.zoom],
+  /// [ReelFeedTransition.cube], or your own with [ReelFeedTransition.custom].
   final ReelFeedTransition transition;
 
-  /// Duration of moves made from code and by [autoAdvance].
+  /// How long moves made from code take ([ReelFeedViewController.nextPage]
+  /// and similar) and moves made by [autoAdvance]. Swipes follow the finger
+  /// instead. 350 ms by default.
   final Duration transitionDuration;
 
-  /// Curve of moves made from code and by [autoAdvance].
+  /// The easing of moves made from code and by [autoAdvance].
+  /// [Curves.easeOutCubic] by default.
   final Curve transitionCurve;
 
-  /// Scroll physics. Swiping is locked in fullscreen regardless.
+  /// How swiping feels. Null uses the platform's page physics. Pass
+  /// `NeverScrollableScrollPhysics()` to turn swiping off, for example while a
+  /// comment sheet is open. Swiping is always locked in fullscreen.
   final ScrollPhysics? physics;
 
-  /// How videos fit the page. By default portrait videos fill it and
-  /// landscape videos are shown whole.
+  /// How videos fit the page, for every video.
+  ///
+  /// Null (the default) fills the page with portrait videos (cropping a
+  /// little at the edges) and shows landscape videos whole with bars above and
+  /// below. Pass [BoxFit.cover] to always fill, [BoxFit.contain] to always
+  /// show the whole video.
   final BoxFit? fit;
 
-  /// Painted behind every page.
+  /// Color behind the videos, visible around videos that do not fill the page
+  /// and while a page has nothing to show. Black by default.
   final Color backgroundColor;
 
-  /// Replaces the video layer of each page.
+  /// Replaces the video layer of each page, below the controls.
+  ///
+  /// Rarely needed: use [fit] to change how videos fit. Use this for a
+  /// different layout, such as rounded corners or a blurred background:
+  ///
+  /// ```dart
+  /// videoBuilder: (context, page) => ReelVideoView(
+  ///   controller: page.controller,
+  ///   borderRadius: BorderRadius.circular(16),
+  /// ),
+  /// ```
   final ReelFeedPageBuilder<T>? videoBuilder;
 
-  /// Draws everything above the video: buttons, captions, progress.
-  /// Defaults to [ReelDefaultControls]; null shows nothing.
+  /// Draws everything above the video on each page: buttons, captions, a
+  /// progress bar.
+  ///
+  /// Defaults to [ReelDefaultControls] (tap to pause, sound, fullscreen for
+  /// landscape videos, progress, buffering indicator, retry). Three ways to
+  /// customize:
+  ///
+  /// ```dart
+  /// // Keep the defaults and add your own layer.
+  /// controlsBuilder: (context, page) => ReelDefaultControls(
+  ///   page: page,
+  ///   child: Caption(post: page.data),
+  /// ),
+  ///
+  /// // Build your own controls; ReelProgressBar, ReelBufferingIndicator and
+  /// // ReelMuteButton are there to reuse.
+  /// controlsBuilder: (context, page) => MyControls(page: page),
+  ///
+  /// // No controls at all.
+  /// controlsBuilder: null,
+  /// ```
   final ReelFeedPageBuilder<T>? controlsBuilder;
 
-  /// Shown while the feed has no items.
+  /// Shown when there are no items, for example "No videos yet". Defaults to
+  /// an empty screen in [backgroundColor].
   final WidgetBuilder? emptyBuilder;
 
-  /// Called when the page in view changes.
+  /// Called with the new index when the page in view changes, by a swipe or
+  /// from code. Use it for analytics or to sync other UI.
   final ValueChanged<int>? onPageChanged;
 
   /// How many items before the end [onLoadMore] (or [onEndReached]) is
-  /// called.
+  /// called. 3 by default: with three items left, the next page is requested.
+  /// Raise it if loading is slow.
   final int loadMoreThreshold;
 
-  /// How many posters of the next items are downloaded ahead of time.
+  /// How many posters of the upcoming items are downloaded ahead of time, so
+  /// a fast swipe shows a poster instead of black. 3 by default; 0 turns it
+  /// off.
   final int precachePosters;
 
-  /// Whether the view moves to the next page when a video ends. Needs
-  /// videos that do not loop (`ReelPlayerConfig.looping: false`).
+  /// Whether the view moves to the next video when the current one ends,
+  /// like stories. False by default.
+  ///
+  /// Needs videos that do not loop; the default manager loops them. Pass a
+  /// manager with `ReelPlayerConfig(looping: false)`.
   final bool autoAdvance;
 
   @override

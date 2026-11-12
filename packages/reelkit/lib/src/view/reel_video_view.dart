@@ -4,33 +4,50 @@ import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 import '../controller/reel_playback_state.dart';
 import '../controller/reel_player_controller.dart';
 
-/// Builds a widget shown in place of the video, for example while it is
-/// preparing.
+/// Builds what [ReelVideoView.placeholderBuilder] shows until the video's
+/// first frame appears. [state] tells whether it is loading or idle.
 typedef ReelPlaceholderBuilder = Widget Function(
   BuildContext context,
   ReelPlaybackState state,
 );
 
-/// Builds a widget shown when playback failed.
+/// Builds what [ReelVideoView.errorBuilder] shows when the video failed.
+/// [error] tells what went wrong.
 typedef ReelErrorBuilder = Widget Function(
   BuildContext context,
   ReelKitException error,
 );
 
-/// Displays the video of a [ReelPlayerController].
+/// Shows the video of a [ReelPlayerController] on screen. It draws only the
+/// picture: no buttons, no progress bar. Put your controls on top of it in
+/// a [Stack].
 ///
-/// This widget only renders frames. It has no controls: build play buttons,
-/// progress bars and overlays yourself on top of it, typically in a [Stack].
+/// ```dart
+/// Stack(
+///   fit: StackFit.expand,
+///   children: [
+///     ReelVideoView(
+///       controller: controller,
+///       fit: BoxFit.cover,
+///       poster: NetworkImage(thumbnailUrl),
+///     ),
+///     MyControls(controller: controller),
+///   ],
+/// )
+/// ```
 ///
-/// Layout: the video is laid out at its display size (pixel aspect ratio and
-/// rotation applied) and fitted into the available space with [fit] and
-/// [alignment], exactly like an image. Content outside the bounds is clipped
-/// according to [clipBehavior] and [borderRadius].
+/// The video is sized like an image: [fit] and [alignment] place it in the
+/// available space, with rotation and pixel shape already applied.
+/// [clipBehavior] and [borderRadius] clip it. Until the first frame appears
+/// it shows [poster] and [placeholderBuilder]; if the video fails it shows
+/// [errorBuilder].
 ///
-/// Until the first frame is rendered, [poster] or [placeholderBuilder] is
-/// shown. When the controller is in an error state, [errorBuilder] is shown.
+/// `ReelFeedView` uses it for every page; you need it directly only for
+/// your own layouts.
 class ReelVideoView extends StatelessWidget {
-  /// Creates a view that renders [controller].
+  /// Creates a view that shows the video of [controller]. Defaults: the whole
+  /// video visible ([BoxFit.contain]), centered, on black, clipped to the
+  /// view.
   const ReelVideoView({
     super.key,
     required this.controller,
@@ -44,33 +61,38 @@ class ReelVideoView extends StatelessWidget {
     this.errorBuilder,
   });
 
-  /// The controller whose video is rendered.
+  /// The video to show. The view does not play it; call `play` on the controller.
   final ReelPlayerController controller;
 
-  /// How the video is inscribed into the available space.
+  /// How the video fills the view, as for images. [BoxFit.contain] (default)
+  /// shows the whole video with bars if needed; [BoxFit.cover] fills the view
+  /// and crops the edges.
   final BoxFit fit;
 
-  /// Where the video is placed within the available space.
+  /// Where the video sits in the view when it does not fill it, or which part stays visible when cropped. Centered by default.
   final AlignmentGeometry alignment;
 
-  /// Painted behind the video, visible in letterbox areas.
+  /// Color behind the video, visible in the bars around it. Black by default.
   final Color backgroundColor;
 
-  /// How content outside the view bounds is clipped.
+  /// Whether and how the parts of the video outside the view are cut off. [Clip.hardEdge] by default.
   final Clip clipBehavior;
 
-  /// Rounds the corners of the view. Requires [clipBehavior] other than
-  /// [Clip.none].
+  /// Rounds the corners of the view. Needs a [clipBehavior] other than [Clip.none].
   final BorderRadiusGeometry? borderRadius;
 
-  /// Image shown until the first frame is rendered, laid out with [fit] and
-  /// [alignment].
+  /// Image shown until the video's first frame appears, usually a thumbnail
+  /// of that frame. Placed with the same [fit] and [alignment] as the video,
+  /// so the switch is seamless.
   final ImageProvider? poster;
 
-  /// Shown until the first frame is rendered, above [poster].
+  /// Widget shown until the first frame appears, above [poster], for example
+  /// a spinner or a title.
   final ReelPlaceholderBuilder? placeholderBuilder;
 
-  /// Shown instead of the video when the controller has an error.
+  /// Widget shown instead of the video when it failed, for example a message
+  /// with a retry button calling `controller.retry()`. Without it, the view
+  /// stays blank on errors.
   final ReelErrorBuilder? errorBuilder;
 
   @override

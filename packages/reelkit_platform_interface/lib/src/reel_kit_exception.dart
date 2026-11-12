@@ -1,6 +1,10 @@
 import 'package:flutter/services.dart';
 
-/// Typed error categories reported by ReelKit.
+/// The kind of a [ReelKitException], to react in code:
+///
+/// ```dart
+/// if (error.code == ReelKitErrorCode.network) showOfflineBanner();
+/// ```
 enum ReelKitErrorCode {
   /// No ReelKit implementation is registered for the current platform.
   unsupportedPlatform,
@@ -72,7 +76,19 @@ enum ReelKitErrorCode {
   unknown,
 }
 
-/// An error raised by ReelKit or by one of its native engines.
+/// An error from ReelKit or its native engine: [code] tells the kind,
+/// [message] describes it.
+///
+/// Failed videos show it as `controller.value.error`; commands such as
+/// `play` also throw it.
+///
+/// ```dart
+/// try {
+///   await controller.play();
+/// } on ReelKitException catch (error) {
+///   if (error.code == ReelKitErrorCode.network) { /* offline */ }
+/// }
+/// ```
 class ReelKitException implements Exception {
   /// Creates an exception with a [code], a [message] and optional
   /// [details].
@@ -96,10 +112,10 @@ class ReelKitException implements Exception {
     return ReelKitErrorCode.unknown;
   }
 
-  /// Category of the error, for programmatic handling.
+  /// The kind of error, for example network, not found or unsupported format. Use it in code.
   final ReelKitErrorCode code;
 
-  /// Human-readable description, for logs.
+  /// A readable description of what went wrong, for logs and debugging.
   final String message;
 
   /// Engine-specific detail (native error code or domain), when available.

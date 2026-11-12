@@ -25,23 +25,43 @@ enum ReelVideoFormat {
   dash,
 }
 
-/// A video to play.
+/// Where a video comes from: a URL, a file, an app asset or bytes in
+/// memory.
 ///
-/// Platform behaviour differs per source type:
+/// ```dart
+/// ReelSource.network('https://example.com/video.m3u8')
+/// ReelSource.network(url, headers: {'Authorization': 'Bearer $token'})
+/// ReelSource.asset('assets/intro.mp4')
+/// ReelSource.file('/path/on/device/clip.mp4')
+/// ```
 ///
-/// * [ReelSource.network] works on every platform. HTTP headers are honoured
-///   by the native engines; browsers cannot attach custom headers to a
-///   `<video>` element request, so headers are only applied on web when the
-///   web engine fetches the media itself.
-/// * [ReelSource.file] needs a real file system and is not available on web.
-/// * [ReelSource.asset] plays a Flutter asset bundled with the app.
-/// * [ReelSource.memory] plays in-memory bytes. Check
-///   `ReelPlatformCapabilities.supportsMemorySource` before using it.
+/// What works where:
+///
+/// * [ReelSource.network] works everywhere. Native engines send [headers];
+///   browsers cannot add headers to a `<video>` request, so on the web they
+///   apply only when the web engine downloads the media itself.
+/// * [ReelSource.file] needs a file system, so not on the web.
+/// * [ReelSource.asset] plays a video bundled with the app.
+/// * [ReelSource.memory] plays bytes; check
+///   `ReelPlatformCapabilities.supportsMemorySource` first.
 @immutable
 sealed class ReelSource {
+  /// Constructor for the source classes. Use the named factories instead.
   const ReelSource({this.id, this.formatHint = ReelVideoFormat.auto});
 
-  /// Plays a video from a network URL.
+  /// A video at [url]: an MP4 or other file, an HLS stream (`.m3u8`) or a
+  /// DASH stream (`.mpd`).
+  ///
+  /// * [headers]: sent with every request, for example `Authorization`.
+  /// * [formatHint]: the format when the URL does not show it (no `.m3u8` or
+  ///   `.mpd` extension).
+  /// * [mimeType]: the MIME type, when the server reports a wrong one.
+  /// * [cacheKey]: a stable key when the same video comes from changing URLs,
+  ///   such as signed URLs, so the disk cache still finds it.
+  /// * [cachePolicy]: [ReelCachePolicy.noCache] for private videos that must
+  ///   not be stored.
+  /// * [id]: your own identifier, used as the feed item id when none is
+  ///   given.
   const factory ReelSource.network(
     String url, {
     Map<String, String> headers,
@@ -52,14 +72,17 @@ sealed class ReelSource {
     String? id,
   }) = ReelNetworkSource;
 
-  /// Plays a video from an absolute file path.
+  /// A video file on the device at the absolute [path], for example one the
+  /// user recorded. Not available on the web.
   const factory ReelSource.file(
     String path, {
     ReelVideoFormat formatHint,
     String? id,
   }) = ReelFileSource;
 
-  /// Plays a video bundled as a Flutter asset.
+  /// A video bundled with the app and declared under `assets:` in
+  /// `pubspec.yaml`. [package] names the package that bundles it, or null for
+  /// the app's own assets.
   const factory ReelSource.asset(
     String assetName, {
     String? package,
@@ -67,18 +90,21 @@ sealed class ReelSource {
     String? id,
   }) = ReelAssetSource;
 
-  /// Plays a video held in memory.
+  /// A video held in memory as [bytes] of type [mimeType] (for example
+  /// `video/mp4`). The bytes are copied to the engine on every preparation,
+  /// so use it only for short clips.
   const factory ReelSource.memory(
     Uint8List bytes, {
     required String mimeType,
     String? id,
   }) = ReelMemorySource;
 
-  /// Optional application-defined identifier, for example a post id.
+  /// Your own identifier for this video, for example a post id. A feed uses
+  /// it as the item id when the item has none.
   final String? id;
 
-  /// Format declared by the application. [ReelVideoFormat.auto] means the
-  /// format is detected from the location, see [resolvedFormat].
+  /// The format you declare. [ReelVideoFormat.auto] (default) detects it from
+  /// the URL or path; set it when the URL has no telling extension.
   final ReelVideoFormat formatHint;
 
   /// Human-readable location used in logs and error messages.

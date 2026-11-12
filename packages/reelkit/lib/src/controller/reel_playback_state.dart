@@ -1,43 +1,64 @@
 import 'package:flutter/foundation.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
-/// Lifecycle and playback status of a `ReelPlayerController`.
+/// Where a `ReelPlayerController` is in its life, from created to disposed.
+/// Read it as `controller.value.status`.
+///
+/// Typical order: [idle], [initializing], [ready], [playing] and [paused]
+/// back and forth, then [completed] at the end of a non-looping video.
+/// [error] can happen at any point; `retry()` leaves it.
 enum ReelPlaybackStatus {
-  /// Not prepared. Either never initialized, or the native player was handed
-  /// to a higher-priority controller.
+  /// Not prepared: nothing is loaded. A new controller starts here, and a
+  /// controller returns here when it gives its native player away (to a more
+  /// important controller or through `release`). The next `play` or
+  /// `initialize` prepares it again.
   idle,
 
-  /// Preparing the source.
+  /// Loading the video: connecting, reading its format, buffering the start.
   initializing,
 
-  /// Prepared and able to play, never started.
+  /// Prepared and able to start at once, but never played yet.
   ready,
 
-  /// Playing. Check [ReelPlaybackState.isBuffering] for stalls.
+  /// Playing, or trying to: check [ReelPlaybackState.isBuffering] for pauses
+  /// while data loads.
   playing,
 
-  /// Paused after playing.
+  /// Paused after playing. The video stays loaded and resumes at once.
   paused,
 
-  /// Reached the end of a non-looping video.
+  /// Reached the end of a video that does not loop. `play` starts it over.
   completed,
 
-  /// Failed. See [ReelPlaybackState.error].
+  /// Loading or playback failed. [ReelPlaybackState.error] says why;
+  /// `controller.retry()` tries again.
   error,
 
-  /// The controller was disposed.
+  /// The controller was disposed and can no longer be used.
   disposed,
 }
 
-/// Immutable snapshot of a controller's playback state.
+/// Everything about a controller's playback at one moment: status,
+/// buffering, size, duration, volume, error. Read it as `controller.value`
+/// and rebuild with a `ValueListenableBuilder`:
 ///
-/// Position is deliberately not part of this snapshot: it changes every frame
-/// and would rebuild every listener continuously. Read it on demand with
-/// `ReelPlayerController.getPosition`.
+/// ```dart
+/// ValueListenableBuilder<ReelPlaybackState>(
+///   valueListenable: controller,
+///   builder: (context, state, _) {
+///     if (state.hasError) return Text(state.error!.message);
+///     if (state.isBuffering) return const CircularProgressIndicator();
+///     return Icon(state.isPlaying ? Icons.pause : Icons.play_arrow);
+///   },
+/// )
+/// ```
+///
+/// The position is not part of it, because it changes every frame and would
+/// rebuild listeners constantly. Read it with
+/// `ReelPlayerController.positions` or `getPosition`.
 @immutable
 class ReelPlaybackState {
-  /// Creates a state snapshot. Controllers create these; applications read
-  /// them.
+  /// Creates a state. Controllers create these; apps only read them.
   const ReelPlaybackState({
     this.status = ReelPlaybackStatus.idle,
     this.videoInfo,
@@ -51,38 +72,47 @@ class ReelPlaybackState {
     this.playbackSpeed = 1.0,
   });
 
-  /// High-level playback status.
+  /// Where the controller is: idle, loading, ready, playing, paused, completed, failed or disposed.
   final ReelPlaybackStatus status;
 
-  /// Size, duration and orientation of the prepared video. Retained after the
-  /// native player is reassigned so layouts do not jump.
+  /// Size, duration, rotation and frame rate of the video, known once it is
+  /// prepared. Kept when the native player is given away, so layouts do not
+  /// jump when the video prepares again.
   final ReelVideoInfo? videoInfo;
 
-  /// The last error, set when [status] is [ReelPlaybackStatus.error].
+  /// What went wrong when [status] is [ReelPlaybackStatus.error]: its
+  /// [ReelKitException.code] tells the kind (network, unsupported format...)
+  /// and [ReelKitException.message] describes it.
   final ReelKitException? error;
 
-  /// Whether playback is stalled waiting for data.
+  /// Whether playback waits for data, for example on a slow network. The
+  /// status stays [ReelPlaybackStatus.playing] meanwhile; show a spinner from
+  /// this flag (or use `ReelBufferingIndicator`).
   final bool isBuffering;
 
-  /// Whether the controller currently holds a native player.
+  /// Whether the controller holds a native player right now. False while
+  /// idle, and after the player went to another controller.
   final bool isAttached;
 
-  /// Whether the current source has drawn at least one frame.
+  /// Whether a frame of the video is on screen. Until then `ReelVideoView`
+  /// shows the poster; use it to fade a thumbnail out.
   final bool hasRenderedFirstFrame;
 
-  /// Whether playback restarts at the end.
+  /// Whether the video starts over at the end.
   final bool isLooping;
 
-  /// Volume from 0.0 to 1.0. The audible volume is 0 while [isMuted].
+  /// Volume from 0.0 (silent) to 1.0 (full), as set with `setVolume`. While
+  /// [isMuted], nothing is heard whatever the volume.
   final double volume;
 
-  /// Whether audio is muted.
+  /// Whether sound is off. Muting keeps [volume], so unmuting restores it.
   final bool isMuted;
 
-  /// Playback rate; 1.0 is normal speed.
+  /// Playback speed: 1.0 is normal, 2.0 double speed, 0.5 half speed.
   final double playbackSpeed;
 
-  /// Whether the source is prepared.
+  /// Whether the video is loaded and can play at once: ready, playing, paused
+  /// or completed.
   bool get isInitialized => switch (status) {
     ReelPlaybackStatus.ready ||
     ReelPlaybackStatus.playing ||
@@ -91,16 +121,18 @@ class ReelPlaybackState {
     _ => false,
   };
 
-  /// Whether the video is playing.
+  /// Whether the video is playing (status [ReelPlaybackStatus.playing]). It
+  /// can still be waiting for data; see [isBuffering].
   bool get isPlaying => status == ReelPlaybackStatus.playing;
 
   /// Whether [status] is [ReelPlaybackStatus.error]; see [error].
   bool get hasError => status == ReelPlaybackStatus.error;
 
-  /// Duration of the prepared video, or null when unknown or live.
+  /// Length of the video, or null before it is prepared and for live streams.
   Duration? get duration => videoInfo?.duration;
 
-  /// Display aspect ratio, or null before the size is known.
+  /// Width divided by height as displayed (rotation and pixel shape applied),
+  /// or null before the size is known. Greater than 1 for landscape videos.
   double? get aspectRatio {
     final info = videoInfo;
     if (info == null || !info.hasSize) return null;

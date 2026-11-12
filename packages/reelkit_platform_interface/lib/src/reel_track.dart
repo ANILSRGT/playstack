@@ -105,28 +105,42 @@ class ReelTrack {
       '${bitrate == null ? '' : ', ${bitrate}bps'})';
 }
 
-/// Upper bounds for adaptive video selection. Null fields are unbounded.
+/// The highest video quality an adaptive stream (HLS, DASH) may switch to.
+/// Streams come in several qualities; the engine picks one by bandwidth,
+/// and this caps its choice. Null fields mean no limit.
+///
+/// ```dart
+/// // At most 720p, or what fits the screen:
+/// controller.setVideoQualityLimit(const ReelVideoQualityLimit(maxHeight: 720));
+/// // At most 2 Mbit/s, for example on mobile data:
+/// controller.setVideoQualityLimit(const ReelVideoQualityLimit(maxBitrate: 2000000));
+/// // No limit:
+/// controller.setVideoQualityLimit(ReelVideoQualityLimit.none);
+/// ```
+///
+/// Lower caps save data and start faster; they have no effect on single
+/// files such as MP4.
 @immutable
 class ReelVideoQualityLimit {
-  /// Creates a limit; null fields are unbounded.
+  /// Creates a cap. Leave a field null to not limit it.
   const ReelVideoQualityLimit({this.maxBitrate, this.maxWidth, this.maxHeight})
     : assert(maxBitrate == null || maxBitrate > 0),
       assert(maxWidth == null || maxWidth > 0),
       assert(maxHeight == null || maxHeight > 0);
 
-  /// No limit.
+  /// No cap: the engine may pick any quality.
   static const ReelVideoQualityLimit none = ReelVideoQualityLimit();
 
-  /// Bits per second.
+  /// Highest bitrate in bits per second, for example `2000000` for 2 Mbit/s.
   final int? maxBitrate;
 
-  /// Maximum video width in pixels.
+  /// Widest video allowed, in pixels.
   final int? maxWidth;
 
-  /// Maximum video height in pixels.
+  /// Tallest video allowed, in pixels, for example `720` for 720p.
   final int? maxHeight;
 
-  /// Whether no field is set.
+  /// Whether nothing is limited (every field is null).
   bool get isUnbounded =>
       maxBitrate == null && maxWidth == null && maxHeight == null;
 

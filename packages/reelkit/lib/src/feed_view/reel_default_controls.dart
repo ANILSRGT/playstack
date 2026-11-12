@@ -8,17 +8,37 @@ import '../controller/reel_player_controller.dart';
 import '../feed/reel_feed_manager.dart';
 import 'reel_feed_view.dart';
 
-/// The controls `ReelFeedView` shows when the app supplies none: tap to
-/// pause and play, a sound switch for the whole feed, a fullscreen button
-/// for landscape videos, a thin progress bar, a buffering indicator that
-/// appears only when a wait gets long, and a retry button on errors.
+/// The controls a [ReelFeedView] shows when you pass no `controlsBuilder`.
 ///
-/// Keep the defaults and add your own layer with [child] (captions, like
-/// buttons), turn parts off, or replace the whole thing with your own
-/// `controlsBuilder`. The parts are public widgets too:
-/// [ReelProgressBar], [ReelBufferingIndicator], [ReelMuteButton].
+/// They provide:
+///
+/// * tap anywhere to pause, tap again to play (a play icon shows while
+///   paused);
+/// * a sound switch at the bottom right that mutes the whole feed;
+/// * a fullscreen button next to it on landscape videos (an exit button in
+///   fullscreen);
+/// * a thin progress bar along the bottom edge;
+/// * a spinner that appears only when loading takes long (see
+///   [bufferingIndicatorDelay]);
+/// * a retry button when a video fails.
+///
+/// Keep them and add your own layer on top with [child]:
+///
+/// ```dart
+/// controlsBuilder: (context, page) => ReelDefaultControls(
+///   page: page,
+///   onDoubleTap: () => like(page.data),
+///   child: Caption(post: page.data),
+/// ),
+/// ```
+///
+/// Turn parts off with the `show...` flags, or replace the controls
+/// completely with your own `controlsBuilder`. The parts are public widgets
+/// to reuse there: [ReelProgressBar], [ReelBufferingIndicator],
+/// [ReelMuteButton].
 class ReelDefaultControls extends StatefulWidget {
-  /// Creates the default controls of [page].
+  /// Creates the default controls of [page], the page passed to the
+  /// `controlsBuilder`.
   const ReelDefaultControls({
     super.key,
     required this.page,
@@ -33,42 +53,56 @@ class ReelDefaultControls extends StatefulWidget {
     this.color = const Color(0xFFFFFFFF),
   });
 
-  /// The default `ReelFeedView.controlsBuilder`.
+  /// The default value of `ReelFeedView.controlsBuilder`: the default controls
+  /// with no changes. Pass it explicitly to restore the defaults.
   static Widget builder(BuildContext context, ReelFeedPage<Object?> page) =>
       ReelDefaultControls(page: page);
 
-  /// The page these controls belong to.
+  /// The page these controls belong to: the `page` argument of
+  /// `controlsBuilder`.
   final ReelFeedPage<Object?> page;
 
-  /// The app's own layer, drawn above the video and below the controls'
-  /// buttons. Taps it does not handle reach [tapToPause].
+  /// Your own layer: captions, like buttons, an avatar. Drawn above the video
+  /// and below the default buttons.
+  ///
+  /// Buttons in it receive their taps; taps elsewhere fall through to
+  /// [tapToPause]. Check `page.isFullscreen` to hide it in fullscreen.
   final Widget? child;
 
-  /// Whether a tap pauses and resumes the video.
+  /// Whether tapping the video pauses it and tapping again plays it. True by
+  /// default.
   final bool tapToPause;
 
-  /// Called on a double tap, for example to like the post. Registering it
-  /// delays single taps slightly, as Flutter waits to rule out a double tap.
+  /// Called when the user double-taps the video, for example to like the
+  /// post. Null by default.
+  ///
+  /// Setting it delays single taps by about 300 ms, because Flutter waits to
+  /// see whether a second tap follows.
   final VoidCallback? onDoubleTap;
 
-  /// Whether a sound switch is shown. It mutes the whole feed.
+  /// Whether the sound switch is shown at the bottom right. True by default.
+  /// It mutes and unmutes every video of the feed. Turn it off when you draw
+  /// your own, for example with [ReelMuteButton].
   final bool showMuteButton;
 
-  /// Whether landscape videos get a fullscreen button. In fullscreen it
-  /// leaves fullscreen.
+  /// Whether landscape videos get a fullscreen button next to the sound
+  /// switch. True by default. In fullscreen it shows an exit button for every
+  /// video. Portrait videos already fill the screen and get none.
   final bool showFullscreenButton;
 
-  /// Whether a progress bar runs along the bottom edge.
+  /// Whether a thin progress bar runs along the bottom edge. True by default.
   final bool showProgress;
 
-  /// Whether [ReelBufferingIndicator] is shown during long waits.
+  /// Whether a spinner appears when loading takes long. True by default.
   final bool showBufferingIndicator;
 
-  /// How long a wait lasts before the buffering indicator appears. Until
-  /// then the last frame or the poster stays, which reads as a brief freeze.
+  /// How long loading may take before the spinner appears, 2 seconds by
+  /// default. Until then the last frame or the poster stays on screen, which
+  /// looks like a brief pause rather than a loading screen. Over a black
+  /// screen (no frame and no poster yet) the spinner appears after 800 ms.
   final Duration bufferingIndicatorDelay;
 
-  /// Color of icons and the progress bar.
+  /// Color of the icons, the spinner and the progress bar. White by default.
   final Color color;
 
   @override
@@ -194,10 +228,22 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
   }
 }
 
-/// A thin bar showing the playback position of [controller]. It reads the
-/// position only while [active] and playing.
+/// A thin bar showing how far a video has played, like the one at the
+/// bottom of short-video apps.
+///
+/// ```dart
+/// Positioned(
+///   left: 0,
+///   right: 0,
+///   bottom: 0,
+///   child: ReelProgressBar(controller: page.controller, active: page.isActive),
+/// ),
+/// ```
+///
+/// It reads the position only while [active] and the video plays, so bars
+/// on pages out of view cost nothing. It is not draggable.
 class ReelProgressBar extends StatefulWidget {
-  /// Creates a progress bar for [controller].
+  /// Creates a progress bar for the video of [controller].
   const ReelProgressBar({
     super.key,
     required this.controller,
@@ -208,22 +254,24 @@ class ReelProgressBar extends StatefulWidget {
     this.interval = const Duration(milliseconds: 200),
   });
 
-  /// The controller whose position is shown.
+  /// The video whose progress is shown, usually `page.controller`.
   final ReelPlayerController controller;
 
-  /// Whether the position is read. Pass false for pages out of view.
+  /// Whether the bar follows the video. Pass `page.isActive` so that only the
+  /// page in view reads positions. True by default.
   final bool active;
 
-  /// Height of the bar.
+  /// Thickness of the bar in logical pixels, 2 by default.
   final double height;
 
-  /// Color of the elapsed part.
+  /// Color of the played part, white by default.
   final Color color;
 
-  /// Color of the remaining part.
+  /// Color of the part not played yet, translucent white by default.
   final Color backgroundColor;
 
-  /// How often the position is read.
+  /// How often the position is read while playing, 200 ms by default. Lower
+  /// values move the bar more smoothly and cost more.
   final Duration interval;
 
   @override
@@ -271,14 +319,24 @@ class _ReelProgressBarState extends State<ReelProgressBar> {
   }
 }
 
-/// A spinner for [controller] that appears only when a wait gets long.
+/// A loading spinner that appears only when the video makes the user wait
+/// long.
 ///
-/// While [active] and the video prepares or buffers, nothing is drawn for
-/// [delay]: the last frame or the poster stays, which reads as a brief
-/// freeze. When the screen is still black (no frame rendered and no
-/// poster), [blackScreenDelay] applies instead. Then the spinner fades in.
+/// While a video prepares or rebuffers, nothing is drawn at first: the last
+/// frame or the poster stays on screen, which feels like a short pause.
+/// Only after [delay] (or [blackScreenDelay] over a black screen) does the
+/// spinner fade in. Short waits during fast swiping therefore never flash a
+/// spinner.
+///
+/// ```dart
+/// ReelBufferingIndicator(
+///   controller: page.controller,
+///   active: page.isActive,
+///   hasPoster: page.item.poster != null,
+/// )
+/// ```
 class ReelBufferingIndicator extends StatelessWidget {
-  /// Creates a buffering indicator for [controller].
+  /// Creates a spinner for the waits of [controller].
   const ReelBufferingIndicator({
     super.key,
     required this.controller,
@@ -290,26 +348,29 @@ class ReelBufferingIndicator extends StatelessWidget {
     this.size = 36,
   });
 
-  /// The controller whose waits are shown.
+  /// The video whose loading is shown, usually `page.controller`.
   final ReelPlayerController controller;
 
-  /// Whether the controller is the one the user is watching. Preloading
-  /// items in the background never show a spinner.
+  /// Whether this video is the one the user watches. Pass `page.isActive`:
+  /// pages preparing in the background never show a spinner. True by
+  /// default.
   final bool active;
 
-  /// Whether a poster covers the page until the first frame.
+  /// Whether a poster covers the page until the first frame. With a poster,
+  /// [delay] applies from the start; without one, the screen is black and
+  /// [blackScreenDelay] applies. Pass `page.item.poster != null`.
   final bool hasPoster;
 
-  /// Wait before the spinner appears over a frame or poster.
+  /// Wait before the spinner appears over a frame or a poster, 2 seconds by default.
   final Duration delay;
 
-  /// Wait before the spinner appears over a black screen.
+  /// Wait before the spinner appears over a black screen, 800 ms by default.
   final Duration blackScreenDelay;
 
-  /// Color of the spinner.
+  /// Color of the spinner, white by default.
   final Color color;
 
-  /// Diameter of the spinner.
+  /// Diameter of the spinner in logical pixels, 36 by default.
   final double size;
 
   @override
@@ -384,10 +445,16 @@ class _DelayedState extends State<_Delayed> {
   }
 }
 
-/// A sound switch. With [feed], it mutes and unmutes every item of the
-/// feed (`ReelFeedManager.setMuted`); otherwise only [controller].
+/// A sound on/off button with a speaker icon that shows the current state.
+///
+/// Pass [feed] to mute every video of the feed at once, as short-video apps
+/// do; without it only [controller] is muted.
+///
+/// ```dart
+/// ReelMuteButton(controller: page.controller, feed: page.feed)
+/// ```
 class ReelMuteButton extends StatelessWidget {
-  /// Creates a sound switch showing the state of [controller].
+  /// Creates a sound switch that shows whether [controller] is muted.
   const ReelMuteButton({
     super.key,
     required this.controller,
@@ -396,16 +463,17 @@ class ReelMuteButton extends StatelessWidget {
     this.size = 26,
   });
 
-  /// The controller whose mute state is shown.
+  /// The video whose mute state the icon shows, usually `page.controller`.
   final ReelPlayerController controller;
 
-  /// The feed to mute as a whole.
+  /// The feed to mute as a whole, usually `page.feed`. Null mutes only
+  /// [controller].
   final ReelFeedManager? feed;
 
-  /// Color of the icon.
+  /// Color of the icon, white by default.
   final Color color;
 
-  /// Size of the icon.
+  /// Size of the icon in logical pixels, 26 by default.
   final double size;
 
   @override

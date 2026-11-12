@@ -2,10 +2,23 @@ import 'package:flutter/foundation.dart';
 
 import '../config/reel_kit_config.dart';
 
-/// How a `ReelFeedManager` prepares items around the active one.
+/// How a feed prepares videos around the one in view, so that swiping to
+/// them starts playback at once.
+///
+/// Preparing a video means loading it far enough to show its first frame
+/// and play a few seconds. More videos prepared ahead means fewer waits when
+/// swiping fast, at the cost of data, memory and decoders. The feed lowers
+/// these numbers by itself on mobile data, with data saver, on low-memory
+/// devices and after memory warnings.
+///
+/// ```dart
+/// const ReelFeedConfig(preloadAhead: 2, preloadBehind: 1) // lighter
+/// ReelFeedConfig.reels                                     // fast swiping
+/// ```
 @immutable
 class ReelFeedConfig {
-  /// Creates a feed configuration.
+  /// Creates a feed configuration. Defaults: two items prepared ahead, one
+  /// behind, one preparation at a time, autoplay on.
   const ReelFeedConfig({
     this.preloadAhead = 2,
     this.preloadBehind = 1,
@@ -34,19 +47,22 @@ class ReelFeedConfig {
     maxConcurrentPreloads: 3,
   );
 
-  /// Items after the active one to prepare (first frame decoded, a few
-  /// seconds buffered) before the user reaches them.
+  /// How many upcoming items are prepared before the user reaches them, 2 by
+  /// default. Raise it for users who swipe fast; lower it to save data.
   final int preloadAhead;
 
-  /// Items before the active one to keep prepared, for scrolling back.
+  /// How many previous items stay prepared, so swiping back is instant, 1 by
+  /// default.
   final int preloadBehind;
 
-  /// Whether the active item starts playing when it becomes active. When
-  /// false it is only prepared, and the app calls `play`.
+  /// Whether the item in view starts playing on its own, true by default.
+  /// When false it is only prepared, and you call `play` (for example on a
+  /// tap).
   final bool autoplay;
 
-  /// Preparations running at the same time besides the active item. One is
-  /// usually best: the next item is ready soonest and bandwidth is not split.
+  /// How many items prepare at the same time besides the one in view, 1 by
+  /// default. One gets the next item ready soonest; [ReelFeedConfig.reels]
+  /// uses three so that fast swipes find more items ready.
   final int maxConcurrentPreloads;
 
   /// How long preloads wait for an active item that is still preparing
@@ -59,31 +75,32 @@ class ReelFeedConfig {
   /// starts preloads together with the active item.
   final Duration activeHeadStart;
 
-  /// Smaller preload windows on metered, constrained or missing networks.
+  /// How far ahead to prepare on mobile data and with data saver. By default
+  /// one item ahead and none behind on mobile data, and none ahead with data
+  /// saver (only the item in view loads).
   final ReelNetworkPreloadPolicy network;
 
-  /// Upper bound of [preloadAhead] on devices the platform reports as low
-  /// on memory (Android `isLowRamDevice`, small iOS devices). Items behind
-  /// are not kept there.
+  /// Most items prepared ahead on devices the system reports as low on memory
+  /// (Android `isLowRamDevice`, small iOS devices), 1 by default. Nothing is
+  /// kept behind there.
   final int lowMemoryPreloadAhead;
 
-  /// After an operating-system memory warning, preloading is limited to the
-  /// next item (nothing behind) for this long.
+  /// After the system warns that memory is low, only the next item is
+  /// prepared for this long, 30 seconds by default.
   final Duration memoryPressureCooldown;
 
-  /// Whether preloads that failed with a network or timeout error are tried
-  /// again, at most once per item, on the next plan (index change or
-  /// network recovery). The active item is always retried when activated.
+  /// Whether an item that failed to prepare ahead (network error, timeout) is
+  /// tried once more when the user moves or the network returns, true by
+  /// default. The item in view is always retried.
   final bool retryFailedPreloads;
 
-  /// Dart controllers of items further than the preload window plus this
-  /// distance from the active item are disposed (they hold no native player
-  /// anyway) and recreated by `controllerAt` on demand. Keeps memory flat in
-  /// endless feeds.
+  /// How far from the item in view (beyond the preparation window)
+  /// controllers are kept, 20 by default. Further ones are disposed and
+  /// recreated when needed, so endless feeds use flat memory.
   final int controllerRetention;
 
-  /// Settings of the feed's controllers. Defaults to the manager's
-  /// `ReelKitConfig.player`.
+  /// Settings of the feed's players (looping, mute, quality caps). Null uses
+  /// the manager's `ReelKitConfig.player`.
   final ReelPlayerConfig? player;
 
   @override
@@ -117,11 +134,12 @@ class ReelFeedConfig {
   );
 }
 
-/// Preload limits by network condition. Each value caps the configured
-/// window; it never enlarges it.
+/// How far ahead a feed prepares on limited networks. Each value only
+/// lowers the configured window, never raises it.
 @immutable
 class ReelNetworkPreloadPolicy {
-  /// Creates a network preload policy.
+  /// Creates a network policy. Defaults: one item ahead and none behind on
+  /// mobile data; none ahead with data saver.
   const ReelNetworkPreloadPolicy({
     this.meteredPreloadAhead = 1,
     this.meteredPreloadBehind = 0,
@@ -130,10 +148,11 @@ class ReelNetworkPreloadPolicy {
        assert(meteredPreloadBehind >= 0),
        assert(constrainedPreloadAhead >= 0);
 
-  /// Items ahead on networks billed by volume (cellular, hotspot).
+  /// Most items prepared ahead on networks billed by volume (mobile data, a
+  /// hotspot), 1 by default.
   final int meteredPreloadAhead;
 
-  /// Items behind on metered networks.
+  /// Most items kept prepared behind on networks billed by volume, 0 by default.
   final int meteredPreloadBehind;
 
   /// Items ahead when the user asked to save data (Android Data Saver, iOS

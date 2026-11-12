@@ -2,31 +2,55 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
-/// One entry of a `ReelFeedManager`.
+/// One video of a `ReelFeedManager`: what to play, a poster, and your own
+/// object.
 ///
-/// The [id] identifies the item across insertions, removals and source
-/// updates; it defaults to [ReelSource.id] and must be unique in the feed.
+/// You only create these when you manage a feed yourself
+/// (`ReelFeedView.feed`). With `ReelFeedView(items: ...)` the view creates
+/// them for you.
+///
+/// ```dart
+/// ReelFeedItem(
+///   ReelSource.network(post.videoUrl),
+///   id: post.id,
+///   poster: NetworkImage(post.thumbnailUrl),
+///   data: post,
+/// )
+/// ```
 @immutable
 class ReelFeedItem {
-  /// Creates an item for [source]. Without [id], the source id or a
-  /// generated id is used.
+  /// Creates an item that plays [source].
+  ///
+  /// [id] identifies the item in its feed (see [id]); without it, the
+  /// source's [ReelSource.id] is used, or a unique id is generated. [poster]
+  /// and [data] are optional.
   ReelFeedItem(this.source, {String? id, this.poster, this.data})
     : id = id ?? source.id ?? 'reelkit-item-${_nextId++}';
 
   static int _nextId = 0;
 
-  /// Identity of the item in its feed.
+  /// Identity of the item in its feed; must be unique in that feed.
+  ///
+  /// The feed keeps each item's player by id, so a video keeps playing when
+  /// items are inserted or removed above it, and `ReelFeedManager.remove`,
+  /// `indexOf` and `updateSource` find items by it. Use your own stable id,
+  /// such as a post id.
   final String id;
 
-  /// The video to play.
+  /// The video to play: a network URL, an asset, a file or bytes. Change it
+  /// later with `ReelFeedManager.updateSource`, for example when a signed URL
+  /// expires.
   final ReelSource source;
 
-  /// Image shown until the first frame is rendered. `ReelFeedView` shows it
-  /// and downloads the posters of the next items ahead of time.
+  /// Image shown until the video's first frame appears, usually a thumbnail
+  /// of that frame. `ReelFeedView` shows it and downloads the posters of the
+  /// next items ahead of time. Without one, the page is black while the video
+  /// loads.
   final ImageProvider? poster;
 
-  /// Anything the app attaches to the item, such as the post it belongs to.
-  /// Read it back in `ReelFeedView` builders through `ReelFeedPage.data`.
+  /// Your own object for this item, such as the post it belongs to. ReelKit
+  /// never reads it; `ReelFeedView` hands it back to your builders as
+  /// `ReelFeedPage.data`.
   final Object? data;
 
   /// Returns a copy with the same [id] and the given fields replaced.

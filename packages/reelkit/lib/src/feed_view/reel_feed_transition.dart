@@ -2,10 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
-/// Where a page of a `ReelFeedView` is during a transition.
+/// Where a page is during a transition, passed to a custom transition (see
+/// [ReelFeedTransition.custom]) for every visible page on every frame.
 @immutable
 class ReelFeedTransitionDetails {
-  /// Creates transition details. `ReelFeedView` creates these.
+  /// Creates transition details. `ReelFeedView` creates these; apps do not need to.
   const ReelFeedTransitionDetails({
     required this.offset,
     required this.axis,
@@ -13,25 +14,38 @@ class ReelFeedTransitionDetails {
     required this.size,
   });
 
-  /// Position of the page relative to the viewport, in pages: 0 when it
-  /// fills the viewport, -1 one page before (already left), 1 one page
-  /// after (about to come in). Negative pages are leaving when the user
-  /// moves forward and coming back when the user moves backward.
+  /// Position of the page relative to the screen, in pages.
+  ///
+  /// * `0`: the page fills the screen.
+  /// * Between `-1` and `0`: the page is before the one in view. When the user
+  ///   swipes forward it is the page leaving; when swiping back, the page
+  ///   coming back.
+  /// * Between `0` and `1`: the page after the one in view, coming in.
+  ///
+  /// Halfway through a swipe forward the current page is at `-0.5` and the
+  /// next at `0.5`. Use `offset.abs()` as the progress of a page's effect.
   final double offset;
 
-  /// The scroll axis.
+  /// The swipe direction of the feed, `ReelFeedView.scrollDirection`.
   final Axis axis;
 
-  /// Whether the feed scrolls in reverse (next item from above or from the
-  /// left).
+  /// Whether the feed is reversed (`ReelFeedView.reverse`): the next page comes
+  /// from above or from the left.
   final bool reverse;
 
-  /// Size of the viewport.
+  /// Size of the feed on screen. Use it to compute distances.
   final Size size;
 
-  /// Translation that cancels the scroll movement and keeps the page where
-  /// it would be at offset 0. Scale it to slow the page down: half of it
-  /// moves the page at half the scroll speed.
+  /// The translation that cancels the scroll and keeps the page in place,
+  /// as if it did not move. Pages normally slide with the finger; translate by
+  /// [hold] to pin one, or by a fraction to slow it down:
+  ///
+  /// ```dart
+  /// Transform.translate(offset: details.hold, child: child)        // stays
+  /// Transform.translate(offset: details.hold * 0.5, child: child)  // half speed
+  /// ```
+  ///
+  /// It already accounts for [axis] and [reverse].
   Offset get hold {
     final sign = reverse ? 1.0 : -1.0;
     return axis == Axis.vertical
@@ -40,56 +54,78 @@ class ReelFeedTransitionDetails {
   }
 }
 
-/// Builds a page of a `ReelFeedView` during a transition.
+/// Builds one page during a transition: wrap [child] (the page) in
+/// transforms, opacity or anything else, based on [details]. See
+/// [ReelFeedTransition.custom].
 typedef ReelFeedTransitionBuilder = Widget Function(
   BuildContext context,
   ReelFeedTransitionDetails details,
   Widget child,
 );
 
-/// How pages of a `ReelFeedView` move from one to the next.
+/// How the pages of a `ReelFeedView` move from one to the next.
 ///
-/// The transition follows the finger while the user drags and runs as an
-/// animation for programmatic moves (`ReelFeedViewController.nextPage`).
-/// Pages are painted in index order, so the next page is above the
-/// current one.
+/// Pass one to `ReelFeedView.transition`:
 ///
-/// Use one of the built-in transitions or describe your own with
-/// [ReelFeedTransition.custom].
+/// ```dart
+/// ReelFeedView(items: urls, transition: ReelFeedTransition.stack)
+/// ```
+///
+/// Built-in transitions: [slide] (default), [parallax], [stack], [fade],
+/// [zoom] and [cube]. Each one follows the finger while the user drags and
+/// plays as an animation when the view moves from code
+/// (`ReelFeedViewController.nextPage`).
+///
+/// For your own effect, use [ReelFeedTransition.custom], or extend this
+/// class and override [build]. Pages are painted in index order, so the
+/// next page is drawn above the current one.
 abstract class ReelFeedTransition {
-  /// Const constructor for subclasses.
+  /// Constructor for subclasses. Make it `const` so transitions can be constants.
   const ReelFeedTransition();
 
-  /// Describes a transition with [builder], called for every visible page
-  /// on every scroll frame.
+  /// A transition of your own. [builder] gets each visible page with its
+  /// position ([ReelFeedTransitionDetails.offset]) and returns the page
+  /// transformed:
+  ///
+  /// ```dart
+  /// transition: ReelFeedTransition.custom((context, details, child) {
+  ///   final progress = details.offset.abs().clamp(0.0, 1.0);
+  ///   return Opacity(opacity: 1 - progress * 0.5, child: child);
+  /// }),
+  /// ```
+  ///
+  /// [builder] runs for every visible page on every frame of a swipe; keep it
+  /// cheap (transforms and opacity, no layout work).
   const factory ReelFeedTransition.custom(ReelFeedTransitionBuilder builder) =
       _CustomTransition;
 
-  /// Pages slide together, the default scroll behavior.
+  /// Pages slide together, like a normal scrolling list. The default, and the cheapest.
   static const ReelFeedTransition slide = _SlideTransition();
 
-  /// The current page moves at half speed and the next page slides over it.
+  /// The current page moves at half speed while the next page slides over it,
+  /// which adds depth.
   static const ReelFeedTransition parallax = _ParallaxTransition();
 
-  /// The current page stays, shrinks and darkens; the next page slides over
-  /// it like a card on a deck.
+  /// The current page stays in place, shrinks and darkens while the next page
+  /// slides over it, like a card laid on a deck.
   static const ReelFeedTransition stack = _StackTransition();
 
-  /// Pages stay in place and cross-fade.
+  /// Pages stay in place and cross-fade into each other.
   static const ReelFeedTransition fade = _FadeTransition();
 
-  /// The next page grows in from slightly smaller while fading in; the
-  /// current page stays and fades out.
+  /// Pages stay in place: the next page grows in from slightly smaller while
+  /// fading in, and the current page fades out.
   static const ReelFeedTransition zoom = _ZoomTransition();
 
-  /// Pages turn like the faces of a cube.
+  /// Pages turn in 3D like the faces of a cube rotating around its edge.
   static const ReelFeedTransition cube = _CubeTransition();
 
-  /// Whether pages are shown untouched, letting `ReelFeedView` skip the
-  /// per-frame transition work.
+  /// Whether this transition leaves pages untouched. When true, `ReelFeedView`
+  /// skips the per-frame transition work. Only [slide] returns true.
   bool get isIdentity => false;
 
-  /// Builds [child], the page at [details].
+  /// Builds [child], one page of the feed, at the position described by
+  /// [details]. Called for every visible page on every frame of a swipe.
   Widget build(
     BuildContext context,
     ReelFeedTransitionDetails details,

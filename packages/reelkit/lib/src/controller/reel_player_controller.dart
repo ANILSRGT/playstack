@@ -12,14 +12,18 @@ import 'reel_player_metrics.dart';
 import 'reel_position_stream.dart';
 import 'reel_track_state.dart';
 
-/// A system interruption of playback, see
-/// [ReelPlayerController.interruptions].
+/// Why the system paused or resumed playback, emitted by
+/// [ReelPlayerController.interruptions]: a phone call, another app taking
+/// the audio, headphones unplugged.
+///
+/// Use it to explain a pause to the user; the playback state changes on its
+/// own.
 @immutable
 class ReelInterruption {
-  /// Creates an interruption notice.
+  /// Creates an interruption notice. Controllers create these.
   const ReelInterruption({required this.type, required this.ended});
 
-  /// What interrupted playback.
+  /// What interrupted playback, for example a call or headphones being unplugged.
   final ReelInterruptionType type;
 
   /// False when the interruption began, true when it ended.
@@ -54,24 +58,39 @@ abstract interface class ReelControllerHost {
   void playingChanged(ReelPlayerController controller, bool isPlaying);
 }
 
-/// Controls playback of one video.
+/// Plays one video: play, pause, seek, volume, speed, tracks, and its
+/// observable state.
 ///
-/// A controller is a lightweight handle: it does not own a native player by
-/// itself. It leases one from the manager's pool when it is initialized or
-/// played and gives it back when it is disposed. If a controller with a
-/// higher [priority] needs a player while the pool is full, this controller
-/// can lose its player; its state then returns to [ReelPlaybackStatus.idle]
-/// and the next [initialize] or [play] prepares the video again.
+/// Create one with `ReelKitManager.createController`, show it with
+/// `ReelVideoView`, and dispose it when done:
 ///
-/// When the manager uses exclusive playback (the default), [play] pauses the
-/// manager's other controllers; see `ReelKitConfig.exclusivePlayback`.
+/// ```dart
+/// final controller = manager.createController(
+///   ReelSource.network('https://example.com/video.m3u8'),
+/// );
+/// await controller.play();          // prepares the video first if needed
+/// ReelVideoView(controller: controller);
+/// // later
+/// await controller.dispose();
+/// ```
 ///
-/// Commands are executed one at a time, in call order. Commands that were
-/// still queued when [dispose] was called complete without effect; commands
-/// issued after [dispose] throw a [ReelKitException] with
+/// In a `ReelFeedView` you never create controllers: each page gets one as
+/// `ReelFeedPage.controller`, and the feed plays and pauses it as the user
+/// swipes.
+///
+/// Creating a controller is cheap: it holds no native player until it is
+/// prepared ([initialize]) or played. Players come from the manager's pool
+/// and go back on [dispose] or [release]. If a more important controller
+/// (higher [priority]) needs a player while the pool is full, this one may
+/// lose its player; its status returns to [ReelPlaybackStatus.idle] and the
+/// next [play] prepares the video again.
+///
+/// By default, [play] pauses the manager's other controllers, so only one
+/// video plays at a time (see `ReelKitConfig.exclusivePlayback`).
+///
+/// Commands run one at a time in call order, so you can call them without
+/// awaiting. After [dispose], commands throw a [ReelKitException] with
 /// [ReelKitErrorCode.disposed].
-///
-/// Create controllers with `ReelKitManager.createController`.
 class ReelPlayerController extends ChangeNotifier
     implements ValueListenable<ReelPlaybackState>, ReelPoolClient {
   /// Use `ReelKitManager.createController` instead.
@@ -134,9 +153,24 @@ class ReelPlayerController extends ChangeNotifier
   /// stop, completion, errors, losing the player).
   bool _playbackRequested = false;
 
-  /// The video this controller plays.
+  /// The video this controller plays. Change it with [setSource].
   ReelSource get source => _source;
 
+  /// The current playback state: status, buffering, size, duration,
+  /// volume, error. See [ReelPlaybackState].
+  ///
+  /// The controller is a `ValueListenable`, so rebuild widgets from it:
+  ///
+  /// ```dart
+  /// ValueListenableBuilder<ReelPlaybackState>(
+  ///   valueListenable: controller,
+  ///   builder: (context, state, _) =>
+  ///       Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+  /// )
+  /// ```
+  ///
+  /// The position is not part of it, because it changes every frame; read
+  /// it with [positions] or [getPosition].
   @override
   ReelPlaybackState get value => _value;
 
@@ -150,15 +184,22 @@ class ReelPlayerController extends ChangeNotifier
   /// your own widgets.
   ValueListenable<List<String>> get subtitles => _tracks.subtitles;
 
-  /// The current adaptive video cap.
+  /// The current cap on the video quality of adaptive streams (HLS, DASH),
+  /// set by `ReelPlayerConfig.videoQualityLimit` or
+  /// [setVideoQualityLimit]. [ReelVideoQualityLimit.none] when uncapped.
   ReelVideoQualityLimit get videoQualityLimit => _tracks.qualityLimit;
 
-  /// Whether [dispose] was called.
+  /// Whether [dispose] was called. A disposed controller cannot be used again.
   bool get isDisposed => _disposed;
 
-  /// Claim strength on a native player. Raised to
-  /// [ReelPlayerPriority.active] by [play] and lowered to
-  /// [ReelPlayerPriority.visible] by [pause].
+  /// How strongly this controller holds on to its native player when the pool
+  /// is full: [ReelPlayerPriority.active] (playing) beats
+  /// [ReelPlayerPriority.visible] (on screen), which beats
+  /// [ReelPlayerPriority.preload] and [ReelPlayerPriority.background].
+  ///
+  /// [play] raises it to active and [pause] lowers it to visible. Feeds manage
+  /// it for their controllers; set it yourself only for custom layouts, for
+  /// example `background` for a video scrolled out of view.
   ReelPlayerPriority get priority => _priority;
 
   set priority(ReelPlayerPriority value) {
@@ -172,12 +213,13 @@ class ReelPlayerController extends ChangeNotifier
     }
   }
 
-  /// Playback paused or resumed by the system: audio focus taken by another
-  /// app, a phone call, headphones unplugged. The playback state changes as
-  /// usual; this stream says why.
+  /// Tells why the system paused or resumed playback: another app took the
+  /// audio, a phone call, headphones unplugged. The playback state changes on
+  /// its own; listen here to tell the user why.
   Stream<ReelInterruption> get interruptions => _interruptions.stream;
 
-  /// Timing of the latest preparation and playback start.
+  /// How long the latest preparation and playback start took. Useful for
+  /// diagnostics and performance logging.
   ReelPlayerMetrics get metrics => _metrics;
 
   @override
@@ -297,15 +339,17 @@ class ReelPlayerController extends ChangeNotifier
     _positionChanges.notifyListeners();
   });
 
-  /// Seeks forward by [step].
+  /// Seeks forward by [step], 10 seconds by default. Stops at the end.
   Future<void> fastForward([Duration step = const Duration(seconds: 10)]) =>
       seekBy(step);
 
-  /// Seeks backward by [step].
+  /// Seeks backward by [step], 10 seconds by default. Stops at the beginning.
   Future<void> rewind([Duration step = const Duration(seconds: 10)]) =>
       seekBy(-step);
 
-  /// Enables or disables looping.
+  /// Whether the video starts over when it reaches the end. When false, the
+  /// status becomes [ReelPlaybackStatus.completed] at the end and [play]
+  /// restarts it.
   Future<void> setLooping(bool looping) => _command(() async {
     _update(_value.copyWith(isLooping: looping));
     await _applySettings();
@@ -397,7 +441,7 @@ class ReelPlayerController extends ChangeNotifier
     await _refreshTracks();
   });
 
-  /// Turns subtitles off.
+  /// Turns subtitles off: [subtitles] becomes empty until a text track is selected again.
   Future<void> disableSubtitles() => selectAutomaticTrack(ReelTrackType.text);
 
   /// Caps adaptive video quality, for example on metered networks. Pass
@@ -412,11 +456,22 @@ class ReelPlayerController extends ChangeNotifier
         await _applySettings();
       });
 
-  /// Emits the playback position every [interval] while playing, and once
-  /// after every state change or seek.
+  /// The playback position, for progress bars and time labels.
   ///
-  /// Polling runs only while the stream has a listener and the video is
-  /// playing, so a paused video causes no channel traffic.
+  /// Emits every [interval] while playing, and once after every state change
+  /// or seek. It reads from the engine only while the stream has a listener
+  /// and the video plays, so a paused video costs nothing.
+  ///
+  /// ```dart
+  /// StreamBuilder<ReelPositionSnapshot>(
+  ///   stream: controller.positions(),
+  ///   builder: (context, snapshot) =>
+  ///       Text('${snapshot.data?.position.inSeconds ?? 0} s'),
+  /// )
+  /// ```
+  ///
+  /// Create the stream once (for example in `initState`), not in every
+  /// `build`.
   Stream<ReelPositionSnapshot> positions({
     Duration interval = const Duration(milliseconds: 250),
   }) {
