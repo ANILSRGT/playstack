@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
 
 import '../fullscreen/reel_fullscreen_manager.dart';
@@ -43,6 +44,10 @@ class ReelKitConfig {
   /// * Preparation at up to ~720p, switching up once playing, so several
   ///   videos prepare in the time of one swipe.
   /// * On iOS, sound plays with the silent switch on, like video apps.
+  /// * The app is portrait outside fullscreen: leaving fullscreen turns a
+  ///   landscape video's screen back to portrait, even when the phone is
+  ///   still held sideways. For a feed that also rotates, pass a manager
+  ///   whose [fullscreen] lists the orientations your app allows.
   factory ReelKitConfig.reels() => ReelKitConfig(
     pool: const ReelPoolConfig(maxPlayers: 7),
     player: ReelPlayerConfig(
@@ -53,6 +58,11 @@ class ReelKitConfig {
     ),
     audio: const ReelAudioConfig(
       iosAudioSessionCategory: ReelAudioSessionCategory.playback,
+    ),
+    // Short-video feeds are portrait. Without this, leaving fullscreen
+    // would unlock every orientation and the screen would stay sideways.
+    fullscreen: const ReelFullscreenConfig(
+      appOrientations: [DeviceOrientation.portraitUp],
     ),
   );
 

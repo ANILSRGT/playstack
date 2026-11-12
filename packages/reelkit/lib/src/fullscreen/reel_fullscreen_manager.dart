@@ -42,8 +42,15 @@ class ReelFullscreenConfig {
     this.fullscreenSystemUiMode = SystemUiMode.immersiveSticky,
   });
 
-  /// Orientations the app allows outside fullscreen; empty means every
-  /// orientation declared in the app's Info.plist / manifest.
+  /// The orientations your app allows outside fullscreen; ReelKit restores
+  /// them when fullscreen ends. Set the same list you pass to
+  /// `SystemChrome.setPreferredOrientations`, for example
+  /// `[DeviceOrientation.portraitUp]` for a portrait-only app.
+  ///
+  /// Empty (the default) means every orientation the app declares. Leaving a
+  /// landscape fullscreen then unlocks rotation, and the screen follows the
+  /// device: it stays sideways while the phone is held sideways.
+  /// `ReelKitConfig.reels` sets `[DeviceOrientation.portraitUp]`.
   final List<DeviceOrientation> appOrientations;
 
   /// System UI mode outside fullscreen.
