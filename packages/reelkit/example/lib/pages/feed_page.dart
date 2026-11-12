@@ -54,6 +54,16 @@ class _FeedPageState extends State<FeedPage> {
       body: ReelFeedView<String>(
         items: _firstPage,
         onLoadMore: () async => _nextPage(),
+        // Pull down on the first video to start over.
+        onRefresh: () async {
+          _loaded = 0;
+          return _nextPage();
+        },
+        // Called when the user leaves a video: send it to your analytics.
+        onItemViewed: (view) => debugPrint(
+          'watched #${view.index + 1} for ${view.watchTime.inMilliseconds} ms'
+          '${view.completed ? ' to the end' : ''}',
+        ),
         controller: _view,
         controlsBuilder: (context, page) => ReelDefaultControls(
           page: page,

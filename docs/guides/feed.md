@@ -18,8 +18,10 @@ That is all. The view:
   away
 - plays the video in view and prepares the next ones
 - loads more items when the user nears the end
-- shows default controls: tap to pause, sound, fullscreen for landscape
-  videos, progress and retry
+- pauses while a route covers it or its tab is not shown, and while the
+  app is in the background
+- shows default controls: tap to pause, hold to pause, sound, fullscreen
+  for landscape videos, a progress bar you can drag, and retry
 
 For a list of URLs, pass just the list: `ReelFeedView(items: urls)`. For
 assets, files or HTTP headers, use `source: (post) => ReelSource...`
@@ -48,6 +50,64 @@ Keep your list in state and pass a new one when it changes:
 When items can be reordered or removed, pass `itemId: (post) => post.id`.
 Players then follow their items instead of starting over.
 
+### Pull to refresh
+
+Pull to refresh is off until you pass `onRefresh`. Return the new items;
+they replace the feed and the view goes back to the first one:
+
+```dart
+ReelFeedView<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  onRefresh: () => api.fetchPosts(page: 0),
+)
+```
+
+It works on vertical feeds that are not reversed.
+
+### Pausing
+
+The view pauses itself while it cannot be seen:
+
+- a full-screen route is pushed over it
+- it is in a tab that is not shown (`TabBarView`, `CupertinoTabScaffold`,
+  go_router's `StatefulShellRoute`)
+- the app is in the background
+
+It plays again when it is visible. A plain `IndexedStack` does not tell
+hidden children they are hidden; wrap each child in
+`TickerMode(enabled: isSelected, child: ...)`. Pass `pauseWhenHidden:
+false` to keep playing under routes.
+
+Dialogs and bottom sheets leave the feed visible, so the video keeps
+playing under them. To stop it there, for example while a comment sheet
+is open:
+
+```dart
+view.pause();
+await showModalBottomSheet(context: context, builder: (_) => Comments());
+view.resume();
+```
+
+### Watch time
+
+`onItemViewed` is called when the user leaves an item, with how long the
+video played and whether it was watched to the end:
+
+```dart
+onItemViewed: (view) {
+  if (view.watchTime > const Duration(seconds: 3)) api.countView(view.data.id);
+  analytics.log('watched', {
+    'post': view.data.id,
+    'fraction': view.watchedFraction,
+    'completed': view.completed,
+  });
+},
+```
+
+Only playing time counts: paused, loading and background time do not.
+Items skipped before they started are reported with zero watch time.
+
 ## Controls
 
 `controlsBuilder` draws everything above the video. It is called for each
@@ -63,9 +123,13 @@ page with a `ReelFeedPage`, which gives you:
 By default the builder is `ReelDefaultControls`:
 
 - tap to pause and resume
+- hold to pause until the finger lifts (`holdAction:
+  ReelHoldAction.speedUp` plays 2x instead, `ReelHoldAction.none` turns it
+  off)
 - a sound switch that mutes the whole feed
 - a fullscreen button on landscape videos
-- a thin progress bar
+- a thin progress bar; drag along it or tap it to move in the video
+  (`seekable: false` turns this off)
 - a buffering indicator that appears only when a wait gets long
 - a retry button on errors
 
@@ -170,6 +234,8 @@ await view.animateTo(10, duration: const Duration(milliseconds: 600));
 view.jumpTo(0);
 await view.toggleFullscreen();
 view.setMuted(true);
+view.pause();               // until resume(), for example under a sheet
+view.resume();
 view.manager;               // stats, cache, network status
 ```
 
@@ -181,12 +247,11 @@ Fullscreen turns the screen to match the video and lifts the quality cap.
 Swiping is locked, and the back button leaves fullscreen.
 
 To move to the next video when the current one ends, set `autoAdvance:
-true`. It needs videos that do not loop:
+true`. The view then stops looping its videos. If you pass your own
+manager, start from the reels preset without looping:
 
 ```dart
-manager: ReelKitManager(
-  config: ReelKitConfig(player: ReelPlayerConfig(looping: false)),
-),
+manager: ReelKitManager(config: ReelKitConfig.reels(looping: false)),
 ```
 
 ## Posters

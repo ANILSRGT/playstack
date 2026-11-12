@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart'
+    show DefaultMaterialLocalizations, MaterialLocalizations, RefreshIndicator;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:reelkit_platform_interface/reelkit_platform_interface.dart';
@@ -121,6 +123,64 @@ class ReelFeedPage<T> {
   @override
   int get hashCode =>
       Object.hash(feed, view, item, index, controller, isActive, isFullscreen);
+}
+
+/// How long the user watched one item, passed to
+/// [ReelFeedView.onItemViewed] when the user leaves the item.
+///
+/// ```dart
+/// onItemViewed: (view) => analytics.log('watched', {
+///   'post': view.data.id,
+///   'seconds': view.watchTime.inSeconds,
+///   'completed': view.completed,
+/// }),
+/// ```
+@immutable
+class ReelItemView<T> {
+  /// Creates a report. [ReelFeedView] creates these; apps do not need to.
+  const ReelItemView({
+    required this.item,
+    required this.index,
+    required this.watchTime,
+    required this.duration,
+    required this.completed,
+  });
+
+  /// Your item, typed, like [ReelFeedPage.data].
+  T get data => item.data as T;
+
+  /// The feed entry that was watched.
+  final ReelFeedItem item;
+
+  /// Position of the item in the feed when the user left it.
+  final int index;
+
+  /// How long the video actually played while it was in view. Time spent
+  /// paused, loading or with the app in the background is not counted;
+  /// replays of a looping video are. Zero when the user swiped past before
+  /// the video started.
+  final Duration watchTime;
+
+  /// Length of the video, or null when it was not known yet (the user left
+  /// before it loaded) or the video is a live stream.
+  final Duration? duration;
+
+  /// Whether the user watched the video to the end at least once: it played
+  /// for as long as it lasts, or it reached its end.
+  final bool completed;
+
+  /// [watchTime] as a fraction of [duration]: 0.5 for half the video, above
+  /// 1 for replays. Null when [duration] is unknown.
+  double? get watchedFraction {
+    final total = duration;
+    if (total == null || total <= Duration.zero) return null;
+    return watchTime.inMicroseconds / total.inMicroseconds;
+  }
+
+  @override
+  String toString() =>
+      'ReelItemView(${item.id}, ${watchTime.inMilliseconds} ms'
+      '${completed ? ', completed' : ''})';
 }
 
 /// Controls a [ReelFeedView] from code: move to the next or previous page,
@@ -282,6 +342,22 @@ class ReelFeedViewController extends ChangeNotifier {
   /// before the view has started.
   void setMuted(bool muted) => feed?.setMuted(muted);
 
+  /// Pauses the feed: the video in view stops and stays stopped until
+  /// [resume], even when the user swipes. Use it while something covers the
+  /// feed that does not do it already, such as a comment sheet or a dialog.
+  ///
+  /// You do not need it for routes pushed over the feed, other tabs or the
+  /// app going to the background: the view pauses for those itself (see
+  /// [ReelFeedView.pauseWhenHidden]).
+  void pause() => _attached._setUserPaused(true);
+
+  /// Undoes [pause]: the video in view plays again, unless the view is
+  /// hidden.
+  void resume() => _attached._setUserPaused(false);
+
+  /// Whether [pause] was called without a matching [resume].
+  bool get isPaused => _view?._userPaused ?? false;
+
   _ReelFeedViewState<dynamic> get _attached {
     final view = _view;
     if (view == null) {
@@ -363,9 +439,12 @@ class ReelFeedView<T> extends StatefulWidget {
     this.controlsBuilder = ReelDefaultControls.builder,
     this.emptyBuilder,
     this.onPageChanged,
+    this.onItemViewed,
+    this.onRefresh,
     this.loadMoreThreshold = 3,
     this.precachePosters = 3,
     this.autoAdvance = false,
+    this.pauseWhenHidden = true,
   }) : feed = null,
        onEndReached = null,
        assert(loadMoreThreshold >= 0),
@@ -404,9 +483,11 @@ class ReelFeedView<T> extends StatefulWidget {
     this.controlsBuilder = ReelDefaultControls.builder,
     this.emptyBuilder,
     this.onPageChanged,
+    this.onItemViewed,
     this.loadMoreThreshold = 3,
     this.precachePosters = 3,
     this.autoAdvance = false,
+    this.pauseWhenHidden = true,
   }) : items = null,
        videoUrl = null,
        source = null,
@@ -414,6 +495,7 @@ class ReelFeedView<T> extends StatefulWidget {
        poster = null,
        itemId = null,
        onLoadMore = null,
+       onRefresh = null,
        manager = null,
        feedConfig = ReelFeedConfig.reels,
        assert(loadMoreThreshold >= 0),
@@ -491,14 +573,16 @@ class ReelFeedView<T> extends StatefulWidget {
   /// The manager that plays the videos, to change playback settings.
   ///
   /// By default the view creates one with [ReelKitConfig.reels] and disposes
-  /// it when the view is removed. Pass your own to change settings, for
-  /// example videos that do not loop:
+  /// it when the view is removed. Pass your own to change settings. Start
+  /// from the preset to keep its tuning:
   ///
   /// ```dart
-  /// manager: ReelKitManager(
-  ///   config: ReelKitConfig(player: ReelPlayerConfig(looping: false)),
-  /// ),
+  /// manager: ReelKitManager(config: ReelKitConfig.reels(looping: false)),
   /// ```
+  ///
+  /// A plain `ReelKitConfig()` drops the preset: no screen-sized quality
+  /// cap, fewer players, and the screen may stay sideways after fullscreen
+  /// (see `ReelFullscreenConfig.appOrientations`).
   ///
   /// A manager you pass is initialized by the view if needed, and you dispose
   /// it.
@@ -625,9 +709,57 @@ class ReelFeedView<T> extends StatefulWidget {
   /// Whether the view moves to the next video when the current one ends,
   /// like stories. False by default.
   ///
-  /// Needs videos that do not loop; the default manager loops them. Pass a
-  /// manager with `ReelPlayerConfig(looping: false)`.
+  /// Needs videos that do not loop. The view's own manager stops looping
+  /// when this is true. A [manager] you pass must not loop either, for
+  /// example `ReelKitManager(config: ReelKitConfig.reels(looping: false))`.
   final bool autoAdvance;
+
+  /// Whether the view pauses itself while it cannot be seen. True by
+  /// default.
+  ///
+  /// The view counts as hidden when a full-screen route is pushed over it
+  /// (a profile page, for example) and when it sits in a tab that is not
+  /// shown, as with `TabBarView`, `CupertinoTabScaffold` or go_router's
+  /// `StatefulShellRoute`. It resumes when it is visible again. Dialogs and
+  /// bottom sheets leave the feed visible, so the video keeps playing under
+  /// them, as in short-video apps; call [ReelFeedViewController.pause] to
+  /// stop it there.
+  ///
+  /// A plain `IndexedStack` does not tell its hidden children that they are
+  /// hidden; wrap each child in `TickerMode(enabled: isSelected, ...)`.
+  ///
+  /// The app going to the background pauses playback regardless of this
+  /// setting (see `ReelLifecycleConfig`).
+  final bool pauseWhenHidden;
+
+  /// Called when the user leaves an item (swipes to another one, or the view
+  /// is removed) with how long they watched it: watch time, whether they
+  /// watched to the end, and your item. Use it for view counts and
+  /// recommendations.
+  ///
+  /// ```dart
+  /// onItemViewed: (view) {
+  ///   if (view.watchTime > const Duration(seconds: 3)) api.countView(view.data.id);
+  /// },
+  /// ```
+  ///
+  /// Called once per visit, also for items skipped before they started
+  /// (with a zero [ReelItemView.watchTime]).
+  final void Function(ReelItemView<T> view)? onItemViewed;
+
+  /// Enables pull to refresh: when set, pulling down on the first page shows
+  /// a refresh indicator and calls this. Return the new items; they replace
+  /// the feed and the view goes back to the first one. Null (the default)
+  /// turns pull to refresh off.
+  ///
+  /// ```dart
+  /// onRefresh: () => api.fetchPosts(page: 0),
+  /// ```
+  ///
+  /// Only for vertical feeds ([scrollDirection] [Axis.vertical], not
+  /// [reverse]). If it throws, the error is reported to
+  /// `FlutterError.onError` and the feed stays as it was.
+  final Future<List<T>> Function()? onRefresh;
 
   @override
   State<ReelFeedView<T>> createState() => _ReelFeedViewState<T>();
@@ -649,6 +781,20 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
   bool _exhausted = false;
   int _endReachedAtLength = -1;
   int _nextId = 0;
+
+  // Pausing: the view pauses the feed while hidden or paused from the
+  // controller, and resumes it only when it paused it itself.
+  bool _hidden = false;
+  bool _userPaused = false;
+  bool _pausedFeed = false;
+
+  // The item in view, for onItemViewed.
+  ReelFeedItem? _viewed;
+  int _viewedIndex = 0;
+  ReelPlayerController? _viewedController;
+  final Stopwatch _watch = Stopwatch();
+  Duration? _viewedDuration;
+  bool _viewedCompleted = false;
 
   ReelFeedManager? get _feed => widget.feed ?? _ownedFeed;
 
@@ -675,7 +821,10 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
 
   Future<void> _start() async {
     final manager =
-        widget.manager ?? ReelKitManager(config: ReelKitConfig.reels());
+        widget.manager ??
+        ReelKitManager(
+          config: ReelKitConfig.reels(looping: !widget.autoAdvance),
+        );
     if (widget.manager == null) _ownedManager = manager;
     try {
       if (!manager.isInitialized) await manager.initialize();
@@ -690,6 +839,42 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     _ownedFeed = feed;
     setState(() => _attach(feed));
     _controller._changed();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Disabled tickers mean the view is hidden: covered by an opaque route
+    // or in a tab that is not shown.
+    final hidden = !TickerMode.valuesOf(context).enabled;
+    if (hidden == _hidden) return;
+    _hidden = hidden;
+    // Not during build: pausing notifies the feed's listeners.
+    scheduleMicrotask(() {
+      if (mounted) _applyPause();
+    });
+  }
+
+  void _setUserPaused(bool paused) {
+    if (_userPaused == paused) return;
+    _userPaused = paused;
+    _applyPause();
+    _controller._changed();
+  }
+
+  void _applyPause() {
+    final feed = _feed;
+    if (feed == null || feed.isDisposed) return;
+    final pause = _userPaused || (_hidden && widget.pauseWhenHidden);
+    if (pause) {
+      if (!feed.isPaused) {
+        feed.pause();
+        _pausedFeed = true;
+      }
+    } else if (_pausedFeed) {
+      _pausedFeed = false;
+      if (feed.isPaused) feed.resume();
+    }
   }
 
   ReelFeedItem _toFeedItem(T item) {
@@ -737,12 +922,20 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
       });
     }
     SchedulerBinding.instance.addPostFrameCallback((_) => _onActiveChanged());
+    scheduleMicrotask(() {
+      if (mounted) _applyPause();
+    });
   }
 
   void _detach() {
     final feed = _listened;
     _listened = null;
     _unwatch();
+    _reportViewed();
+    if (_pausedFeed && feed != null && !feed.isDisposed) {
+      _pausedFeed = false;
+      if (feed.isPaused) feed.resume();
+    }
     _fullscreen?.isFullscreen.removeListener(_onFullscreenChanged);
     if (feed == null || feed.isDisposed) return;
     feed.removeListener(_onItemsChanged);
@@ -771,6 +964,7 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
       _endReachedAtLength = -1;
       _attach(feed);
     }
+    if (oldWidget.pauseWhenHidden != widget.pauseWhenHidden) _applyPause();
     final items = widget.items;
     final owned = _ownedFeed;
     if (owned != null && items != null && !identical(items, oldWidget.items)) {
@@ -827,11 +1021,13 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     }
     _followFeed();
     _watchActive();
+    _trackViewed();
     _controller._changed();
   }
 
   void _onActiveChanged() {
     if (!mounted) return;
+    _trackViewed();
     final index = _feed?.activeIndex.value;
     if (index == null) return;
     _followFeed();
@@ -908,6 +1104,98 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     // A short page can leave the user near the end still.
     final index = _feed?.activeIndex.value;
     if (added && mounted && index != null) _checkEnd(index);
+  }
+
+  Future<void> _refresh() async {
+    final refresh = widget.onRefresh;
+    final feed = _ownedFeed;
+    if (refresh == null || feed == null) return;
+    try {
+      final items = await refresh();
+      if (!mounted || feed.isDisposed) return;
+      _exhausted = false;
+      _endReachedAtLength = -1;
+      feed.replaceAll([for (final item in items) _toFeedItem(item)]);
+      // Items with ids can keep the one in view; a refresh starts at the top.
+      if (feed.length > 0 && feed.activeIndex.value != 0) {
+        feed.setActiveIndex(0);
+      }
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while refreshing the feed');
+    }
+  }
+
+  // --- watch reports --------------------------------------------------------
+
+  /// Follows the item in view; reports the previous one when it changes.
+  void _trackViewed() {
+    if (widget.onItemViewed == null && _viewed == null) return;
+    final feed = _feed;
+    final index = feed?.activeIndex.value;
+    final item = feed == null || feed.isDisposed || index == null
+        ? null
+        : feed.itemAt(index);
+    if (item != null && item.id == _viewed?.id) {
+      _viewedIndex = index!;
+      return;
+    }
+    _reportViewed();
+    if (item == null || widget.onItemViewed == null) return;
+    _viewed = item;
+    _viewedIndex = index!;
+    _viewedController = (feed!.activeController ?? feed.controllerAt(index))
+      ..addListener(_onViewedState);
+    _onViewedState();
+  }
+
+  void _onViewedState() {
+    final controller = _viewedController;
+    if (controller == null) return;
+    final state = controller.value;
+    if (state.isPlaying && !state.isBuffering) {
+      _watch.start();
+    } else {
+      _watch.stop();
+    }
+    _viewedDuration = state.duration ?? _viewedDuration;
+    if (state.status == ReelPlaybackStatus.completed) _viewedCompleted = true;
+  }
+
+  void _reportViewed() {
+    final item = _viewed;
+    final controller = _viewedController;
+    if (controller != null && !controller.isDisposed) {
+      controller.removeListener(_onViewedState);
+    }
+    _watch.stop();
+    final watchTime = _watch.elapsed;
+    final duration = _viewedDuration;
+    final completed =
+        _viewedCompleted ||
+        (duration != null &&
+            duration > Duration.zero &&
+            // Positions are reported in steps; allow for the last one.
+            watchTime + const Duration(milliseconds: 500) >= duration);
+    _watch.reset();
+    _viewed = null;
+    _viewedController = null;
+    _viewedDuration = null;
+    _viewedCompleted = false;
+    final onItemViewed = widget.onItemViewed;
+    if (item == null || onItemViewed == null) return;
+    try {
+      onItemViewed(
+        ReelItemView<T>(
+          item: item,
+          index: _viewedIndex,
+          watchTime: watchTime,
+          duration: duration,
+          completed: completed,
+        ),
+      );
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while reporting a watched item');
+    }
   }
 
   void _precache(int index) {
@@ -1037,49 +1325,97 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
       },
       child: ColoredBox(
         color: widget.backgroundColor,
-        child: LayoutBuilder(
-          builder: (context, constraints) => PageView.builder(
-            controller: pages,
-            scrollDirection: widget.scrollDirection,
-            reverse: widget.reverse,
-            physics: _isFullscreen
-                ? const NeverScrollableScrollPhysics()
-                : widget.physics,
-            onPageChanged: _onPageChanged,
-            itemCount: feed.length,
-            findChildIndexCallback: (key) {
-              if (key is! ValueKey<String>) return null;
-              final index = feed.indexOf(key.value);
-              return index < 0 ? null : index;
-            },
-            itemBuilder: (context, index) {
-              final item = feed.itemAt(index);
-              Widget page = _PageContent<T>(
-                feed: feed,
-                view: _controller,
-                item: item,
-                index: index,
-                isFullscreen: _isFullscreen,
-                videoBuilder: widget.videoBuilder,
-                controlsBuilder: widget.controlsBuilder,
-                fit: widget.fit,
-              );
-              if (!widget.transition.isIdentity) {
-                page = _TransitionedPage(
-                  pages: pages,
+        child: _withRefresh(
+          context,
+          LayoutBuilder(
+            builder: (context, constraints) => PageView.builder(
+              controller: pages,
+              scrollDirection: widget.scrollDirection,
+              reverse: widget.reverse,
+              physics: _isFullscreen
+                  ? const NeverScrollableScrollPhysics()
+                  : widget.physics,
+              onPageChanged: _onPageChanged,
+              itemCount: feed.length,
+              findChildIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final index = feed.indexOf(key.value);
+                return index < 0 ? null : index;
+              },
+              itemBuilder: (context, index) {
+                final item = feed.itemAt(index);
+                Widget page = _PageContent<T>(
+                  feed: feed,
+                  view: _controller,
+                  item: item,
                   index: index,
-                  transition: widget.transition,
-                  axis: widget.scrollDirection,
-                  reverse: widget.reverse,
-                  size: constraints.biggest,
+                  isFullscreen: _isFullscreen,
+                  videoBuilder: widget.videoBuilder,
+                  controlsBuilder: widget.controlsBuilder,
+                  fit: widget.fit,
+                );
+                if (!widget.transition.isIdentity) {
+                  page = _TransitionedPage(
+                    pages: pages,
+                    index: index,
+                    transition: widget.transition,
+                    axis: widget.scrollDirection,
+                    reverse: widget.reverse,
+                    size: constraints.biggest,
+                    child: page,
+                  );
+                }
+                return KeyedSubtree(
+                  key: ValueKey<String>(item.id),
                   child: page,
                 );
-              }
-              return KeyedSubtree(key: ValueKey<String>(item.id), child: page);
-            },
+              },
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Wraps [child] in a refresh indicator when [ReelFeedView.onRefresh] is
+  /// set and the feed is vertical.
+  Widget _withRefresh(BuildContext context, Widget child) {
+    if (widget.onRefresh == null ||
+        widget.scrollDirection != Axis.vertical ||
+        widget.reverse ||
+        _isFullscreen) {
+      return child;
+    }
+    final Widget indicator = RefreshIndicator(
+      onRefresh: _refresh,
+      semanticsLabel: 'Refresh',
+      notificationPredicate: (notification) => notification.depth == 0,
+      child: child,
+    );
+    // The indicator needs Material localizations; apps built on
+    // CupertinoApp or WidgetsApp have none.
+    if (Localizations.of<MaterialLocalizations>(
+          context,
+          MaterialLocalizations,
+        ) !=
+        null) {
+      return indicator;
+    }
+    final locale = Localizations.maybeLocaleOf(context);
+    if (locale != null) {
+      return Localizations.override(
+        context: context,
+        delegates: const [DefaultMaterialLocalizations.delegate],
+        child: indicator,
+      );
+    }
+    return Localizations(
+      locale: const Locale('en', 'US'),
+      delegates: const [
+        DefaultMaterialLocalizations.delegate,
+        DefaultWidgetsLocalizations.delegate,
+      ],
+      child: indicator,
     );
   }
 }

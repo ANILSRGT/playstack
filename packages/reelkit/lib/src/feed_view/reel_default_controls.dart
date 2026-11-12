@@ -8,6 +8,22 @@ import '../controller/reel_player_controller.dart';
 import '../feed/reel_feed_manager.dart';
 import 'reel_feed_view.dart';
 
+/// What [ReelDefaultControls] does while the user holds a finger on the
+/// video.
+enum ReelHoldAction {
+  /// Nothing; a long press is ignored.
+  none,
+
+  /// The video pauses while held and plays again on release, so the user
+  /// can look at a frame. The default.
+  pause,
+
+  /// The video plays faster while held ([ReelDefaultControls.holdSpeed],
+  /// 2x by default) and returns to normal speed on release. A badge shows
+  /// the speed.
+  speedUp,
+}
+
 /// The controls a [ReelFeedView] shows when you pass no `controlsBuilder`.
 ///
 /// They provide:
@@ -17,7 +33,9 @@ import 'reel_feed_view.dart';
 /// * a sound switch at the bottom right that mutes the whole feed;
 /// * a fullscreen button next to it on landscape videos (an exit button in
 ///   fullscreen);
-/// * a thin progress bar along the bottom edge;
+/// * hold to pause (or to play faster, see [holdAction]);
+/// * a thin progress bar along the bottom edge; drag along it to move in
+///   the video;
 /// * a spinner that appears only when loading takes long (see
 ///   [bufferingIndicatorDelay]);
 /// * a retry button when a video fails.
@@ -45,9 +63,12 @@ class ReelDefaultControls extends StatefulWidget {
     this.child,
     this.tapToPause = true,
     this.onDoubleTap,
+    this.holdAction = ReelHoldAction.pause,
+    this.holdSpeed = 2.0,
     this.showMuteButton = true,
     this.showFullscreenButton = true,
     this.showProgress = true,
+    this.seekable = true,
     this.showBufferingIndicator = true,
     this.bufferingIndicatorDelay = const Duration(seconds: 2),
     this.color = const Color(0xFFFFFFFF),
@@ -80,6 +101,15 @@ class ReelDefaultControls extends StatefulWidget {
   /// see whether a second tap follows.
   final VoidCallback? onDoubleTap;
 
+  /// What happens while the user holds a finger on the video:
+  /// [ReelHoldAction.pause] (default), [ReelHoldAction.speedUp] or
+  /// [ReelHoldAction.none].
+  final ReelHoldAction holdAction;
+
+  /// Playback speed while held with [ReelHoldAction.speedUp], 2.0 by
+  /// default.
+  final double holdSpeed;
+
   /// Whether the sound switch is shown at the bottom right. True by default.
   /// It mutes and unmutes every video of the feed. Turn it off when you draw
   /// your own, for example with [ReelMuteButton].
@@ -92,6 +122,10 @@ class ReelDefaultControls extends StatefulWidget {
 
   /// Whether a thin progress bar runs along the bottom edge. True by default.
   final bool showProgress;
+
+  /// Whether the user can drag along the progress bar to move in the video.
+  /// True by default. See [ReelProgressBar.seekable].
+  final bool seekable;
 
   /// Whether a spinner appears when loading takes long. True by default.
   final bool showBufferingIndicator;
@@ -112,12 +146,63 @@ class ReelDefaultControls extends StatefulWidget {
 class _ReelDefaultControlsState extends State<ReelDefaultControls> {
   bool _pausedByUser = false;
 
+  /// The action of the finger held down right now, if any.
+  ReelHoldAction? _holding;
+  double _speedBeforeHold = 1;
+
   ReelPlayerController get _controller => widget.page.controller;
 
   @override
   void didUpdateWidget(ReelDefaultControls oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.page.isActive) _pausedByUser = false;
+    if (!widget.page.isActive) {
+      _pausedByUser = false;
+      _endHold();
+    }
+  }
+
+  @override
+  void dispose() {
+    _endHold();
+    super.dispose();
+  }
+
+  void _startHold() {
+    final state = _controller.value;
+    if (!widget.page.isActive || state.hasError || !state.isPlaying) return;
+    final action = widget.holdAction;
+    switch (action) {
+      case ReelHoldAction.none:
+        return;
+      case ReelHoldAction.pause:
+        unawaited(_controller.pause().catchError(_ignore));
+      case ReelHoldAction.speedUp:
+        _speedBeforeHold = state.playbackSpeed;
+        unawaited(
+          _controller.setPlaybackSpeed(widget.holdSpeed).catchError(_ignore),
+        );
+    }
+    setState(() => _holding = action);
+  }
+
+  void _endHold() {
+    final action = _holding;
+    if (action == null) return;
+    _holding = null;
+    if (_controller.isDisposed) return;
+    switch (action) {
+      case ReelHoldAction.none:
+        break;
+      case ReelHoldAction.pause:
+        if (widget.page.isActive) {
+          unawaited(_controller.play().catchError(_ignore));
+        }
+      case ReelHoldAction.speedUp:
+        unawaited(
+          _controller.setPlaybackSpeed(_speedBeforeHold).catchError(_ignore),
+        );
+    }
+    if (mounted) setState(() {});
   }
 
   void _togglePlay() {
@@ -133,6 +218,10 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
   }
 
   static void _ignore(Object _) {}
+
+  static String _formatSpeed(double speed) => speed == speed.roundToDouble()
+      ? speed.toStringAsFixed(0)
+      : speed.toString();
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +245,50 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
               behavior: HitTestBehavior.opaque,
               onTap: widget.tapToPause ? _togglePlay : null,
               onDoubleTap: widget.onDoubleTap,
+              onLongPressStart: widget.holdAction == ReelHoldAction.none
+                  ? null
+                  : (_) => _startHold(),
+              onLongPressEnd: widget.holdAction == ReelHoldAction.none
+                  ? null
+                  : (_) => _endHold(),
+              onLongPressCancel: widget.holdAction == ReelHoldAction.none
+                  ? null
+                  : _endHold,
               child: widget.child ?? const SizedBox.expand(),
             ),
+            if (_holding == ReelHoldAction.speedUp)
+              Positioned(
+                top: 16,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0x66000000),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            '${_formatSpeed(widget.holdSpeed)}x',
+                            style: TextStyle(
+                              color: widget.color,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (widget.showBufferingIndicator)
               ReelBufferingIndicator(
                 controller: _controller,
@@ -219,6 +350,7 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
                   controller: _controller,
                   active: page.isActive,
                   color: widget.color,
+                  seekable: widget.seekable,
                 ),
               ),
           ],
@@ -241,7 +373,8 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
 /// ```
 ///
 /// It reads the position only while [active] and the video plays, so bars
-/// on pages out of view cost nothing. It is not draggable.
+/// on pages out of view cost nothing. With [seekable], the user can drag
+/// along it to move in the video.
 class ReelProgressBar extends StatefulWidget {
   /// Creates a progress bar for the video of [controller].
   const ReelProgressBar({
@@ -252,6 +385,8 @@ class ReelProgressBar extends StatefulWidget {
     this.color = const Color(0xFFFFFFFF),
     this.backgroundColor = const Color(0x3DFFFFFF),
     this.interval = const Duration(milliseconds: 200),
+    this.seekable = false,
+    this.touchHeight = 24,
   });
 
   /// The video whose progress is shown, usually `page.controller`.
@@ -274,6 +409,16 @@ class ReelProgressBar extends StatefulWidget {
   /// values move the bar more smoothly and cost more.
   final Duration interval;
 
+  /// Whether the user can drag along the bar, or tap it, to move in the
+  /// video. False by default. While dragging the bar grows thicker and the
+  /// video jumps to the chosen point when the finger lifts.
+  final bool seekable;
+
+  /// Height of the area that reacts to the finger when [seekable], 24 by
+  /// default. The bar stays [height] thick at the bottom of it; the area
+  /// makes it easy to hit.
+  final double touchHeight;
+
   @override
   State<ReelProgressBar> createState() => _ReelProgressBarState();
 }
@@ -281,14 +426,44 @@ class ReelProgressBar extends StatefulWidget {
 class _ReelProgressBarState extends State<ReelProgressBar> {
   Stream<ReelPositionSnapshot>? _positions;
 
+  /// The point being dragged to, from 0 to 1; null when not dragging.
+  double? _dragValue;
+
+  /// The point last seeked to, shown until the position catches up.
+  double? _seekValue;
+
+  static void _ignore(Object _) {}
+
+  double _valueAt(double dx, double width) =>
+      width <= 0 ? 0 : (dx / width).clamp(0.0, 1.0);
+
+  void _seek(double value, Duration duration) {
+    setState(() {
+      _dragValue = null;
+      _seekValue = value;
+    });
+    final target = Duration(
+      microseconds: (duration.inMicroseconds * value).round(),
+    );
+    unawaited(
+      widget.controller.seekTo(target).catchError(_ignore).whenComplete(() {
+        if (mounted) setState(() => _seekValue = null);
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.active) {
       _positions ??= widget.controller.positions(interval: widget.interval);
     } else {
       _positions = null;
+      _dragValue = null;
     }
-    final empty = SizedBox(height: widget.height);
+    final seekable = widget.seekable && widget.active;
+    final empty = SizedBox(
+      height: seekable ? widget.touchHeight : widget.height,
+    );
     final positions = _positions;
     if (positions == null) return empty;
     return ValueListenableBuilder<ReelPlaybackState>(
@@ -296,19 +471,53 @@ class _ReelProgressBarState extends State<ReelProgressBar> {
       builder: (context, state, _) {
         final duration = state.duration;
         if (duration == null || duration <= Duration.zero) return empty;
-        return StreamBuilder<ReelPositionSnapshot>(
+        final bar = StreamBuilder<ReelPositionSnapshot>(
           stream: positions,
           builder: (context, snapshot) {
             final position = snapshot.data?.position ?? Duration.zero;
-            final value = position.inMilliseconds / duration.inMilliseconds;
-            return IgnorePointer(
-              child: SizedBox(
-                height: widget.height,
-                child: LinearProgressIndicator(
-                  value: value.clamp(0.0, 1.0),
-                  minHeight: widget.height,
-                  color: widget.color,
-                  backgroundColor: widget.backgroundColor,
+            final value =
+                _dragValue ??
+                _seekValue ??
+                position.inMilliseconds / duration.inMilliseconds;
+            final height = _dragValue != null
+                ? widget.height * 2.5
+                : widget.height;
+            return SizedBox(
+              height: height,
+              child: LinearProgressIndicator(
+                value: value.clamp(0.0, 1.0),
+                minHeight: height,
+                color: widget.color,
+                backgroundColor: widget.backgroundColor,
+              ),
+            );
+          },
+        );
+        if (!seekable) return IgnorePointer(child: bar);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            return Semantics(
+              slider: true,
+              label: 'Video position',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragStart: (details) => setState(
+                  () => _dragValue = _valueAt(details.localPosition.dx, width),
+                ),
+                onHorizontalDragUpdate: (details) => setState(
+                  () => _dragValue = _valueAt(details.localPosition.dx, width),
+                ),
+                onHorizontalDragEnd: (_) {
+                  final value = _dragValue;
+                  if (value != null) _seek(value, duration);
+                },
+                onHorizontalDragCancel: () => setState(() => _dragValue = null),
+                onTapUp: (details) =>
+                    _seek(_valueAt(details.localPosition.dx, width), duration),
+                child: SizedBox(
+                  height: widget.touchHeight,
+                  child: Align(alignment: Alignment.bottomCenter, child: bar),
                 ),
               ),
             );

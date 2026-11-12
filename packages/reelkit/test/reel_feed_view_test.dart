@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reelkit/reelkit.dart';
@@ -433,6 +436,282 @@ void main() {
     await finish(tester);
   });
 
+  int playingPlayer() => platform.livePlayers.firstWhere(
+    (id) => platform.calls.contains('play($id)'),
+  );
+
+  testWidgets('pauses under a pushed route and resumes after pop', (
+    tester,
+  ) async {
+    final feed = await start(tester);
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        home: ReelFeedView<Object?>.feed(feed: feed, controlsBuilder: null),
+      ),
+    );
+    await settle(tester);
+    final controller = feed.controllerAt(0);
+    expect(controller.value.isPlaying, isTrue);
+
+    unawaited(
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(builder: (_) => const Text('profile')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect(feed.isPaused, isTrue);
+    expect(controller.value.isPlaying, isFalse);
+
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect(feed.isPaused, isFalse);
+    expect(controller.value.isPlaying, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('keeps playing when hidden with pauseWhenHidden off', (
+    tester,
+  ) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(
+      host(
+        TickerMode(
+          enabled: false,
+          child: ReelFeedView<Object?>.feed(
+            feed: feed,
+            pauseWhenHidden: false,
+            controlsBuilder: null,
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(feed.isPaused, isFalse);
+    expect(feed.controllerAt(0).value.isPlaying, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('a hidden tab pauses, the shown tab plays', (tester) async {
+    final feed = await start(tester);
+    Widget build({required bool shown}) => host(
+      TickerMode(
+        enabled: shown,
+        child: ReelFeedView<Object?>.feed(feed: feed, controlsBuilder: null),
+      ),
+    );
+    await tester.pumpWidget(build(shown: true));
+    await settle(tester);
+    expect(feed.controllerAt(0).value.isPlaying, isTrue);
+
+    await tester.pumpWidget(build(shown: false));
+    await settle(tester);
+    expect(feed.isPaused, isTrue);
+
+    await tester.pumpWidget(build(shown: true));
+    await settle(tester);
+    expect(feed.isPaused, isFalse);
+    expect(feed.controllerAt(0).value.isPlaying, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('the controller pauses and resumes the feed', (tester) async {
+    final feed = await start(tester);
+    final view = ReelFeedViewController();
+    await tester.pumpWidget(
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controller: view,
+          controlsBuilder: null,
+        ),
+      ),
+    );
+    await settle(tester);
+    view.pause();
+    await settle(tester);
+    expect(view.isPaused, isTrue);
+    expect(feed.controllerAt(0).value.isPlaying, isFalse);
+
+    view.resume();
+    await settle(tester);
+    expect(view.isPaused, isFalse);
+    expect(feed.controllerAt(0).value.isPlaying, isTrue);
+    await finish(tester);
+    view.dispose();
+  });
+
+  testWidgets('does not resume a feed the app paused itself', (tester) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(
+      host(ReelFeedView<Object?>.feed(feed: feed, controlsBuilder: null)),
+    );
+    await settle(tester);
+    feed.pause();
+    Widget hidden(bool value) => host(
+      TickerMode(
+        enabled: !value,
+        child: ReelFeedView<Object?>.feed(feed: feed, controlsBuilder: null),
+      ),
+    );
+    await tester.pumpWidget(hidden(true));
+    await settle(tester);
+    await tester.pumpWidget(hidden(false));
+    await settle(tester);
+    expect(feed.isPaused, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('reports how each item was watched', (tester) async {
+    final feed = await start(
+      tester,
+      player: const ReelPlayerConfig(looping: false),
+    );
+    final views = <ReelItemView<Object?>>[];
+    await tester.pumpWidget(
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controlsBuilder: null,
+          onItemViewed: views.add,
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    expect(views, isEmpty, reason: 'reported when the user leaves');
+
+    await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect(views, hasLength(1));
+    final first = views.single;
+    expect(first.data, 'post 0');
+    expect(first.index, 0);
+    expect(first.item.id, '0');
+    expect(first.watchTime, greaterThan(Duration.zero));
+    expect(first.duration, const Duration(seconds: 30));
+    expect(first.completed, isFalse);
+    expect(first.watchedFraction, lessThan(0.5));
+
+    // The second video plays to its end.
+    final id = platform.livePlayers.lastWhere(
+      (id) => platform.calls.contains('play($id)'),
+    );
+    platform.emit(
+      ReelNativeStateEvent(
+        playerId: id,
+        generation: platform.generations[id]!,
+        state: ReelNativePlaybackState.ended,
+      ),
+    );
+    await settle(tester);
+    await tester.pumpWidget(const SizedBox());
+    expect(views, hasLength(2), reason: 'removing the view reports too');
+    expect(views.last.data, 'post 1');
+    expect(views.last.completed, isTrue);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(manager.dispose);
+  });
+
+  testWidgets('holding pauses until release', (tester) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(host(ReelFeedView<Object?>.feed(feed: feed)));
+    await settle(tester);
+    final controller = feed.controllerAt(0);
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await settle(tester);
+    expect(controller.value.status, ReelPlaybackStatus.paused);
+    expect(
+      find.byIcon(Icons.play_arrow_rounded),
+      findsNothing,
+      reason: 'a hold is not a tap pause',
+    );
+
+    await gesture.up();
+    await settle(tester);
+    expect(controller.value.isPlaying, isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('holding with speedUp plays faster until release', (
+    tester,
+  ) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controlsBuilder: (context, page) => ReelDefaultControls(
+            page: page,
+            holdAction: ReelHoldAction.speedUp,
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    final controller = feed.controllerAt(0);
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+    await settle(tester);
+    expect(controller.value.playbackSpeed, 2.0);
+    expect(controller.value.isPlaying, isTrue);
+    expect(find.text('2x'), findsOneWidget);
+
+    await gesture.up();
+    await settle(tester);
+    expect(controller.value.playbackSpeed, 1.0);
+    expect(find.text('2x'), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('dragging the progress bar seeks', (tester) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(host(ReelFeedView<Object?>.feed(feed: feed)));
+    await settle(tester);
+    final bar = find.byType(ReelProgressBar);
+    expect(bar, findsOneWidget);
+    final rect = tester.getRect(bar);
+    expect(rect.height, 24, reason: 'a touch area, not a 2 px line');
+
+    final gesture = await tester.startGesture(
+      Offset(rect.left + 10, rect.center.dy),
+    );
+    await gesture.moveTo(Offset(rect.left + rect.width / 2, rect.center.dy));
+    await tester.pump();
+    await gesture.up();
+    await settle(tester);
+    final id = playingPlayer();
+    expect(platform.calls, contains('seekTo($id, 15000)'));
+    expect(feed.activeIndex.value, 0, reason: 'the feed did not move');
+    await finish(tester);
+  });
+
+  testWidgets('a progress bar that is not seekable ignores the finger', (
+    tester,
+  ) async {
+    final feed = await start(tester);
+    await tester.pumpWidget(
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controlsBuilder: (context, page) =>
+              ReelDefaultControls(page: page, seekable: false),
+        ),
+      ),
+    );
+    await settle(tester);
+    final rect = tester.getRect(find.byType(ReelProgressBar));
+    expect(rect.height, 2);
+    await finish(tester);
+  });
+
   group('items', () {
     late FakeReelKitPlatform engine;
 
@@ -573,6 +852,131 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       await run(tester);
+    });
+
+    testWidgets('pull to refresh replaces the items', (tester) async {
+      var refreshes = 0;
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<String>(
+            items: const [
+              'https://example.com/a.m3u8',
+              'https://example.com/b.m3u8',
+            ],
+            controller: view,
+            controlsBuilder: (context, page) => Text(page.data),
+            onRefresh: () async {
+              refreshes++;
+              return const ['https://example.com/new.m3u8'];
+            },
+          ),
+        ),
+      );
+      await run(tester);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+
+      await tester.fling(find.byType(PageView), const Offset(0, 400), 1500);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      await tester.pumpAndSettle();
+      expect(refreshes, 1);
+      expect(view.feed!.length, 1);
+      expect(view.index, 0);
+      expect(find.text('https://example.com/new.m3u8'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('pull to refresh works with iOS bouncing', (tester) async {
+      var refreshes = 0;
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<String>(
+            items: const [
+              'https://example.com/a.m3u8',
+              'https://example.com/b.m3u8',
+            ],
+            controller: view,
+            controlsBuilder: (context, page) => Text(page.data),
+            onRefresh: () async {
+              refreshes++;
+              return const ['https://example.com/new.m3u8'];
+            },
+          ),
+        ),
+      );
+      await run(tester);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+
+      await tester.fling(find.byType(PageView), const Offset(0, 400), 1500);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      await tester.pumpAndSettle();
+      expect(refreshes, 1);
+      expect(view.feed!.length, 1);
+      expect(view.index, 0);
+      expect(find.text('https://example.com/new.m3u8'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('no pull to refresh without onRefresh', (tester) async {
+      await tester.pumpWidget(
+        host(const ReelFeedView(items: ['https://example.com/a.m3u8'])),
+      );
+      await run(tester);
+      expect(find.byType(RefreshIndicator), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('pull to refresh works without MaterialApp', (tester) async {
+      await tester.pumpWidget(
+        WidgetsApp(
+          color: const Color(0xFF000000),
+          builder: (context, _) => ReelFeedView<String>(
+            items: const ['https://example.com/a.m3u8'],
+            controlsBuilder: null,
+            onRefresh: () async => const [],
+          ),
+        ),
+      );
+      await run(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('autoAdvance turns looping off in the view\'s manager', (
+      tester,
+    ) async {
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView(
+            items: const ['https://example.com/a.m3u8'],
+            controller: view,
+            autoAdvance: true,
+          ),
+        ),
+      );
+      await run(tester);
+      expect(view.manager!.config.player.looping, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
     });
 
     testWidgets('fullscreen locks swiping and lifts the quality cap', (

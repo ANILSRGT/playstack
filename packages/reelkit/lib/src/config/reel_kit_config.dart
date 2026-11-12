@@ -37,8 +37,10 @@ class ReelKitConfig {
   /// its own manager.
   ///
   /// * Room for the video in view, five ahead and one behind.
-  /// * Videos loop. On the web they start muted, because browsers block
-  ///   autoplay with sound until the user taps.
+  /// * Videos loop; pass `looping: false` for a feed that moves on when a
+  ///   video ends (`ReelFeedView.autoAdvance` does this for you). On the web
+  ///   they start muted, because browsers block autoplay with sound until the
+  ///   user taps.
   /// * No rendition larger than the screen ([screenQualityLimit]); feed
   ///   fullscreen lifts this.
   /// * Preparation at up to ~720p, switching up once playing, so several
@@ -48,10 +50,16 @@ class ReelKitConfig {
   ///   landscape video's screen back to portrait, even when the phone is
   ///   still held sideways. For a feed that also rotates, pass a manager
   ///   whose [fullscreen] lists the orientations your app allows.
-  factory ReelKitConfig.reels() => ReelKitConfig(
+  ///
+  /// To change one setting and keep the rest, start from this preset:
+  ///
+  /// ```dart
+  /// ReelKitManager(config: ReelKitConfig.reels(looping: false))
+  /// ```
+  factory ReelKitConfig.reels({bool looping = true}) => ReelKitConfig(
     pool: const ReelPoolConfig(maxPlayers: 7),
     player: ReelPlayerConfig(
-      looping: true,
+      looping: looping,
       muted: kIsWeb,
       videoQualityLimit: screenQualityLimit(),
       startupQualityLimit: const ReelVideoQualityLimit(maxBitrate: 3400000),

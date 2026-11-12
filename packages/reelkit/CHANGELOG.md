@@ -19,6 +19,17 @@
   fullscreen button for landscape videos, a progress bar, a buffering indicator that appears only after a long wait, and
   retry. Its parts are public: `ReelProgressBar`, `ReelBufferingIndicator`
   and `ReelMuteButton`.
+* `ReelFeedView` pauses while a route covers it or its tab is hidden
+  (`pauseWhenHidden`), and `ReelFeedViewController.pause`/`resume` stop it
+  under sheets and dialogs.
+* `ReelFeedView.onItemViewed` reports each visit with a `ReelItemView`:
+  watch time, duration, completion and the typed item.
+* `ReelFeedView.onRefresh` turns on pull to refresh; off when null.
+* `ReelDefaultControls`: hold to pause or to play faster (`holdAction`,
+  `ReelHoldAction`, `holdSpeed`), and a progress bar you can drag or tap
+  to seek (`seekable`, `ReelProgressBar.seekable`, `touchHeight`).
+* `ReelKitConfig.reels(looping: false)`. With `autoAdvance` the view's own
+  manager no longer loops.
 * `ReelFeedItem` takes a `poster` and app `data`. `ReelFeedManager` gained
   `setMuted` and `muted` (feed-wide sound), `itemAt` and `manager`.
 
