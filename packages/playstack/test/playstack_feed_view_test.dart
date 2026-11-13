@@ -408,18 +408,15 @@ void main() {
     tester,
   ) async {
     await start(tester, player: const PlayStackPlayerConfig());
-    final feed = manager.createFeed(
-      [
-        ..._items(1),
-        PlayStackFeedItem(
-          PlayStackSource.network('https://example.com/locked.mp4'),
-          id: 'locked',
-          data: 'locked',
-          locked: true,
-        ),
-      ],
-      config: const PlayStackFeedConfig(activeHeadStart: Duration.zero),
-    );
+    final feed = manager.createFeed([
+      ..._items(1),
+      PlayStackFeedItem(
+        PlayStackSource.network('https://example.com/locked.mp4'),
+        id: 'locked',
+        data: 'locked',
+        locked: true,
+      ),
+    ], config: const PlayStackFeedConfig(activeHeadStart: Duration.zero));
     await tester.pumpWidget(
       host(
         PlayStackFeedView<Object?>.feed(

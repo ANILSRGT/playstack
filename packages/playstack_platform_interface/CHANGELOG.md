@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.8
 
 * `PlayStackMediaInfo`, `PlayStackSystemEvent` and
   `PlayStackSystemEventType`; `setMediaSession`, `setPictureInPicture`,

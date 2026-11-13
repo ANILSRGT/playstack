@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.8
 
 * `PlayStackDefaultControls.bufferingIndicator` and
   `PlayStackBufferingIndicator.indicator` replace the loading spinner, for

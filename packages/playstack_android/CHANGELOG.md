@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.8
 
 * Media controls through a Media3 `MediaSession` whose commands go to Dart;
   `PlayStackMediaService` (declared by the app) shows the notification and

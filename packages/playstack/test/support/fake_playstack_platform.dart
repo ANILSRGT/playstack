@@ -406,8 +406,7 @@ class FakePlayStackPlatform extends PlayStackPlatform {
     PlayStackMediaInfo? info, {
     bool canSkipNext = false,
     bool canSkipPrevious = false,
-  }) async =>
-      mediaSessions.add((playerId, info, canSkipNext, canSkipPrevious));
+  }) async => mediaSessions.add((playerId, info, canSkipNext, canSkipPrevious));
 
   /// Every setPictureInPicture call, as (playerId, autoEnter).
   final List<(int?, bool)> pictureInPictures = <(int?, bool)>[];

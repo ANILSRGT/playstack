@@ -28,7 +28,12 @@ enum PlatformTrackType { audio, video, text }
 enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
 
 /// Device and interface orientations, named as Flutter's `DeviceOrientation`.
-enum PlatformOrientation { portraitUp, portraitDown, landscapeLeft, landscapeRight }
+enum PlatformOrientation {
+  portraitUp,
+  portraitDown,
+  landscapeLeft,
+  landscapeRight,
+}
 
 /// iOS `AVAudioSession` category PlayStack sets, or `unmanaged` to leave the
 /// host app's session alone.

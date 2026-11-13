@@ -1,9 +1,10 @@
 # Releasing
 
-PlayStack is five packages released together with the same version. They
-are marked `publish_to: none` until the blockers below are resolved.
+PlayStack is five packages released together with the same version. The
+first preview, 0.1.0-dev.8, was published before the remaining items below;
+they stay open for the first stable release.
 
-## Blockers before the first publication
+## Open before 0.1.0
 
 - [x] **License.** MIT, in the root `LICENSE` and in every package
       (`packages/*/LICENSE`, identical copies).
@@ -13,7 +14,6 @@ are marked `publish_to: none` until the blockers below are resolved.
 - [x] **Web in a browser.** The integration suite passes in headless
       Chromium (see [Examples](guides/examples.md#on-the-web)). Still open:
       HLS.js, Safari and Firefox.
-- [ ] Remove `publish_to: none` from the five `pubspec.yaml` files.
 
 ## Checklist for every release
 

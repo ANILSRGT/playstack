@@ -18,10 +18,11 @@ added automatically.
 
 ```yaml
 dependencies:
-  playstack: ^0.1.0
+  playstack: ^0.1.0-dev.8
 ```
 
-Until the packages are published, depend on the repository:
+or `flutter pub add playstack`. To follow unreleased changes, depend on
+the repository instead:
 
 ```yaml
 dependencies:

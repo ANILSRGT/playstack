@@ -5,11 +5,13 @@ feeds and for single players. It handles native players, pooling, preloading,
 lifecycle and errors. A complete reels feed is one widget with replaceable
 controls; for anything else you build the UI on its players.
 
-> **Status: 0.1.0-dev.7, development preview (milestone 7 of 7).**
+> **Status: 0.1.0-dev.8, development preview, on pub.dev.**
 > Playback, pooling, feeds with preloading, disk cache, fullscreen, audio
-> handling and retry work on Android (Media3), iOS (AVPlayer) and web
-> (`<video>`), verified on an Android emulator, an iOS simulator and
-> headless Chromium. Not yet verified on physical devices. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
+> handling, media controls, Picture-in-Picture and retry work on Android
+> (Media3), iOS (AVPlayer) and web (`<video>`). The integration suite
+> passes on an Android emulator, an iOS simulator and headless Chromium;
+> the demo was tried by hand on an Android phone. The integration suite
+> has not run on physical devices yet. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
 
 ## Packages
 

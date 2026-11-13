@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.8
 
 * A seek after playing and pausing no longer leaves `seekTo` waiting
   forever when AVPlayer skips the completion of the exact seek.

@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'playstack_ios'
-  s.version          = '0.1.0-dev.7'
+  s.version          = '0.1.0-dev.8'
   s.summary          = 'iOS implementation of PlayStack, built on AVFoundation AVPlayer.'
   s.description      = <<-DESC
 iOS implementation of PlayStack, built on AVFoundation AVPlayer.

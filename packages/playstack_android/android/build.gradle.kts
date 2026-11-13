@@ -1,5 +1,5 @@
 group = "dev.playstack.android"
-version = "0.1.0-dev.7"
+version = "0.1.0-dev.8"
 
 buildscript {
     val kotlinVersion = "2.4.0"

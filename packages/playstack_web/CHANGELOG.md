@@ -1,3 +1,8 @@
+## 0.1.0-dev.8
+
+* First release on pub.dev; no engine changes. Media controls and
+  Picture-in-Picture are not available on the web.
+
 ## 0.1.0-dev.7
 
 * Licensed under the MIT license.
