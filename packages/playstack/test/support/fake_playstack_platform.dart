@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
@@ -14,6 +15,7 @@ class FakePlayStackPlatform extends PlayStackPlatform {
     this.isLowRamDevice = false,
     this.supportsNetworkStatus = true,
     this.supportsDiskCache = false,
+    this.supportsDeviceOrientation = false,
     this.videoInfo = const PlayStackVideoInfo(
       width: 1080,
       height: 1920,
@@ -25,6 +27,18 @@ class FakePlayStackPlatform extends PlayStackPlatform {
   final bool isLowRamDevice;
   final bool supportsNetworkStatus;
   final bool supportsDiskCache;
+
+  /// Whether [deviceOrientationChanges] exists, as on Android and iOS.
+  final bool supportsDeviceOrientation;
+
+  /// Sends how the user holds the device; see [supportsDeviceOrientation].
+  // Closed with the test process.
+  // ignore: close_sinks
+  final StreamController<DeviceOrientation> deviceOrientations =
+      StreamController<DeviceOrientation>.broadcast(sync: true);
+
+  /// Returned by getAppOrientations.
+  List<DeviceOrientation>? appOrientations;
 
   /// Cached bytes per cache key.
   final Map<String, int> cache = <String, int>{};
@@ -361,6 +375,16 @@ class FakePlayStackPlatform extends PlayStackPlatform {
 
   @override
   Stream<bool> get fullscreenChanges => fullscreenEvents.stream;
+
+  @override
+  Stream<DeviceOrientation> get deviceOrientationChanges {
+    if (!supportsDeviceOrientation) return super.deviceOrientationChanges;
+    return deviceOrientations.stream;
+  }
+
+  @override
+  Future<List<DeviceOrientation>?> getAppOrientations() async =>
+      appOrientations;
 
   @override
   Stream<PlayStackNetworkStatus> get networkStatusChanges => _network.stream;

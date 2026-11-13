@@ -1,3 +1,9 @@
+## Unreleased
+
+* Device orientation from `OrientationEventListener`, also while the
+  activity is locked to one orientation, and the app's requested
+  orientation for restoring it after fullscreen.
+
 ## 0.1.0-dev.7
 
 * Licensed under the MIT license.

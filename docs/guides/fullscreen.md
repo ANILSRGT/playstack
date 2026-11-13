@@ -1,5 +1,7 @@
 # Fullscreen and orientation
 
+`PlayStackFeedView` handles fullscreen itself (see
+[Feeds](feed.md#moving-from-code)). For your own players,
 PlayStack does not build a fullscreen screen. You show your own route or
 overlay and call `manager.fullscreen.enter` and `exit` around it. PlayStack
 hides the system bars, optionally locks the orientation, and on exit
@@ -78,6 +80,17 @@ manager.fullscreen.setAppPolicy(
 On exit PlayStack first rotates back to the orientation the app was shown
 in, waits for the rotation, then applies `appOrientations`; unlocking alone
 does not rotate the interface back on every platform.
+
+When `appOrientations` is empty (the default), Android and iOS restore
+what the app allowed when fullscreen began, read from the platform, so a
+lock set with `SystemChrome.setPreferredOrientations` comes back without
+configuration.
+
+`manager.fullscreen.deviceOrientationChanges` reports how the user holds
+the device, from the motion sensors, also while the app is locked to
+portrait (null on web). The sensors run only while the stream is listened
+to and the app is in the foreground. `PlayStackFeedView` uses it to open
+fullscreen when the device is turned sideways.
 
 `manager.fullscreen.isFullscreen` is a `ValueListenable<bool>`. On web it
 also follows the browser, for example when the user presses Escape.

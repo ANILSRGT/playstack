@@ -7,6 +7,7 @@ final class PlayerRegistry: PlayStackHostApi {
   private let textureRegistry: FlutterTextureRegistry
   private let events: PlayerEventDispatcher
   private let network: NetworkMonitor
+  private let orientation: DeviceOrientationMonitor
   private let sources: SourceResolver
   private var players: [Int64: NativePlayer] = [:]
   private var nextPlayerId: Int64 = 1
@@ -17,11 +18,13 @@ final class PlayerRegistry: PlayStackHostApi {
   init(
     textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher,
     network: NetworkMonitor,
+    orientation: DeviceOrientationMonitor,
     assetLookup: @escaping (String, String?) -> String
   ) {
     self.textureRegistry = textureRegistry
     self.events = events
     self.network = network
+    self.orientation = orientation
     sources = SourceResolver(assetLookup: assetLookup)
   }
 
@@ -93,6 +96,10 @@ final class PlayerRegistry: PlayStackHostApi {
 
   func getNetworkStatus() throws -> PlatformNetworkStatus {
     network.current()
+  }
+
+  func getAppOrientations() throws -> [PlatformOrientation] {
+    orientation.appOrientations()
   }
 
   @MainActor

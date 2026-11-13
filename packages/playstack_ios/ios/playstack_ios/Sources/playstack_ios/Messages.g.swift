@@ -222,6 +222,14 @@ enum PlatformNetworkType: Int, CaseIterable {
   case unknown = 5
 }
 
+/// Device and interface orientations, named as Flutter's `DeviceOrientation`.
+enum PlatformOrientation: Int, CaseIterable {
+  case portraitUp = 0
+  case portraitDown = 1
+  case landscapeLeft = 2
+  case landscapeRight = 3
+}
+
 /// iOS `AVAudioSession` category PlayStack sets, or `unmanaged` to leave the
 /// host app's session alone.
 enum PlatformAudioSessionCategory: Int, CaseIterable {
@@ -351,6 +359,44 @@ struct PlatformCacheInfo: Hashable, CustomStringConvertible {
 
   public var description: String {
     return "PlatformCacheInfo(enabled: \(String(describing: enabled)), usedBytes: \(String(describing: usedBytes)), maxBytes: \(String(describing: maxBytes)))"
+  }
+}
+
+/// How the user holds the device, from its motion sensors, whatever the
+/// orientations the app allows.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformDeviceOrientationEvent: Hashable, CustomStringConvertible {
+  var orientation: PlatformOrientation
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformDeviceOrientationEvent? {
+    let orientation = pigeonVar_list[0] as! PlatformOrientation
+
+    return PlatformDeviceOrientationEvent(
+      orientation: orientation
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      orientation
+    ]
+  }
+  static func == (lhs: PlatformDeviceOrientationEvent, rhs: PlatformDeviceOrientationEvent) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.orientation, rhs.orientation)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformDeviceOrientationEvent")
+    MessagesPigeonInternal.deepHash(value: orientation, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformDeviceOrientationEvent(orientation: \(String(describing: orientation)))"
   }
 }
 
@@ -1353,50 +1399,58 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
     case 134:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return PlatformAudioSessionCategory(rawValue: enumResultAsInt)
+        return PlatformOrientation(rawValue: enumResultAsInt)
       }
       return nil
     case 135:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return PlatformInterruptionType(rawValue: enumResultAsInt)
+        return PlatformAudioSessionCategory(rawValue: enumResultAsInt)
       }
       return nil
     case 136:
-      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformInterruptionType(rawValue: enumResultAsInt)
+      }
+      return nil
     case 137:
-      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
+      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
     case 138:
-      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
+      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
     case 139:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 148:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 149:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 150:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
     case 151:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
     case 152:
-      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
     case 153:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 154:
+      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+    case 155:
       return PlatformInterruptionEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1421,65 +1475,71 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformNetworkType {
       super.writeByte(133)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformAudioSessionCategory {
+    } else if let value = value as? PlatformOrientation {
       super.writeByte(134)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformInterruptionType {
+    } else if let value = value as? PlatformAudioSessionCategory {
       super.writeByte(135)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformEngineConfig {
+    } else if let value = value as? PlatformInterruptionType {
       super.writeByte(136)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformCacheInfo {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformEngineConfig {
       super.writeByte(137)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformNetworkStatus {
+    } else if let value = value as? PlatformCacheInfo {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTrack {
+    } else if let value = value as? PlatformDeviceOrientationEvent {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformSource {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformFirstFrameEvent {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformErrorEvent {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInterruptionEvent {
+    } else if let value = value as? PlatformTracksChangedEvent {
       super.writeByte(153)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(154)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformInterruptionEvent {
+      super.writeByte(155)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1536,6 +1596,10 @@ protocol PlayStackHostApi {
   /// time so they do not download whole videos the user may never watch.
   func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws
   func getNetworkStatus() throws -> PlatformNetworkStatus
+  /// The orientations the app allows right now (what it last passed to
+  /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
+  /// orientation it declares, or when the platform cannot tell.
+  func getAppOrientations() throws -> [PlatformOrientation]
   func getCacheInfo() async throws -> PlatformCacheInfo
   /// Deletes every cached entry that is not being read right now.
   func clearCache() async throws
@@ -1833,6 +1897,22 @@ class PlayStackHostApiSetup {
     } else {
       getNetworkStatusChannel.setMessageHandler(nil)
     }
+    /// The orientations the app allows right now (what it last passed to
+    /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
+    /// orientation it declares, or when the platform cannot tell.
+    let getAppOrientationsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getAppOrientations\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getAppOrientationsChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.getAppOrientations()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      getAppOrientationsChannel.setMessageHandler(nil)
+    }
     let getCacheInfoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getCacheInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       getCacheInfoChannel.setMessageHandler { _, reply in
@@ -2023,6 +2103,44 @@ class NetworkEventsStreamHandler: PigeonEventChannelWrapper<PlatformNetworkStatu
     streamHandler: NetworkEventsStreamHandler
   ) -> NetworkEventsEventChannel {
     let channel = NetworkEventsEventChannel(messenger: messenger, instanceName: instanceName)
+    channel.setStreamHandler(streamHandler)
+    return channel
+  }
+}
+      
+/// A typed channel for communicating with the Flutter application using asynchronous event streams.
+class DeviceOrientationEventsEventChannel {
+  private let channel: FlutterEventChannel
+
+  init(messenger: FlutterBinaryMessenger, instanceName: String = "") {
+    var channelName = "dev.flutter.pigeon.playstack_ios.PlayStackEventApi.deviceOrientationEvents"
+    if !instanceName.isEmpty {
+      channelName += ".\(instanceName)"
+    }
+    channel = FlutterEventChannel(name: channelName, binaryMessenger: messenger, codec: messagesPigeonMethodCodec)
+  }
+
+  /// Sets the stream handler for this channel, replacing any previous handler.
+  /// 
+  /// Pass `nil` to remove the event channel registration.
+  func setStreamHandler(_ streamHandler: DeviceOrientationEventsStreamHandler?) {
+    let internalHandler = streamHandler.map({ PigeonStreamHandler<PlatformDeviceOrientationEvent>(wrapper: $0) })
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+class DeviceOrientationEventsStreamHandler: PigeonEventChannelWrapper<PlatformDeviceOrientationEvent> {
+  /// Creates and returns a new event channel that calls the provided stream handler.
+  /// 
+  /// The returned channel can be stored to allow changing or removing the stream handler.
+  /// If the handler will not be changed for the lifetime of the engine associated with the messenger,
+  /// the return value can be ignored.
+  @discardableResult static func register(
+    with messenger: FlutterBinaryMessenger,
+    instanceName: String = "",
+    streamHandler: DeviceOrientationEventsStreamHandler
+  ) -> DeviceOrientationEventsEventChannel {
+    let channel = DeviceOrientationEventsEventChannel(messenger: messenger, instanceName: instanceName)
     channel.setStreamHandler(streamHandler)
     return channel
   }

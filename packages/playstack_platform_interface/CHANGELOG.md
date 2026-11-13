@@ -1,3 +1,9 @@
+## Unreleased
+
+* `deviceOrientationChanges` (how the user holds the device, from the
+  motion sensors) and `getAppOrientations` (the orientations the app allows
+  right now).
+
 ## 0.1.0-dev.7
 
 * Licensed under the MIT license.

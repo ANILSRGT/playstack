@@ -11,14 +11,18 @@ public final class PlayStackPlugin: NSObject, FlutterPlugin {
   private let eventChannel: PlayerEventsEventChannel
   private let network: NetworkMonitor
   private let networkChannel: NetworkEventsEventChannel
+  private let orientation: DeviceOrientationMonitor
+  private let orientationChannel: DeviceOrientationEventsEventChannel
   private let messenger: FlutterBinaryMessenger
 
   private init(registrar: FlutterPluginRegistrar) {
     messenger = registrar.messenger()
     events = PlayerEventDispatcher()
     network = NetworkMonitor()
+    orientation = DeviceOrientationMonitor()
     registry = PlayerRegistry(
       textureRegistry: registrar.textures(), events: events, network: network,
+      orientation: orientation,
       assetLookup: { [weak registrar] name, package in
         guard let registrar else { return name }
         if let package { return registrar.lookupKey(forAsset: name, fromPackage: package) }
@@ -26,6 +30,8 @@ public final class PlayStackPlugin: NSObject, FlutterPlugin {
       })
     eventChannel = PlayerEventsStreamHandler.register(with: messenger, streamHandler: events)
     networkChannel = NetworkEventsStreamHandler.register(with: messenger, streamHandler: network)
+    orientationChannel = DeviceOrientationEventsStreamHandler.register(
+      with: messenger, streamHandler: orientation)
     super.init()
     PlayStackHostApiSetup.setUp(binaryMessenger: messenger, api: registry)
   }
@@ -39,6 +45,8 @@ public final class PlayStackPlugin: NSObject, FlutterPlugin {
     PlayStackHostApiSetup.setUp(binaryMessenger: messenger, api: nil)
     eventChannel.setStreamHandler(nil)
     networkChannel.setStreamHandler(nil)
+    orientationChannel.setStreamHandler(nil)
+    orientation.stop()
     network.stop()
     registry.releaseAll()
     events.detach()

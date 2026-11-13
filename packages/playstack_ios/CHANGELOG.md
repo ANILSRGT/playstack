@@ -1,3 +1,9 @@
+## Unreleased
+
+* Device orientation from `UIDevice` notifications, also while the app is
+  locked to one orientation, and the app's supported orientations for
+  restoring them after fullscreen.
+
 ## 0.1.0-dev.7
 
 * Licensed under the MIT license.

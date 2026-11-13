@@ -9,6 +9,15 @@
   `PlayStackFeedView.feed` shows a `PlayStackFeedManager` you manage yourself.
   `PlayStackFeedViewController` (a `Listenable`) moves pages, switches
   fullscreen and sound, and exposes the feed and the manager.
+  Fullscreen opens on its own route above the app's bars, built with the
+  same `controlsBuilder` (`page.isFullscreen` is true there). Turning the
+  device sideways opens fullscreen and upright closes it
+  (`fullscreenOnRotate`, on by default), also in an app locked to portrait.
+* `PlayStackFullscreenManager.deviceOrientationChanges`: how the user holds
+  the device, from the motion sensors (Android, iOS).
+* Leaving fullscreen restores the orientations the app allowed before,
+  read from the platform; `PlayStackConfig.reels()` no longer forces
+  portrait (`appOrientations` sets a fixed list).
 * `PlayStackConfig.reels()`, `PlayStackConfig.screenQualityLimit()` and
   `PlayStackFeedConfig.reels`: presets tuned for fast swiping, used by
   `PlayStackFeedView` by default.

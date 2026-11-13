@@ -46,17 +46,21 @@ class PlayStackConfig {
   /// * Preparation at up to ~720p, switching up once playing, so several
   ///   videos prepare in the time of one swipe.
   /// * On iOS, sound plays with the silent switch on, like video apps.
-  /// * The app is portrait outside fullscreen: leaving fullscreen turns a
-  ///   landscape video's screen back to portrait, even when the phone is
-  ///   still held sideways. For a feed that also rotates, pass a manager
-  ///   whose [fullscreen] lists the orientations your app allows.
+  /// * Leaving fullscreen turns the screen back to how it was and restores
+  ///   the orientations the app allowed before, read from the platform on
+  ///   Android and iOS (a portrait lock set with
+  ///   `SystemChrome.setPreferredOrientations` comes back). Pass
+  ///   [appOrientations] to restore a fixed list instead.
   ///
   /// To change one setting and keep the rest, start from this preset:
   ///
   /// ```dart
   /// PlayStackManager(config: PlayStackConfig.reels(looping: false))
   /// ```
-  factory PlayStackConfig.reels({bool looping = true}) => PlayStackConfig(
+  factory PlayStackConfig.reels({
+    bool looping = true,
+    List<DeviceOrientation> appOrientations = const [],
+  }) => PlayStackConfig(
     pool: const PlayStackPoolConfig(maxPlayers: 7),
     player: PlayStackPlayerConfig(
       looping: looping,
@@ -69,11 +73,7 @@ class PlayStackConfig {
     audio: const PlayStackAudioConfig(
       iosAudioSessionCategory: PlayStackAudioSessionCategory.playback,
     ),
-    // Short-video feeds are portrait. Without this, leaving fullscreen
-    // would unlock every orientation and the screen would stay sideways.
-    fullscreen: const PlayStackFullscreenConfig(
-      appOrientations: [DeviceOrientation.portraitUp],
-    ),
+    fullscreen: PlayStackFullscreenConfig(appOrientations: appOrientations),
   );
 
   /// A quality limit of the screen's size in physical pixels, portrait:

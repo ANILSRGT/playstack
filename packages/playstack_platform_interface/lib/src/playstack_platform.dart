@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -187,6 +188,25 @@ abstract class PlayStackPlatform extends PlatformInterface {
   Stream<bool> get fullscreenChanges {
     throw UnimplementedError('fullscreenChanges has not been implemented.');
   }
+
+  /// How the user holds the device, from its motion sensors, also while the
+  /// app is locked to one orientation and the interface does not turn. The
+  /// current orientation comes first. Engines read the sensors only while
+  /// this stream has a listener, and report nothing while the user locked
+  /// rotation in the system settings.
+  ///
+  /// Engines without this (web) throw [UnimplementedError]; callers then
+  /// follow the interface's orientation instead.
+  Stream<DeviceOrientation> get deviceOrientationChanges {
+    throw UnimplementedError(
+      'deviceOrientationChanges has not been implemented.',
+    );
+  }
+
+  /// The orientations the app allows right now, as last passed to
+  /// `SystemChrome.setPreferredOrientations`. Empty when it allows every
+  /// orientation it declares; null when the engine cannot tell.
+  Future<List<DeviceOrientation>?> getAppOrientations() async => null;
 
   /// Events of all native players of this engine.
   Stream<PlayStackPlatformEvent> get events {

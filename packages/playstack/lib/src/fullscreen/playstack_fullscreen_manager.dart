@@ -47,10 +47,11 @@ class PlayStackFullscreenConfig {
   /// `SystemChrome.setPreferredOrientations`, for example
   /// `[DeviceOrientation.portraitUp]` for a portrait-only app.
   ///
-  /// Empty (the default) means every orientation the app declares. Leaving a
-  /// landscape fullscreen then unlocks rotation, and the screen follows the
-  /// device: it stays sideways while the phone is held sideways.
-  /// `PlayStackConfig.reels` sets `[DeviceOrientation.portraitUp]`.
+  /// Empty (the default) restores what the app allowed when fullscreen
+  /// began. On Android and iOS PlayStack reads it from the platform, so a
+  /// lock set with `SystemChrome.setPreferredOrientations` comes back
+  /// without configuration; elsewhere empty means every orientation the app
+  /// declares. `PlayStackConfig.reels` takes the list as `appOrientations`.
   final List<DeviceOrientation> appOrientations;
 
   /// System UI mode outside fullscreen.
@@ -111,6 +112,11 @@ class PlayStackFullscreenManager {
         _changedOrientations = false;
       }
     }, onError: (Object _) {});
+    try {
+      _sensor = _platform.deviceOrientationChanges;
+    } on UnimplementedError {
+      _sensor = null;
+    }
   }
 
   final PlayStackPlatform _platform;
@@ -120,6 +126,70 @@ class PlayStackFullscreenManager {
   List<DeviceOrientation>? _previousOrientations;
   bool _changedOrientations = false;
   final AsyncLock _lock = AsyncLock();
+  List<DeviceOrientation>? _appOrientationsBefore;
+
+  // Device orientation from the sensors, read only while listened to and
+  // while the app is in the foreground.
+  Stream<DeviceOrientation>? _sensor;
+  StreamSubscription<DeviceOrientation>? _sensorSubscription;
+  AppLifecycleListener? _lifecycle;
+  DeviceOrientation? _deviceOrientation;
+  late final StreamController<DeviceOrientation> _deviceOrientations =
+      StreamController<DeviceOrientation>.broadcast(
+        onListen: _startSensor,
+        onCancel: _stopSensor,
+      );
+
+  /// How the user holds the device, from its motion sensors, also while the
+  /// app is locked to one orientation. Null where the platform has no such
+  /// sensor (web): follow the interface's orientation there.
+  ///
+  /// The sensors run only while this stream has a listener and the app is
+  /// in the foreground. Nothing is reported while the user locked rotation
+  /// in the system settings.
+  Stream<DeviceOrientation>? get deviceOrientationChanges =>
+      _sensor == null ? null : _deviceOrientations.stream;
+
+  /// The last orientation [deviceOrientationChanges] reported, or null
+  /// before it reported one.
+  DeviceOrientation? get deviceOrientation => _deviceOrientation;
+
+  void _startSensor() {
+    try {
+      _lifecycle ??= AppLifecycleListener(onStateChange: _onLifecycle);
+    } on Object {
+      // No binding, for example in pure Dart tests.
+    }
+    _subscribeSensor();
+  }
+
+  void _subscribeSensor() {
+    final sensor = _sensor;
+    if (sensor == null || _sensorSubscription != null) return;
+    _sensorSubscription = sensor.listen((orientation) {
+      if (orientation == _deviceOrientation) return;
+      _deviceOrientation = orientation;
+      _deviceOrientations.add(orientation);
+    }, onError: (Object _) {});
+  }
+
+  void _stopSensor() {
+    unawaited(_sensorSubscription?.cancel());
+    _sensorSubscription = null;
+    _lifecycle?.dispose();
+    _lifecycle = null;
+  }
+
+  void _onLifecycle(AppLifecycleState state) {
+    if (!_deviceOrientations.hasListener) return;
+    if (state == AppLifecycleState.resumed) {
+      _subscribeSensor();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      unawaited(_sensorSubscription?.cancel());
+      _sensorSubscription = null;
+    }
+  }
 
   /// Whether fullscreen is active.
   ValueListenable<bool> get isFullscreen => _isFullscreen;
@@ -140,7 +210,14 @@ class PlayStackFullscreenManager {
     PlayStackPlayerController? controller,
   }) => _serial(() async {
     final orientations = _orientationsFor(orientation, controller);
-    if (!_isFullscreen.value) _previousOrientations = _currentOrientations();
+    if (!_isFullscreen.value) {
+      _previousOrientations = _currentOrientations();
+      try {
+        _appOrientationsBefore = await _platform.getAppOrientations();
+      } on Object {
+        _appOrientationsBefore = null;
+      }
+    }
     await _platform.enterFullscreen(
       PlayStackFullscreenRequest(
         orientations: orientations,
@@ -158,7 +235,9 @@ class PlayStackFullscreenManager {
     final policy = _policy;
     await _platform.exitFullscreen(
       PlayStackFullscreenRestore(
-        orientations: policy.appOrientations,
+        orientations: policy.appOrientations.isNotEmpty
+            ? policy.appOrientations
+            : _appOrientationsBefore ?? const [],
         systemUiMode: policy.appSystemUiMode,
         overlays: policy.appOverlays,
         previousOrientations: _previousOrientations,
@@ -167,6 +246,7 @@ class PlayStackFullscreenManager {
     );
     _changedOrientations = false;
     _previousOrientations = null;
+    _appOrientationsBefore = null;
     _isFullscreen.value = false;
   });
 
@@ -176,6 +256,8 @@ class PlayStackFullscreenManager {
     // Not awaited: cancelling may complete with a root-zone future.
     unawaited(_external?.cancel());
     _external = null;
+    _stopSensor();
+    unawaited(_deviceOrientations.close());
     _isFullscreen.dispose();
   }
 

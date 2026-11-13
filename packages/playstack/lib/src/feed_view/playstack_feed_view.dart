@@ -8,6 +8,7 @@ import 'package:flutter/material.dart'
         MaterialLocalizations,
         RefreshIndicator;
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
@@ -397,16 +398,22 @@ class PlayStackFeedViewController extends ChangeNotifier {
 
   /// Shows the video in view fullscreen.
   ///
+  /// The video opens on its own route above the app's screens, so bottom
+  /// navigation bars, app bars and other widgets around the feed are covered.
   /// The screen rotates to match the video (landscape videos turn the phone
-  /// sideways), system bars hide, the quality cap is lifted so the video plays
-  /// at full resolution, and swiping is locked. The back button leaves
-  /// fullscreen. Builders see [PlayStackFeedPage.isFullscreen] as true.
+  /// sideways), system bars hide and the quality cap is lifted so the video
+  /// plays at full resolution. The back button leaves fullscreen.
+  ///
+  /// The fullscreen page is built with the same
+  /// [PlayStackFeedView.controlsBuilder] and [PlayStackFeedView.videoBuilder],
+  /// with [PlayStackFeedPage.isFullscreen] true: return different controls
+  /// for fullscreen there.
   ///
   /// Does nothing when already fullscreen or when no video is in view.
   Future<void> enterFullscreen() => _attached._enterFullscreen();
 
-  /// Leaves fullscreen: restores the orientation, the system bars, the
-  /// quality cap and swiping.
+  /// Leaves fullscreen: closes the fullscreen page and restores the
+  /// orientation, the system bars and the quality cap.
   Future<void> exitFullscreen() => _attached._exitFullscreen();
 
   /// Enters fullscreen, or leaves it when already fullscreen. Handy for a
@@ -755,6 +762,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.precachePosters = 3,
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
+    this.fullscreenOnRotate = true,
   }) : feed = null,
        preload = null,
        onEndReached = null,
@@ -795,6 +803,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.precachePosters = 3,
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
+    this.fullscreenOnRotate = true,
   }) : items = preload.items,
        videoUrl = preload.videoUrl,
        source = preload.source,
@@ -851,6 +860,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.precachePosters = 3,
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
+    this.fullscreenOnRotate = true,
   }) : items = null,
        preload = null,
        videoUrl = null,
@@ -964,8 +974,19 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// ```
   ///
   /// A plain `PlayStackConfig()` drops the preset: no screen-sized quality
-  /// cap, fewer players, and the screen may stay sideways after fullscreen
-  /// (see `PlayStackFullscreenConfig.appOrientations`).
+  /// cap and fewer players.
+  ///
+  /// An app locked to portrait with `SystemChrome.setPreferredOrientations`
+  /// passes the same list here, so that the lock comes back after
+  /// fullscreen:
+  ///
+  /// ```dart
+  /// manager: PlayStackManager(
+  ///   config: PlayStackConfig.reels(
+  ///     appOrientations: [DeviceOrientation.portraitUp],
+  ///   ),
+  /// ),
+  /// ```
   ///
   /// A manager you pass is initialized by the view if needed, and you dispose
   /// it.
@@ -1159,6 +1180,19 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// setting (see `PlayStackLifecycleConfig`).
   final bool pauseWhenHidden;
 
+  /// Whether turning the device sideways while a video is in view opens it
+  /// fullscreen, and turning it back upright closes it. On by default.
+  ///
+  /// On Android and iOS the view reads the motion sensors, so this also
+  /// works in an app locked to portrait; the lock comes back when
+  /// fullscreen ends. Nothing happens while the user locked rotation in the
+  /// system settings. On web the view follows the browser window turning.
+  ///
+  /// After the user leaves fullscreen with the button while holding the
+  /// device sideways, the feed stays as it is until the device is turned
+  /// upright again.
+  final bool fullscreenOnRotate;
+
   /// Called when the user leaves an item (swipes to another one, or the view
   /// is removed) with how long they watched it: watch time, whether they
   /// watched to the end, and your item. Use it for view counts and
@@ -1206,6 +1240,29 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   PlayStackPlayerController? _fullscreenController;
   PlayStackVideoQualityLimit? _limitBeforeFullscreen;
   bool _isFullscreen = false;
+
+  /// The route that shows the video fullscreen, while it is open.
+  Route<void>? _fullscreenRoute;
+
+  // Fullscreen on rotation (fullscreenOnRotate).
+  Orientation? _orientation;
+  bool _rotatedIn = false;
+  bool _leavingUpright = false;
+  bool _awaitUpright = false;
+  DateTime? _rotateBlockedUntil;
+  // With the device's motion sensors (Android, iOS): also works while the
+  // app is locked to portrait.
+  StreamSubscription<DeviceOrientation>? _deviceOrientations;
+  DeviceOrientation? _device;
+  bool _sawSideways = false;
+
+  static bool _isSideways(DeviceOrientation? orientation) =>
+      orientation == DeviceOrientation.landscapeLeft ||
+      orientation == DeviceOrientation.landscapeRight;
+
+  /// Bumped when the widget changes, to rebuild the fullscreen page with
+  /// the new builders.
+  final ValueNotifier<int> _widgetUpdates = ValueNotifier<int>(0);
   bool _advanced = false;
   bool _loadingMore = false;
   bool _exhausted = false;
@@ -1302,6 +1359,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     super.didChangeDependencies();
     // Disabled tickers mean the view is hidden: covered by an opaque route
     // or in a tab that is not shown.
+    _onOrientation(MediaQuery.orientationOf(context));
     final hidden = !TickerMode.valuesOf(context).enabled;
     if (hidden == _hidden) return;
     _hidden = hidden;
@@ -1321,7 +1379,9 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   void _applyPause() {
     final feed = _feed;
     if (feed == null || feed.isDisposed) return;
-    final pause = _userPaused || (_hidden && widget.pauseWhenHidden);
+    // The fullscreen route covers the feed but shows its video.
+    final hidden = _hidden && _fullscreenRoute == null;
+    final pause = _userPaused || (hidden && widget.pauseWhenHidden);
     if (pause) {
       if (!feed.isPaused) {
         feed.pause();
@@ -1368,6 +1428,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     _fullscreen = fullscreen;
     fullscreen.isFullscreen.addListener(_onFullscreenChanged);
     _isFullscreen = fullscreen.isFullscreen.value;
+    _syncDeviceOrientations();
     if (feed.length > 0 && feed.activeIndex.value == null) {
       // Not during build: activating notifies the feed's listeners.
       scheduleMicrotask(() {
@@ -1392,6 +1453,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       if (feed.isPaused) feed.resume();
     }
     _fullscreen?.isFullscreen.removeListener(_onFullscreenChanged);
+    _stopDeviceOrientations();
     if (feed == null || feed.isDisposed) return;
     feed.removeListener(_onItemsChanged);
     feed.activeIndex.removeListener(_onActiveChanged);
@@ -1420,12 +1482,17 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       _attach(feed);
     }
     if (oldWidget.pauseWhenHidden != widget.pauseWhenHidden) _applyPause();
+    if (oldWidget.fullscreenOnRotate != widget.fullscreenOnRotate) {
+      _syncDeviceOrientations();
+    }
     final items = widget.items;
     final owned = _ownedFeed;
     if (owned != null && items != null && !identical(items, oldWidget.items)) {
       _syncItems(owned, oldWidget.items ?? const [], items);
     }
     if (owned != null && !owned.isDisposed) _syncLocks(owned);
+    // The fullscreen page uses this widget's builders.
+    if (_fullscreenRoute != null) _widgetUpdates.value++;
   }
 
   /// Applies a new [PlayStackFeedView.items] list: appends when it extends the
@@ -1452,7 +1519,22 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   void dispose() {
     final fullscreen = _fullscreen;
     _detach();
+    final route = _fullscreenRoute;
+    _fullscreenRoute = null;
+    if (route != null) {
+      // Not while the tree is being finalized.
+      scheduleMicrotask(() {
+        if (route.isActive) route.navigator?.removeRoute(route);
+      });
+    }
     if (_isFullscreen && fullscreen != null) unawaited(fullscreen.exit());
+    // Disposed after the route is gone; the route may rebuild until then.
+    final updates = _widgetUpdates;
+    if (route == null) {
+      updates.dispose();
+    } else {
+      scheduleMicrotask(updates.dispose);
+    }
     if (_controller._view == this) _controller._view = null;
     _ownController?.dispose();
     _pages?.dispose();
@@ -1488,6 +1570,8 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (index == null) return;
     _followFeed();
     _watchActive();
+    // The feed hides the active page's video while fullscreen.
+    if (_fullscreenRoute != null) setState(() {});
     _precache(index);
     _checkEnd(index);
     _controller._changed();
@@ -1736,10 +1820,13 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     return pages;
   }
 
-  Future<void> _enterFullscreen() async {
+  Future<void> _enterFullscreen({bool rotated = false}) async {
     final controller = _feed?.activeController;
     final fullscreen = _fullscreen;
     if (controller == null || fullscreen == null || _isFullscreen) return;
+    if (_fullscreenRoute != null) return;
+    _rotatedIn = rotated;
+    _sawSideways = _isSideways(_device);
     _fullscreenController = controller;
     _limitBeforeFullscreen = controller.videoQualityLimit;
     // Fullscreen shows the video at the screen's long side.
@@ -1748,18 +1835,29 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
           .setVideoQualityLimit(PlayStackVideoQualityLimit.none)
           .catchError(_ignore),
     );
+    _openFullscreenRoute();
     try {
       await fullscreen.enter(
-        orientation: PlayStackFullscreenOrientation.matchVideo,
+        // Turned by the user: sideways, whatever the video. With the
+        // sensors this also turns an app locked to portrait; without them
+        // the interface already turned, and its orientation stays free so
+        // that turning upright leaves fullscreen.
+        orientation: !rotated
+            ? PlayStackFullscreenOrientation.matchVideo
+            : _deviceOrientations != null
+            ? PlayStackFullscreenOrientation.landscape
+            : PlayStackFullscreenOrientation.keepCurrent,
         controller: controller,
       );
     } on Object {
+      _closeFullscreenRoute();
       _restoreQuality();
       rethrow;
     }
   }
 
   Future<void> _exitFullscreen() async {
+    _closeFullscreenRoute();
     await _fullscreen?.exit();
     _restoreQuality();
   }
@@ -1768,8 +1866,190 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     final value = _fullscreen?.isFullscreen.value ?? false;
     if (value == _isFullscreen || !mounted) return;
     setState(() => _isFullscreen = value);
-    if (!value) _restoreQuality();
+    if (!value) {
+      // Left from outside the view (Escape in a browser).
+      _closeFullscreenRoute();
+      _restoreQuality();
+      // Unlocking the orientation can turn the screen sideways again right
+      // away when the device is held sideways; that must not reopen
+      // fullscreen. Neither does staying sideways after leaving it.
+      _rotatedIn = false;
+      if (_leavingUpright) {
+        // Left by turning the device upright: the next turn opens it again.
+        _leavingUpright = false;
+      } else if (_deviceOrientations != null) {
+        // Left with the button while holding the device sideways: wait
+        // until it is upright before a turn opens fullscreen again.
+        _awaitUpright = _isSideways(_device);
+      } else {
+        _rotateBlockedUntil = DateTime.now().add(const Duration(seconds: 1));
+        _awaitUpright = _orientation == Orientation.landscape;
+      }
+    }
     _controller._changed();
+  }
+
+  void _onOrientation(Orientation orientation) {
+    final previous = _orientation;
+    _orientation = orientation;
+    if (previous == null || previous == orientation) return;
+    // Not during build: entering fullscreen pushes a route.
+    scheduleMicrotask(() {
+      if (mounted && _orientation == orientation) _onRotated(orientation);
+    });
+  }
+
+  void _onRotated(Orientation orientation) {
+    // The sensors know better: an unlocked interface turns with the device.
+    if (!widget.fullscreenOnRotate || _deviceOrientations != null) return;
+    if (orientation == Orientation.portrait) {
+      _awaitUpright = false;
+      if (_isFullscreen && _rotatedIn) {
+        _leavingUpright = true;
+        unawaited(_exitFullscreen().catchError(_ignore));
+      }
+      return;
+    }
+    final blocked = _rotateBlockedUntil;
+    if (_awaitUpright ||
+        (blocked != null && DateTime.now().isBefore(blocked))) {
+      _awaitUpright = true;
+      return;
+    }
+    if (_isFullscreen || _fullscreenRoute != null || _hidden) return;
+    final feed = _feed;
+    if (feed == null || feed.isDisposed || feed.activeController == null) {
+      return;
+    }
+    unawaited(_enterFullscreen(rotated: true).catchError(_ignore));
+  }
+
+  /// Follows the device's motion sensors while [PlayStackFeedView.fullscreenOnRotate]
+  /// is on and the platform has them.
+  void _syncDeviceOrientations() {
+    final changes = _fullscreen?.deviceOrientationChanges;
+    if (!widget.fullscreenOnRotate || changes == null) {
+      _stopDeviceOrientations();
+      return;
+    }
+    if (_deviceOrientations != null) return;
+    _device = _fullscreen?.deviceOrientation;
+    _deviceOrientations = changes.listen(_onDeviceOrientation);
+  }
+
+  void _stopDeviceOrientations() {
+    unawaited(_deviceOrientations?.cancel());
+    _deviceOrientations = null;
+    _device = null;
+  }
+
+  void _onDeviceOrientation(DeviceOrientation orientation) {
+    // Before the first report (the sensors may not know yet, for example
+    // lying flat), the device is taken to be held like the interface.
+    final previous =
+        _device ??
+        (_orientation == Orientation.portrait
+            ? DeviceOrientation.portraitUp
+            : null);
+    _device = orientation;
+    if (previous == null || previous == orientation || !mounted) return;
+    if (orientation == DeviceOrientation.portraitDown) return;
+    if (orientation == DeviceOrientation.portraitUp) {
+      _awaitUpright = false;
+      // Fullscreen opened by turning the device, or opened with the button
+      // and then held sideways: upright closes it.
+      if (_isFullscreen && (_rotatedIn || _sawSideways)) {
+        _leavingUpright = true;
+        unawaited(_exitFullscreen().catchError(_ignore));
+      }
+      return;
+    }
+    if (_isFullscreen || _fullscreenRoute != null) {
+      // A landscape video shown sideways and now held sideways.
+      if (_orientation == Orientation.landscape) _sawSideways = true;
+      return;
+    }
+    if (_awaitUpright || _hidden) return;
+    final feed = _feed;
+    if (feed == null || feed.isDisposed || feed.activeController == null) {
+      return;
+    }
+    unawaited(_enterFullscreen(rotated: true).catchError(_ignore));
+  }
+
+  /// Shows the video on a route above the app's screens, so bars around the
+  /// feed (a bottom navigation bar, an app bar) are covered. Without a
+  /// navigator the feed goes fullscreen where it is.
+  void _openFullscreenRoute() {
+    final navigator = Navigator.maybeOf(context, rootNavigator: true);
+    if (navigator == null || _fullscreenRoute != null) return;
+    final route = PageRouteBuilder<void>(
+      settings: const RouteSettings(name: 'playstack-fullscreen'),
+      // No transition: the feed hides its own view of the video while the
+      // route shows it (a web video element can be in one place only).
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder: (context, _, _) => PopScope(
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) _onFullscreenRoutePopped();
+        },
+        child: _buildFullscreenPage(context),
+      ),
+    );
+    setState(() => _fullscreenRoute = route);
+    unawaited(navigator.push(route));
+    // The feed under the route stays playing.
+    _applyPause();
+  }
+
+  void _closeFullscreenRoute() {
+    final route = _fullscreenRoute;
+    if (route == null) return;
+    if (mounted) setState(() => _fullscreenRoute = null);
+    // The feed is shown again on the next frame; its tickers then tell the
+    // view it is visible (didChangeDependencies).
+    if (route.isActive) route.navigator?.removeRoute(route);
+  }
+
+  /// The back button or gesture closed the fullscreen route.
+  void _onFullscreenRoutePopped() {
+    if (_fullscreenRoute == null) return;
+    setState(() => _fullscreenRoute = null);
+    unawaited(_exitFullscreen().catchError(_ignore));
+  }
+
+  Widget _buildFullscreenPage(BuildContext context) {
+    final feed = _feed;
+    final background = ColoredBox(color: widget.backgroundColor);
+    if (feed == null || feed.isDisposed) return background;
+    return ColoredBox(
+      color: widget.backgroundColor,
+      child: ListenableBuilder(
+        listenable: Listenable.merge([feed, feed.activeIndex, _widgetUpdates]),
+        builder: (context, _) {
+          final index = feed.activeIndex.value;
+          if (!mounted || feed.isDisposed || index == null) return background;
+          if (index >= feed.length) return background;
+          final item = feed.itemAt(index);
+          if (!item.isPlayable) return background;
+          return KeyedSubtree(
+            key: ValueKey<String>(item.id),
+            child: _PageContent<T>(
+              feed: feed,
+              view: _controller,
+              item: item,
+              index: index,
+              isFullscreen: true,
+              videoBuilder: widget.videoBuilder,
+              controlsBuilder: widget.controlsBuilder,
+              pageBuilder: widget.pageBuilder,
+              lockedBuilder: widget.lockedBuilder,
+              fit: widget.fit,
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _restoreQuality() {
@@ -1805,10 +2085,12 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (feed.length == 0) {
       return widget.emptyBuilder?.call(context) ?? background;
     }
+    // Fullscreen in place, when there was no navigator for a route.
+    final inPlace = _isFullscreen && _fullscreenRoute == null;
     return PopScope(
-      canPop: !_isFullscreen,
+      canPop: !inPlace,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _isFullscreen) unawaited(_exitFullscreen());
+        if (!didPop && inPlace) unawaited(_exitFullscreen());
       },
       child: ColoredBox(
         color: widget.backgroundColor,
@@ -1819,7 +2101,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
               controller: pages,
               scrollDirection: widget.scrollDirection,
               reverse: widget.reverse,
-              physics: _isFullscreen
+              physics: inPlace
                   ? const NeverScrollableScrollPhysics()
                   : widget.physics,
               onPageChanged: _onPageChanged,
@@ -1831,18 +2113,22 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
               },
               itemBuilder: (context, index) {
                 final item = feed.itemAt(index);
-                Widget page = _PageContent<T>(
-                  feed: feed,
-                  view: _controller,
-                  item: item,
-                  index: index,
-                  isFullscreen: _isFullscreen,
-                  videoBuilder: widget.videoBuilder,
-                  controlsBuilder: widget.controlsBuilder,
-                  pageBuilder: widget.pageBuilder,
-                  lockedBuilder: widget.lockedBuilder,
-                  fit: widget.fit,
-                );
+                Widget page =
+                    _fullscreenRoute != null && index == feed.activeIndex.value
+                    // Shown by the fullscreen route.
+                    ? const SizedBox.expand()
+                    : _PageContent<T>(
+                        feed: feed,
+                        view: _controller,
+                        item: item,
+                        index: index,
+                        isFullscreen: inPlace,
+                        videoBuilder: widget.videoBuilder,
+                        controlsBuilder: widget.controlsBuilder,
+                        pageBuilder: widget.pageBuilder,
+                        lockedBuilder: widget.lockedBuilder,
+                        fit: widget.fit,
+                      );
                 page = _ScrollHandoff(
                   axis: widget.scrollDirection,
                   reverse: widget.reverse,
@@ -1875,16 +2161,18 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   /// Wraps [child] in a refresh indicator when [PlayStackFeedView.onRefresh] is
   /// set and the feed is vertical.
   Widget _withRefresh(BuildContext context, Widget child) {
+    // Not removed in fullscreen: changing the tree above the PageView would
+    // rebuild it at its first page.
     if (widget.onRefresh == null ||
         widget.scrollDirection != Axis.vertical ||
-        widget.reverse ||
-        _isFullscreen) {
+        widget.reverse) {
       return child;
     }
     final Widget indicator = RefreshIndicator(
       onRefresh: _refresh,
       semanticsLabel: 'Refresh',
-      notificationPredicate: (notification) => notification.depth == 0,
+      notificationPredicate: (notification) =>
+          notification.depth == 0 && !_isFullscreen,
       child: child,
     );
     // The indicator needs Material localizations; apps built on

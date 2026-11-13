@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playstack/playstack.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
@@ -1366,9 +1367,91 @@ void main() {
       view.dispose();
     });
 
-    testWidgets('fullscreen locks swiping and lifts the quality cap', (
+    testWidgets('fullscreen covers the app and lifts the quality cap', (
       tester,
     ) async {
+      final view = PlayStackFeedViewController();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlayStackFeedView(
+              items: const [
+                'https://example.com/a.m3u8',
+                'https://example.com/b.m3u8',
+                'https://example.com/c.m3u8',
+              ],
+              controller: view,
+              initialIndex: 1,
+              // Pull to refresh used to rebuild the feed at its first page.
+              onRefresh: () async => const <String>[],
+              controlsBuilder: (context, page) => Text(
+                '${page.data} ${page.isFullscreen ? 'fullscreen' : 'feed'}',
+              ),
+            ),
+            bottomNavigationBar: const Text('bottom bar'),
+          ),
+        ),
+      );
+      await run(tester);
+      expect(view.index, 1);
+      final controller = view.feed!.activeController!;
+      final cap = controller.videoQualityLimit;
+      final url = 'https://example.com/b.m3u8';
+
+      await tester.runAsync(view.enterFullscreen);
+      await run(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(view.isFullscreen, isTrue);
+      expect(engine.fullscreenRequests, hasLength(1));
+      expect(controller.videoQualityLimit, PlayStackVideoQualityLimit.none);
+      // The app's controls, built for fullscreen, above everything else.
+      expect(find.text('$url fullscreen'), findsOneWidget);
+      expect(find.text('bottom bar'), findsNothing);
+      expect(find.byType(PageView), findsNothing);
+      expect(view.index, 1);
+      expect(view.feed!.isPaused, isFalse, reason: 'the video keeps playing');
+
+      // Back leaves fullscreen, on the same video.
+      await tester.runAsync(() => tester.binding.handlePopRoute());
+      await run(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      await run(tester);
+      expect(view.isFullscreen, isFalse);
+      expect(controller.videoQualityLimit, cap);
+      expect(find.text('$url feed'), findsOneWidget);
+      expect(find.text('bottom bar'), findsOneWidget);
+      expect(view.index, 1);
+      expect(view.feed!.isPaused, isFalse);
+
+      // Again, leaving from the controller.
+      await tester.runAsync(view.enterFullscreen);
+      await run(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('$url fullscreen'), findsOneWidget);
+      await tester.runAsync(view.exitFullscreen);
+      await run(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(view.isFullscreen, isFalse);
+      expect(find.text('$url feed'), findsOneWidget);
+      expect(view.index, 1);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('the motion sensors open fullscreen in a portrait app', (
+      tester,
+    ) async {
+      engine = FakePlayStackPlatform(supportsDeviceOrientation: true)
+        // The app locked itself with SystemChrome.
+        ..appOrientations = [DeviceOrientation.portraitUp];
+      PlayStackPlatform.instance = engine;
+      // A phone held upright; the interface stays so.
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final view = PlayStackFeedViewController();
       await tester.pumpWidget(
         host(
@@ -1382,25 +1465,147 @@ void main() {
         ),
       );
       await run(tester);
-      final controller = view.feed!.activeController!;
-      final cap = controller.videoQualityLimit;
+      void hold(DeviceOrientation orientation) =>
+          engine.deviceOrientations.add(orientation);
+      Future<void> settled() async {
+        await run(tester);
+        await tester.pump(const Duration(milliseconds: 300));
+        await run(tester);
+      }
 
-      await tester.runAsync(view.enterFullscreen);
-      await run(tester);
+      // The sensors did not report yet: the interface tells where the
+      // device is, so the first turn counts.
+      hold(DeviceOrientation.landscapeLeft);
+      await settled();
       expect(view.isFullscreen, isTrue);
-      expect(engine.fullscreenRequests, hasLength(1));
-      expect(controller.videoQualityLimit, PlayStackVideoQualityLimit.none);
-      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
-      await tester.pumpAndSettle();
-      expect(view.index, 0, reason: 'swiping is locked');
-
-      await tester.runAsync(view.exitFullscreen);
-      await run(tester);
+      hold(DeviceOrientation.portraitUp);
+      await settled();
       expect(view.isFullscreen, isFalse);
-      expect(controller.videoQualityLimit, cap);
+
+      // The interface does not turn, the sensors do.
+      hold(DeviceOrientation.landscapeLeft);
+      await settled();
+      expect(view.isFullscreen, isTrue);
+      expect(engine.fullscreenRequests.last.orientations, [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      hold(DeviceOrientation.portraitUp);
+      await settled();
+      expect(view.isFullscreen, isFalse);
+      expect(engine.fullscreenRestores.last.orientations, [
+        DeviceOrientation.portraitUp,
+      ], reason: "the app's own lock comes back");
+
+      // Left with the button while sideways: upright first.
+      hold(DeviceOrientation.landscapeRight);
+      await settled();
+      expect(view.isFullscreen, isTrue);
+      await tester.runAsync(view.exitFullscreen);
+      await settled();
+      expect(view.isFullscreen, isFalse);
+      hold(DeviceOrientation.landscapeLeft);
+      await settled();
+      expect(view.isFullscreen, isFalse);
+      hold(DeviceOrientation.portraitUp);
+      await settled();
+      hold(DeviceOrientation.landscapeLeft);
+      await settled();
+      expect(view.isFullscreen, isTrue);
+      hold(DeviceOrientation.portraitUp);
+      await settled();
+      expect(view.isFullscreen, isFalse);
+
+      // The button, then held sideways and upright again: closes too.
+      await tester.runAsync(view.enterFullscreen);
+      await settled();
+      expect(view.isFullscreen, isTrue);
+      hold(DeviceOrientation.landscapeLeft);
+      await settled();
+      expect(view.isFullscreen, isTrue);
+      hold(DeviceOrientation.portraitUp);
+      await settled();
+      // The fake video is portrait: the interface never turned sideways,
+      // so holding the device sideways does not count.
+      expect(view.isFullscreen, isTrue);
+      await tester.runAsync(view.exitFullscreen);
+      await settled();
+
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('turning the device sideways opens fullscreen', (tester) async {
+      addTearDown(tester.view.reset);
+      Future<void> turn(Size size) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await tester.pump();
+        await run(tester);
+        await tester.pump();
+      }
+
+      const upright = Size(400, 800);
+      const sideways = Size(800, 400);
+      await turn(upright);
+      final view = PlayStackFeedViewController();
+      Widget app({bool fullscreenOnRotate = true}) => MaterialApp(
+        home: PlayStackFeedView(
+          items: const [
+            'https://example.com/a.m3u8',
+            'https://example.com/b.m3u8',
+          ],
+          controller: view,
+          fullscreenOnRotate: fullscreenOnRotate,
+        ),
+      );
+      await tester.pumpWidget(app());
+      await run(tester);
+
+      await turn(sideways);
+      expect(view.isFullscreen, isTrue);
+      expect(
+        engine.fullscreenRequests.single.orientations,
+        isNull,
+        reason: 'the orientation stays free',
+      );
+      await turn(upright);
+      expect(view.isFullscreen, isFalse);
+
+      // Left with the button while sideways: no fullscreen until the device
+      // was upright again.
+      await turn(sideways);
+      expect(view.isFullscreen, isTrue);
+      await tester.runAsync(view.exitFullscreen);
+      await run(tester);
+      expect(view.isFullscreen, isFalse);
+      // A turn right after leaving comes from the unlocked orientation.
+      await turn(upright);
+      await turn(sideways);
+      expect(view.isFullscreen, isFalse);
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 1100)),
+      );
+      await turn(sideways);
+      expect(view.isFullscreen, isFalse, reason: 'still waits for upright');
+      await turn(upright);
+      await turn(sideways);
+      expect(view.isFullscreen, isTrue);
+      await turn(upright);
+      expect(view.isFullscreen, isFalse);
+
+      // Turned off.
+      await tester.pumpWidget(app(fullscreenOnRotate: false));
+      await run(tester);
+      await turn(sideways);
+      expect(view.isFullscreen, isFalse);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
     });
   });
 }

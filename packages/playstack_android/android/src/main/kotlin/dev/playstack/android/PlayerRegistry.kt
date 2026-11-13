@@ -16,6 +16,7 @@ internal class PlayerRegistry(
     flutterAssets: FlutterAssets,
     private val events: PlayerEventDispatcher,
     private val network: NetworkMonitor,
+    private val orientation: DeviceOrientationMonitor,
 ) : PlayStackHostApi {
   private val players = HashMap<Long, NativePlayer>()
   private var engineConfig: PlatformEngineConfig? = null
@@ -97,6 +98,8 @@ internal class PlayerRegistry(
   }
 
   override fun getNetworkStatus(): PlatformNetworkStatus = network.current()
+
+  override fun getAppOrientations(): List<PlatformOrientation> = orientation.appOrientations()
 
   override suspend fun getCacheInfo(): PlatformCacheInfo =
       withContext(Dispatchers.IO) {

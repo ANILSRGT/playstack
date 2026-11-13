@@ -109,6 +109,14 @@ enum PlatformTrackType { audio, video, text }
 
 enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
 
+/// Device and interface orientations, named as Flutter's `DeviceOrientation`.
+enum PlatformOrientation {
+  portraitUp,
+  portraitDown,
+  landscapeLeft,
+  landscapeRight,
+}
+
 /// iOS `AVAudioSession` category PlayStack sets, or `unmanaged` to leave the
 /// host app's session alone.
 enum PlatformAudioSessionCategory { unmanaged, ambient, playback }
@@ -260,6 +268,51 @@ class PlatformCacheInfo {
   @override
   String toString() {
     return 'PlatformCacheInfo(enabled: $enabled, usedBytes: $usedBytes, maxBytes: $maxBytes)';
+  }
+}
+
+/// How the user holds the device, from its motion sensors, whatever the
+/// orientations the app allows.
+class PlatformDeviceOrientationEvent {
+  PlatformDeviceOrientationEvent({required this.orientation});
+
+  PlatformOrientation orientation;
+
+  List<Object?> _toList() {
+    return <Object?>[orientation];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformDeviceOrientationEvent decode(Object result) {
+    result as List<Object?>;
+    return PlatformDeviceOrientationEvent(
+      orientation: result[0]! as PlatformOrientation,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformDeviceOrientationEvent ||
+        other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(orientation, other.orientation);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformDeviceOrientationEvent(orientation: $orientation)';
   }
 }
 
@@ -1446,65 +1499,71 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformNetworkType) {
       buffer.putUint8(133);
       writeValue(buffer, value.index);
-    } else if (value is PlatformAudioSessionCategory) {
+    } else if (value is PlatformOrientation) {
       buffer.putUint8(134);
       writeValue(buffer, value.index);
-    } else if (value is PlatformInterruptionType) {
+    } else if (value is PlatformAudioSessionCategory) {
       buffer.putUint8(135);
       writeValue(buffer, value.index);
-    } else if (value is PlatformEngineConfig) {
+    } else if (value is PlatformInterruptionType) {
       buffer.putUint8(136);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformCacheInfo) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformEngineConfig) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformNetworkStatus) {
+    } else if (value is PlatformCacheInfo) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTrack) {
+    } else if (value is PlatformDeviceOrientationEvent) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformFirstFrameEvent) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformErrorEvent) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInterruptionEvent) {
+    } else if (value is PlatformTracksChangedEvent) {
       buffer.putUint8(153);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(154);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformInterruptionEvent) {
+      buffer.putUint8(155);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1531,47 +1590,52 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : PlatformNetworkType.values[value];
       case 134:
         final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformOrientation.values[value];
+      case 135:
+        final value = readValue(buffer) as int?;
         return value == null
             ? null
             : PlatformAudioSessionCategory.values[value];
-      case 135:
+      case 136:
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformInterruptionType.values[value];
-      case 136:
-        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 137:
-        return PlatformCacheInfo.decode(readValue(buffer)!);
+        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 138:
-        return PlatformNetworkStatus.decode(readValue(buffer)!);
+        return PlatformCacheInfo.decode(readValue(buffer)!);
       case 139:
-        return PlatformTrack.decode(readValue(buffer)!);
+        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
       case 140:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 141:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 142:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 143:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 144:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 145:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 146:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 147:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 148:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 149:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 150:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
       case 151:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
       case 152:
-        return PlatformCuesEvent.decode(readValue(buffer)!);
+        return PlatformErrorEvent.decode(readValue(buffer)!);
       case 153:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 154:
+        return PlatformCuesEvent.decode(readValue(buffer)!);
+      case 155:
         return PlatformInterruptionEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1954,6 +2018,27 @@ class PlayStackHostApi {
     return pigeonVar_replyValue! as PlatformNetworkStatus;
   }
 
+  /// The orientations the app allows right now (what it last passed to
+  /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
+  /// orientation it declares, or when the platform cannot tell.
+  Future<List<PlatformOrientation>> getAppOrientations() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getAppOrientations$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return (pigeonVar_replyValue! as List<Object?>).cast<PlatformOrientation>();
+  }
+
   Future<PlatformCacheInfo> getCacheInfo() async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getCacheInfo$pigeonVar_messageChannelSuffix';
@@ -2070,5 +2155,33 @@ Stream<PlatformNetworkStatus> networkEvents({String instanceName = ''}) {
   );
   return networkEventsChannel.receiveBroadcastStream().map((dynamic event) {
     return event as PlatformNetworkStatus;
+  });
+}
+
+/// How the user holds the device, also when the app is locked to one
+/// orientation. The current orientation is sent first. The engine reads
+/// the sensors only while this stream has a listener, and sends nothing
+/// while the user locked rotation in the system settings.
+///
+/// Returns a broadcast [Stream] of events from the `deviceOrientationEvents` event channel.
+///
+/// Each call to this method creates a new [EventChannel], so it should
+/// not be called multiple times for the same `instanceName`. To deliver
+/// events to multiple listeners, call this method once and listen to the
+/// returned broadcast stream multiple times instead.
+Stream<PlatformDeviceOrientationEvent> deviceOrientationEvents({
+  String instanceName = '',
+}) {
+  if (instanceName.isNotEmpty) {
+    instanceName = '.$instanceName';
+  }
+  final EventChannel deviceOrientationEventsChannel = EventChannel(
+    'dev.flutter.pigeon.playstack_ios.PlayStackEventApi.deviceOrientationEvents$instanceName',
+    pigeonMethodCodec,
+  );
+  return deviceOrientationEventsChannel.receiveBroadcastStream().map((
+    dynamic event,
+  ) {
+    return event as PlatformDeviceOrientationEvent;
   });
 }

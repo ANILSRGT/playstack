@@ -342,11 +342,29 @@ view.manager;               // stats, cache, network status
 ```
 
 Builders also get the controller as `page.view`. The controller is a
-`Listenable`: wrap an app bar in a `ListenableBuilder` to hide it in
-fullscreen or to show the page number.
+`Listenable`: wrap a widget in a `ListenableBuilder` to show the page number
+or the fullscreen state.
 
-Fullscreen turns the screen to match the video and lifts the quality cap.
-Swiping is locked, and the back button leaves fullscreen.
+Fullscreen opens the video on its own route above the app's screens, so a
+bottom navigation bar or an app bar around the feed is covered. The screen
+turns to match the video and the quality cap is lifted. The back button
+leaves fullscreen, on the same video.
+
+Turning the device sideways while a video is in view opens fullscreen too,
+and turning it upright closes it (`fullscreenOnRotate`, on by default). On
+Android and iOS the view reads the motion sensors, so this works in an app
+locked to portrait as well, and the lock comes back after fullscreen.
+Nothing happens while the user locked rotation in the system settings.
+After leaving fullscreen with the button while holding the device sideways,
+the device has to be turned upright before a turn opens it again. The route is built with the same
+`controlsBuilder` and `videoBuilder`, with `page.isFullscreen` true, so the
+fullscreen controls are yours too:
+
+```dart
+controlsBuilder: (context, page) => page.isFullscreen
+    ? MyFullscreenControls(page: page)   // or PlayStackDefaultControls
+    : MyFeedControls(page: page),
+```
 
 To move to the next video when the current one ends, set `autoAdvance:
 true`. The view then stops looping its videos. If you pass your own

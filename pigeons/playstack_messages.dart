@@ -27,6 +27,9 @@ enum PlatformTrackType { audio, video, text }
 
 enum PlatformNetworkType { none, wifi, cellular, ethernet, other, unknown }
 
+/// Device and interface orientations, named as Flutter's `DeviceOrientation`.
+enum PlatformOrientation { portraitUp, portraitDown, landscapeLeft, landscapeRight }
+
 /// iOS `AVAudioSession` category PlayStack sets, or `unmanaged` to leave the
 /// host app's session alone.
 enum PlatformAudioSessionCategory { unmanaged, ambient, playback }
@@ -79,6 +82,14 @@ class PlatformCacheInfo {
   bool enabled;
   int usedBytes;
   int maxBytes;
+}
+
+/// How the user holds the device, from its motion sensors, whatever the
+/// orientations the app allows.
+class PlatformDeviceOrientationEvent {
+  PlatformDeviceOrientationEvent({required this.orientation});
+
+  PlatformOrientation orientation;
 }
 
 /// Connectivity as seen by the operating system.
@@ -295,6 +306,11 @@ abstract class PlayStackHostApi {
 
   PlatformNetworkStatus getNetworkStatus();
 
+  /// The orientations the app allows right now (what it last passed to
+  /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
+  /// orientation it declares, or when the platform cannot tell.
+  List<PlatformOrientation> getAppOrientations();
+
   @async
   PlatformCacheInfo getCacheInfo();
 
@@ -475,4 +491,10 @@ abstract class PlayStackEventApi {
   /// Connectivity changes. The engine monitors the network only while this
   /// stream has a listener.
   PlatformNetworkStatus networkEvents();
+
+  /// How the user holds the device, also when the app is locked to one
+  /// orientation. The current orientation is sent first. The engine reads
+  /// the sensors only while this stream has a listener, and sends nothing
+  /// while the user locked rotation in the system settings.
+  PlatformDeviceOrientationEvent deviceOrientationEvents();
 }

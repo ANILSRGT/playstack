@@ -16,9 +16,12 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
     @visibleForTesting PlayStackHostApi? api,
     @visibleForTesting Stream<PlatformPlayerEvent>? eventStream,
     @visibleForTesting Stream<PlatformNetworkStatus>? networkStream,
+    @visibleForTesting
+    Stream<PlatformDeviceOrientationEvent>? deviceOrientationStream,
   }) : _api = api ?? PlayStackHostApi(),
        _rawEvents = eventStream,
-       _rawNetworkEvents = networkStream;
+       _rawNetworkEvents = networkStream,
+       _rawDeviceOrientations = deviceOrientationStream;
 
   /// Registers this class as the default [PlayStackPlatform] implementation.
   static void registerWith() {
@@ -28,6 +31,7 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   final PlayStackHostApi _api;
   final Stream<PlatformPlayerEvent>? _rawEvents;
   final Stream<PlatformNetworkStatus>? _rawNetworkEvents;
+  final Stream<PlatformDeviceOrientationEvent>? _rawDeviceOrientations;
   final Map<int, int> _textureIds = <int, int>{};
   Stream<PlayStackPlatformEvent>? _events;
 
@@ -217,6 +221,27 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Stream<PlayStackNetworkStatus> get networkStatusChanges =>
       (_rawNetworkEvents ?? networkEvents()).map(_toNetworkStatus);
+
+  @override
+  Stream<DeviceOrientation> get deviceOrientationChanges =>
+      (_rawDeviceOrientations ?? deviceOrientationEvents()).map(
+        (event) => _toDeviceOrientation(event.orientation),
+      );
+
+  @override
+  Future<List<DeviceOrientation>?> getAppOrientations() async {
+    final orientations = await _guard(_api.getAppOrientations);
+    return [for (final o in orientations) _toDeviceOrientation(o)];
+  }
+
+  static DeviceOrientation _toDeviceOrientation(
+    PlatformOrientation orientation,
+  ) => switch (orientation) {
+    PlatformOrientation.portraitUp => DeviceOrientation.portraitUp,
+    PlatformOrientation.portraitDown => DeviceOrientation.portraitDown,
+    PlatformOrientation.landscapeLeft => DeviceOrientation.landscapeLeft,
+    PlatformOrientation.landscapeRight => DeviceOrientation.landscapeRight,
+  };
 
   static PlayStackNetworkStatus _toNetworkStatus(
     PlatformNetworkStatus status,
