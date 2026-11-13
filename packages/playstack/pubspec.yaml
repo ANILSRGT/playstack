@@ -3,7 +3,7 @@ description: >-
   Short-video feeds and native video playback for Flutter: a one-widget reels
   feed with replaceable controls, player pooling, preloading and lifecycle
   management.
-version: 0.1.0-dev.8
+version: 0.1.0-dev.9
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack
 issue_tracker: https://github.com/ANILSRGT/playstack/issues
@@ -13,6 +13,11 @@ topics:
   - media
   - feed
   - preload
+screenshots:
+  - description: >-
+      The demo app: a reels feed with likes, then a drama series with a
+      locked episode.
+    path: doc/demo.webp
 resolution: workspace
 
 environment:

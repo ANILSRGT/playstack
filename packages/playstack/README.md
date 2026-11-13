@@ -8,6 +8,8 @@ memory, network and lifecycle.
 Engines: AndroidX Media3 ExoPlayer (Android), AVFoundation (iOS) and
 `HTMLVideoElement` (web).
 
+<p align="center"><img src="https://raw.githubusercontent.com/ANILSRGT/playstack/main/packages/playstack/doc/demo.webp" width="300" alt="The demo app: a reels feed with likes, then a drama series with a locked episode"></p>
+
 ## Features
 
 - **One-widget feed.** `PlayStackFeedView` takes your items and does the rest:

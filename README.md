@@ -13,6 +13,8 @@ controls; for anything else you build the UI on its players.
 > the demo was tried by hand on an Android phone. The integration suite
 > has not run on physical devices yet. See [what was verified where](docs/guides/platforms.md#what-was-verified-where).
 
+<p align="center"><img src="https://raw.githubusercontent.com/ANILSRGT/playstack/main/packages/playstack/doc/demo.webp" width="300" alt="The demo app: a reels feed with likes, then a drama series with a locked episode"></p>
+
 ## Packages
 
 | Package | Description |

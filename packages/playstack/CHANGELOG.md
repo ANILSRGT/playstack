@@ -1,3 +1,8 @@
+## 0.1.0-dev.9
+
+* A recording of the demo app in the README and on pub.dev. No code
+  changes.
+
 ## 0.1.0-dev.8
 
 * `PlayStackDefaultControls.bufferingIndicator` and
