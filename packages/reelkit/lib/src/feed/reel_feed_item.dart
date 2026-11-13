@@ -23,9 +23,14 @@ class ReelFeedItem {
   ///
   /// [id] identifies the item in its feed (see [id]); without it, the
   /// source's [ReelSource.id] is used, or a unique id is generated. [poster]
-  /// and [data] are optional.
-  ReelFeedItem(this.source, {String? id, this.poster, this.data})
-    : id = id ?? source.id ?? 'reelkit-item-${_nextId++}';
+  /// [data] and [startPosition] are optional.
+  ReelFeedItem(
+    this.source, {
+    String? id,
+    this.poster,
+    this.data,
+    this.startPosition,
+  }) : id = id ?? source.id ?? 'reelkit-item-${_nextId++}';
 
   static int _nextId = 0;
 
@@ -53,16 +58,23 @@ class ReelFeedItem {
   /// `ReelFeedPage.data`.
   final Object? data;
 
+  /// Where the video starts, for example where the user stopped watching an
+  /// episode. Null starts at the beginning. See
+  /// `ReelPlayerController.startPosition`.
+  final Duration? startPosition;
+
   /// Returns a copy with the same [id] and the given fields replaced.
   ReelFeedItem copyWith({
     ReelSource? source,
     ImageProvider? poster,
     Object? data,
+    Duration? startPosition,
   }) => ReelFeedItem(
     source ?? this.source,
     id: id,
     poster: poster ?? this.poster,
     data: data ?? this.data,
+    startPosition: startPosition ?? this.startPosition,
   );
 
   @override
@@ -71,10 +83,11 @@ class ReelFeedItem {
       other.id == id &&
       other.source == source &&
       other.poster == poster &&
-      other.data == data;
+      other.data == data &&
+      other.startPosition == startPosition;
 
   @override
-  int get hashCode => Object.hash(id, source, poster, data);
+  int get hashCode => Object.hash(id, source, poster, data, startPosition);
 
   @override
   String toString() => 'ReelFeedItem($id, ${source.description})';

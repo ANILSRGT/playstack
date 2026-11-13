@@ -292,6 +292,7 @@ class ReelFeedManager extends ChangeNotifier {
       ..addAll(next);
     for (final item in next) {
       final controller = _controllers[item.id];
+      controller?.startPosition = item.startPosition;
       final previous = previousSources[item.id];
       if (controller != null && previous != null && previous != item.source) {
         unawaited(controller.setSource(item.source).catchError(_ignore));
@@ -363,7 +364,8 @@ class ReelFeedManager extends ChangeNotifier {
     final existing = _controllers[item.id];
     if (existing != null) return existing;
     final controller = _host.createFeedController(item.source, config.player)
-      ..priority = ReelPlayerPriority.background;
+      ..priority = ReelPlayerPriority.background
+      ..startPosition = item.startPosition;
     final muted = _muted;
     if (muted != null && controller.value.isMuted != muted) {
       unawaited(controller.setMuted(muted).catchError(_ignore));

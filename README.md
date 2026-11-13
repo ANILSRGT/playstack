@@ -1,8 +1,9 @@
 # ReelKit
 
 ReelKit is a video playback manager for Flutter, built for fast-scrolling video
-feeds and for single players. It handles native players, pooling, lifecycle and
-errors. You build the whole UI.
+feeds and for single players. It handles native players, pooling, preloading,
+lifecycle and errors. A complete reels feed is one widget with replaceable
+controls; for anything else you build the UI on its players.
 
 > **Status: 0.1.0-dev.7, development preview (milestone 7 of 7).**
 > Playback, pooling, feeds with preloading, disk cache, fullscreen, audio
@@ -26,8 +27,10 @@ audio, subtitles, errors, platform support, performance, API reference,
 examples), [architecture](docs/ARCHITECTURE.md) and
 [benchmarks](docs/BENCHMARKS.md).
 
-Try it: [`demo/`](demo) is a small short-video app (endless feed, likes,
-sound, fullscreen, live stats) — `cd demo && flutter run`.
+Try it: [`demo/`](demo) holds two small apps behind one launcher: reels
+(endless feed, pull to refresh, likes, comments, an explore grid, watch
+time and live stats) and drama (a series in episodes: continue watching,
+jump to any episode, next episode on its own) — `cd demo && flutter run`.
 
 ## Quick start
 
@@ -84,9 +87,11 @@ ReelFeedView<Post>(
 ```
 
 The widget creates and releases the players, plays the video in view,
-prepares the next ones and loads more items. It also shows default
-controls: tap to pause, sound, fullscreen for landscape videos, progress
-and retry. A list of URLs needs nothing else: `ReelFeedView(items: urls)`.
+prepares the next ones and loads more items. It pauses under pushed
+routes, in hidden tabs and in the background. It also shows default
+controls: tap or hold to pause, sound, fullscreen for landscape videos, a
+progress bar you can drag, and retry. A list of URLs needs nothing else:
+`ReelFeedView(items: urls)`.
 
 Customize only what you need:
 
@@ -96,6 +101,8 @@ ReelFeedView<Post>(
   videoUrl: (post) => post.videoUrl,
   transition: ReelFeedTransition.stack,  // slide, parallax, stack, fade, zoom, cube
   scrollDirection: Axis.horizontal,      // stories, carousels
+  onRefresh: () => api.fetchPosts(page: 0),       // pull to refresh; off when null
+  onItemViewed: (view) => log(view.watchTime),    // when the user leaves a video
   controlsBuilder: (context, page) => ReelDefaultControls(
     page: page,
     child: MyCaption(post: page.data),   // page.data is your Post
@@ -158,8 +165,9 @@ ReelFeedView<Post>(
   reset by `setSource`.
 - **Lifecycle.** By default the manager pauses its playing controllers when
   the app is hidden and resumes them when it is shown again
-  (`ReelLifecycleConfig`). `manager.pauseAll()` pauses everything, for
-  example when another route covers the feed.
+  (`ReelLifecycleConfig`). `manager.pauseAll()` pauses everything.
+  `ReelFeedView` also pauses itself under pushed routes and in hidden
+  tabs.
 - **Disk cache.** `ReelCacheConfig` (on by default, 256 MB, LRU) keeps
   downloaded video on disk, so replays, scrolling back and preloaded items
   that become active do not download again. Android caches progressive

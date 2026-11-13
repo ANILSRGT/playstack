@@ -69,7 +69,8 @@ play together.
   `background` priority give their players back and idle players are
   destroyed.
 - `manager.pauseAll()` pauses everything, for example when another route
-  covers the video.
+  covers your own player screen. `ReelFeedView` does this for its feed by
+  itself (see [Feeds](feed.md#pausing)).
 
 ## Network status
 

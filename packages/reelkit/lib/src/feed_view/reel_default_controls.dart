@@ -86,8 +86,10 @@ class ReelDefaultControls extends StatefulWidget {
   /// Your own layer: captions, like buttons, an avatar. Drawn above the video
   /// and below the default buttons.
   ///
-  /// Buttons in it receive their taps; taps elsewhere fall through to
-  /// [tapToPause]. Check `page.isFullscreen` to hide it in fullscreen.
+  /// Buttons in it receive their taps at once, even with [onDoubleTap] set.
+  /// Taps on empty parts of it fall through to [tapToPause], double tap and
+  /// hold; taps on its widgets (text, icons, buttons) do not. Check
+  /// `page.isFullscreen` to hide it in fullscreen.
   final Widget? child;
 
   /// Whether tapping the video pauses it and tapping again plays it. True by
@@ -97,8 +99,9 @@ class ReelDefaultControls extends StatefulWidget {
   /// Called when the user double-taps the video, for example to like the
   /// post. Null by default.
   ///
-  /// Setting it delays single taps by about 300 ms, because Flutter waits to
-  /// see whether a second tap follows.
+  /// Setting it delays tap-to-pause by about 300 ms, because Flutter waits
+  /// to see whether a second tap follows. Buttons in [child] are not
+  /// delayed.
   final VoidCallback? onDoubleTap;
 
   /// What happens while the user holds a finger on the video:
@@ -254,8 +257,11 @@ class _ReelDefaultControlsState extends State<ReelDefaultControls> {
               onLongPressCancel: widget.holdAction == ReelHoldAction.none
                   ? null
                   : _endHold,
-              child: widget.child ?? const SizedBox.expand(),
+              child: const SizedBox.expand(),
             ),
+            // Above the gesture layer, not inside it: its buttons get their
+            // taps at once instead of waiting for a possible double tap.
+            ?widget.child,
             if (_holding == ReelHoldAction.speedUp)
               Positioned(
                 top: 16,

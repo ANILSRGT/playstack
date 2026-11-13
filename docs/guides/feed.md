@@ -108,6 +108,33 @@ onItemViewed: (view) {
 Only playing time counts: paused, loading and background time do not.
 Items skipped before they started are reported with zero watch time.
 
+### Series and episodes
+
+For a series, continue each episode where the user stopped and let them
+jump to any episode:
+
+```dart
+ReelFeedView<Episode>(
+  items: series.episodes,
+  videoUrl: (episode) => episode.url,
+  controller: view,
+  initialIndex: series.episodes.indexOf(tapped),     // open at an episode
+  startPosition: (episode) => progress[episode.id],  // continue there
+  onItemViewed: (view) => progress[view.data.id] = view.position,
+  autoAdvance: true,                                 // next episode when one ends
+)
+
+view.jumpToItem(series.episodes[7]);  // from an episode list
+```
+
+`startPosition` prepares the video at that point, so it does not show the
+beginning first. `ReelItemView.position` is where playback was when the
+user left; it is null when the video never played. A point in the last
+second of a video starts it over.
+
+For a single player, set `controller.startPosition` or pass
+`startPosition:` to `manager.createController`.
+
 ## Controls
 
 `controlsBuilder` draws everything above the video. It is called for each
@@ -152,7 +179,8 @@ ReelFeedView<Post>(
 )
 ```
 
-Taps that your `child` does not handle fall through to tap-to-pause.
+Buttons in your `child` react at once, even with `onDoubleTap` set. Taps on
+empty parts of it fall through to tap to pause, double tap and hold.
 
 Or replace the defaults completely. The parts are public: `ReelProgressBar`,
 `ReelBufferingIndicator` and `ReelMuteButton`.
@@ -232,6 +260,8 @@ await view.nextPage();      // animated with the view's transition
 await view.previousPage();
 await view.animateTo(10, duration: const Duration(milliseconds: 600));
 view.jumpTo(0);
+view.jumpToItem(post);      // by your object; animateToItem animates
+view.indexOfItem(post);     // -1 when not in the feed
 await view.toggleFullscreen();
 view.setMuted(true);
 view.pause();               // until resume(), for example under a sheet

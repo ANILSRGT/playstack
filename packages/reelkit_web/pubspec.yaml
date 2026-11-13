@@ -1,5 +1,5 @@
 name: reelkit_web
-description: Web implementation of ReelKit, built on HTMLVideoElement.
+description: Web implementation of ReelKit, the Flutter video feed and playback plugin, built on HTMLVideoElement.
 version: 0.1.0-dev.7
 homepage: https://github.com/ANILSRGT/reelkit
 repository: https://github.com/ANILSRGT/reelkit/tree/main/packages/reelkit_web

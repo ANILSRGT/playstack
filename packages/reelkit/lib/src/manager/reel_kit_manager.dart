@@ -192,9 +192,12 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
   /// Creating a controller is cheap and allocates no native resources; a
   /// native player is leased when the controller is initialized or played.
   /// [config] overrides [ReelKitConfig.player] for this controller.
+  /// [startPosition] starts the video there instead of at the beginning (see
+  /// [ReelPlayerController.startPosition]).
   ReelPlayerController createController(
     ReelSource source, {
     ReelPlayerConfig? config,
+    Duration? startPosition,
   }) {
     if (_disposed) {
       throw const ReelKitException(
@@ -207,7 +210,7 @@ class ReelKitManager implements ReelControllerHost, ReelFeedHost {
       host: this,
       source: source,
       config: config ?? this.config.player,
-    );
+    )..startPosition = startPosition;
     _controllers.add(controller);
     return controller;
   }

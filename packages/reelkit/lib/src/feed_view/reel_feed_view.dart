@@ -144,6 +144,7 @@ class ReelItemView<T> {
     required this.watchTime,
     required this.duration,
     required this.completed,
+    this.position,
   });
 
   /// Your item, typed, like [ReelFeedPage.data].
@@ -169,6 +170,11 @@ class ReelItemView<T> {
   /// for as long as it lasts, or it reached its end.
   final bool completed;
 
+  /// Where playback was when the user left, within about half a second.
+  /// Save it and pass it back through [ReelFeedView.startPosition] to
+  /// continue there later. Null when the video never played.
+  final Duration? position;
+
   /// [watchTime] as a fraction of [duration]: 0.5 for half the video, above
   /// 1 for replays. Null when [duration] is unknown.
   double? get watchedFraction {
@@ -180,6 +186,7 @@ class ReelItemView<T> {
   @override
   String toString() =>
       'ReelItemView(${item.id}, ${watchTime.inMilliseconds} ms'
+      '${position == null ? '' : ', at ${position!.inMilliseconds} ms'}'
       '${completed ? ', completed' : ''})';
 }
 
@@ -318,6 +325,44 @@ class ReelFeedViewController extends ChangeNotifier {
     _attached._checkedPages(index)?.jumpToPage(index);
   }
 
+  /// Index of the page that shows [item], your object (an element of
+  /// [ReelFeedView.items], or a [ReelFeedItem.data]), or -1 when the feed
+  /// does not have it. Items are compared with `==`.
+  int indexOfItem(Object? item) {
+    final feed = this.feed;
+    if (feed == null) return -1;
+    for (var i = 0; i < feed.length; i++) {
+      if (feed.itemAt(i).data == item) return i;
+    }
+    return -1;
+  }
+
+  /// Shows the page of [item] immediately, without animation, for example
+  /// the episode picked in an episode list. Throws an [ArgumentError] when
+  /// the feed does not have it (see [indexOfItem]).
+  ///
+  /// ```dart
+  /// view.jumpToItem(episodes[7]);
+  /// ```
+  void jumpToItem(Object? item) => jumpTo(_indexOfExisting(item));
+
+  /// Animates to the page of [item] with the view's transition. Throws an
+  /// [ArgumentError] when the feed does not have it.
+  Future<void> animateToItem(
+    Object? item, {
+    Duration? duration,
+    Curve? curve,
+  }) => animateTo(_indexOfExisting(item), duration: duration, curve: curve);
+
+  int _indexOfExisting(Object? item) {
+    _attached;
+    final index = indexOfItem(item);
+    if (index < 0) {
+      throw ArgumentError.value(item, 'item', 'Not in this feed');
+    }
+    return index;
+  }
+
   /// Shows the video in view fullscreen.
   ///
   /// The screen rotates to match the video (landscape videos turn the phone
@@ -422,6 +467,7 @@ class ReelFeedView<T> extends StatefulWidget {
     this.posterUrl,
     this.poster,
     this.itemId,
+    this.startPosition,
     this.onLoadMore,
     this.manager,
     this.feedConfig = ReelFeedConfig.reels,
@@ -494,6 +540,7 @@ class ReelFeedView<T> extends StatefulWidget {
        posterUrl = null,
        poster = null,
        itemId = null,
+       startPosition = null,
        onLoadMore = null,
        onRefresh = null,
        manager = null,
@@ -555,6 +602,19 @@ class ReelFeedView<T> extends StatefulWidget {
   /// Without it, a replaced list starts over. Ids must be unique; the same
   /// id twice throws an [ArgumentError].
   final String Function(T item)? itemId;
+
+  /// Returns where an item's video starts, for example where the user
+  /// stopped watching an episode. Return null to start at the beginning.
+  ///
+  /// ```dart
+  /// startPosition: (episode) => progress[episode.id],
+  /// ```
+  ///
+  /// The video is prepared at that point, so it starts there without first
+  /// showing the beginning. Save the point with [onItemViewed]
+  /// ([ReelItemView.position]). A point in the last second of a video starts
+  /// it over.
+  final Duration? Function(T item)? startPosition;
 
   /// Loads the next items, for an endless feed.
   ///
@@ -745,6 +805,9 @@ class ReelFeedView<T> extends StatefulWidget {
   ///
   /// Called once per visit, also for items skipped before they started
   /// (with a zero [ReelItemView.watchTime]).
+  ///
+  /// It runs just after the change that caused it, outside of any build, so
+  /// it may call `setState` or notify listeners.
   final void Function(ReelItemView<T> view)? onItemViewed;
 
   /// Enables pull to refresh: when set, pulling down on the first page shows
@@ -795,6 +858,8 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
   final Stopwatch _watch = Stopwatch();
   Duration? _viewedDuration;
   bool _viewedCompleted = false;
+  Duration? _viewedPosition;
+  StreamSubscription<ReelPositionSnapshot>? _viewedPositions;
 
   ReelFeedManager? get _feed => widget.feed ?? _ownedFeed;
 
@@ -900,6 +965,7 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
       poster:
           widget.poster?.call(item) ?? (url == null ? null : NetworkImage(url)),
       data: item,
+      startPosition: widget.startPosition?.call(item),
     );
   }
 
@@ -1143,8 +1209,16 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     if (item == null || widget.onItemViewed == null) return;
     _viewed = item;
     _viewedIndex = index!;
-    _viewedController = (feed!.activeController ?? feed.controllerAt(index))
+    final controller = (feed!.activeController ?? feed.controllerAt(index))
       ..addListener(_onViewedState);
+    _viewedController = controller;
+    // Polled only while the video plays.
+    _viewedPositions = controller
+        .positions(interval: const Duration(milliseconds: 500))
+        .listen(
+          (snapshot) => _viewedPosition = snapshot.position,
+          onError: (Object _) {},
+        );
     _onViewedState();
   }
 
@@ -1167,6 +1241,10 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     if (controller != null && !controller.isDisposed) {
       controller.removeListener(_onViewedState);
     }
+    unawaited(_viewedPositions?.cancel());
+    _viewedPositions = null;
+    final position = _viewedPosition;
+    _viewedPosition = null;
     _watch.stop();
     final watchTime = _watch.elapsed;
     final duration = _viewedDuration;
@@ -1183,19 +1261,23 @@ class _ReelFeedViewState<T> extends State<ReelFeedView<T>> {
     _viewedCompleted = false;
     final onItemViewed = widget.onItemViewed;
     if (item == null || onItemViewed == null) return;
-    try {
-      onItemViewed(
-        ReelItemView<T>(
-          item: item,
-          index: _viewedIndex,
-          watchTime: watchTime,
-          duration: duration,
-          completed: completed,
-        ),
-      );
-    } on Object catch (error, stack) {
-      _report(error, stack, 'while reporting a watched item');
-    }
+    final view = ReelItemView<T>(
+      item: item,
+      index: _viewedIndex,
+      watchTime: watchTime,
+      duration: duration,
+      completed: completed,
+      position: position,
+    );
+    // Reports can happen during a build or while the view is disposed; the
+    // app's callback may rebuild widgets, so it runs right after.
+    scheduleMicrotask(() {
+      try {
+        onItemViewed(view);
+      } on Object catch (error, stack) {
+        _report(error, stack, 'while reporting a watched item');
+      }
+    });
   }
 
   void _precache(int index) {

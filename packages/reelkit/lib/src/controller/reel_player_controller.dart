@@ -156,6 +156,19 @@ class ReelPlayerController extends ChangeNotifier
   /// The video this controller plays. Change it with [setSource].
   ReelSource get source => _source;
 
+  /// Where the video starts, for example where the user stopped watching an
+  /// episode. Null (the default) starts at the beginning.
+  ///
+  /// The video is prepared at this point, so playback starts there without
+  /// first showing the beginning. It applies to every preparation that
+  /// follows, including after a [setSource] or after the controller lost its
+  /// native player; set it to null once it should no longer apply. A video
+  /// already prepared is not moved: use [seekTo] for that.
+  ///
+  /// Ignored for live streams, and when it is in the last second of the
+  /// video (an episode watched to the end starts over).
+  Duration? startPosition;
+
   /// The current playback state: status, buffering, size, duration,
   /// volume, error. See [ReelPlaybackState].
   ///
@@ -758,6 +771,8 @@ class ReelPlayerController extends ChangeNotifier
         lease.playerId,
         includeQualityLimit: !_managesQualityLimit,
       );
+      await _seekToStart(lease, info);
+      if (_disposed || !identical(_lease, lease)) return;
       _update(
         _value.copyWith(status: ReelPlaybackStatus.ready, videoInfo: info),
       );
@@ -1076,6 +1091,18 @@ class ReelPlayerController extends ChangeNotifier
       );
     }
     return lease;
+  }
+
+  /// Moves a freshly prepared video to [startPosition].
+  Future<void> _seekToStart(PooledPlayer lease, ReelVideoInfo info) async {
+    final start = startPosition;
+    if (start == null || start <= Duration.zero || info.isLive) return;
+    final duration = info.duration;
+    if (duration != null && start >= duration - const Duration(seconds: 1)) {
+      return;
+    }
+    await _host.platform.seekTo(lease.playerId, start);
+    _positionChanges.notifyListeners();
   }
 
   Duration _clampToDuration(Duration position) {

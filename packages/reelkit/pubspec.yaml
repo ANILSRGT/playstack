@@ -1,8 +1,8 @@
 name: reelkit
 description: >-
-  A native video playback manager for Flutter: player pooling, preloading and
-  lifecycle management for feeds and single players, and a feed view whose
-  controls you can replace.
+  Short-video feeds and native video playback for Flutter: a one-widget reels
+  feed with replaceable controls, player pooling, preloading and lifecycle
+  management.
 version: 0.1.0-dev.7
 homepage: https://github.com/ANILSRGT/reelkit
 repository: https://github.com/ANILSRGT/reelkit/tree/main/packages/reelkit

@@ -25,9 +25,17 @@
 * `ReelFeedView.onItemViewed` reports each visit with a `ReelItemView`:
   watch time, duration, completion and the typed item.
 * `ReelFeedView.onRefresh` turns on pull to refresh; off when null.
+* Series support: `ReelFeedView.startPosition`, `ReelFeedItem.startPosition`,
+  `ReelPlayerController.startPosition` and
+  `ReelKitManager.createController(startPosition:)` prepare a video at a
+  point; `ReelItemView.position` reports where the user left;
+  `ReelFeedViewController.jumpToItem`, `animateToItem` and `indexOfItem`
+  move to an item by your object.
 * `ReelDefaultControls`: hold to pause or to play faster (`holdAction`,
   `ReelHoldAction`, `holdSpeed`), and a progress bar you can drag or tap
   to seek (`seekable`, `ReelProgressBar.seekable`, `touchHeight`).
+* `ReelDefaultControls.child` sits above the gesture layer, so its buttons
+  react at once instead of waiting for a possible double tap.
 * `ReelKitConfig.reels(looping: false)`. With `autoAdvance` the view's own
   manager no longer loops.
 * `ReelFeedItem` takes a `poster` and app `data`. `ReelFeedManager` gained

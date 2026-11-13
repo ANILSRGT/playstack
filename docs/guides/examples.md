@@ -18,15 +18,30 @@ flutter run            # add --profile for realistic performance
 
 ## Demo app
 
-`demo/` is a minimal short-video app built the way an application would
-use ReelKit: an endless feed (`ReelFeedView` with the app's overlay on
-`ReelDefaultControls`), a menu to switch transition, direction and
-reverse, double-tap to like, a feed-wide sound switch, fit/fill for
-landscape videos, fullscreen with `matchVideo`, and a stats sheet with pool,
-preload, latency, network and cache figures. It plays public test media
-(43 HLS streams: vertical 9:16 reels and landscape test streams), loads
-HLS.js on the web, and has a catalog health check
-(`demo/integration_test/catalog_test.dart`).
+`demo/` holds two small apps built the way an application would use
+ReelKit, behind a launcher. All of their UI is app code on top of
+`ReelFeedView`.
+
+Drama: a series page with continue watching and an episode grid, and a
+player that opens at an episode (`initialIndex`), continues where the
+user stopped (`startPosition`, `ReelItemView.position`), moves to the next
+episode on its own (`autoAdvance`) and jumps from an episode list
+(`jumpToItem`).
+
+Reels:
+
+- an endless home feed with `onLoadMore` and pull to refresh
+  (`onRefresh`)
+- the app's caption, like and comment buttons and a double-tap heart on
+  `ReelDefaultControls`
+- a comments sheet that pauses the feed with `ReelFeedViewController`
+- an author page and an explore grid that open feeds at a tapped video;
+  the feed pauses under them and in the hidden tab by itself
+- watch time from `onItemViewed`, and a stats sheet with pool, preload,
+  latency, network and cache figures
+
+It plays public test media (vertical 9:16 reels and landscape HLS test
+streams) and loads HLS.js on the web.
 
 ```bash
 cd demo

@@ -571,12 +571,17 @@ void main() {
       player: const ReelPlayerConfig(looping: false),
     );
     final views = <ReelItemView<Object?>>[];
+    // The app rebuilds from its reports, even when the view is removed.
+    final notifier = ValueNotifier(0);
     await tester.pumpWidget(
       host(
         ReelFeedView<Object?>.feed(
           feed: feed,
           controlsBuilder: null,
-          onItemViewed: views.add,
+          onItemViewed: (view) {
+            views.add(view);
+            notifier.value++;
+          },
         ),
       ),
     );
@@ -611,12 +616,58 @@ void main() {
       ),
     );
     await settle(tester);
-    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      ValueListenableBuilder<int>(
+        valueListenable: notifier,
+        builder: (_, _, _) => const SizedBox(),
+      ),
+    );
     expect(views, hasLength(2), reason: 'removing the view reports too');
     expect(views.last.data, 'post 1');
     expect(views.last.completed, isTrue);
     await tester.pump(const Duration(seconds: 1));
     await tester.runAsync(manager.dispose);
+  });
+
+  testWidgets('buttons in the child are not delayed by double tap', (
+    tester,
+  ) async {
+    final feed = await start(tester);
+    var taps = 0;
+    var doubleTaps = 0;
+    await tester.pumpWidget(
+      host(
+        ReelFeedView<Object?>.feed(
+          feed: feed,
+          controlsBuilder: (context, page) => ReelDefaultControls(
+            page: page,
+            onDoubleTap: () => doubleTaps++,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: GestureDetector(
+                key: const ValueKey('button'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => taps++,
+                child: const SizedBox.square(dimension: 48),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await settle(tester);
+    final button = find.byKey(const ValueKey('button')).hitTestable();
+    await tester.tap(button);
+    await tester.pump();
+    expect(taps, 1, reason: 'no wait for a second tap');
+
+    // Empty parts still reach the double tap.
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(doubleTaps, 1);
+    await finish(tester);
   });
 
   testWidgets('holding pauses until release', (tester) async {
@@ -973,6 +1024,85 @@ void main() {
       );
       await run(tester);
       expect(view.manager!.config.player.looping, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('startPosition prepares each video at its point', (
+      tester,
+    ) async {
+      final views = <ReelItemView<_Post>>[];
+      final posts = [_Post('a'), _Post('b'), _Post('c')];
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<_Post>(
+            items: posts,
+            videoUrl: (post) => post.url,
+            controller: view,
+            controlsBuilder: null,
+            startPosition: (post) => switch (post.id) {
+              'a' => const Duration(seconds: 12),
+              'b' => const Duration(seconds: 29, milliseconds: 500), // near end
+              _ => null,
+            },
+            onItemViewed: views.add,
+          ),
+        ),
+      );
+      await run(tester);
+      final first = view.feed!.controllerAt(0);
+      expect(first.value.isPlaying, isTrue);
+      expect(engine.calls.where((c) => c.startsWith('seekTo(')), [
+        contains(', 12000)'),
+      ], reason: 'only a; b is in its last second, c has none');
+      // Seeked before playing.
+      final seek = engine.calls.indexWhere((c) => c.endsWith(', 12000)'));
+      final play = engine.calls.indexWhere((c) => c.startsWith('play('));
+      expect(seek, lessThan(play));
+
+      view.jumpTo(2);
+      await run(tester);
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      expect(views, isNotEmpty);
+      expect(views.first.data, posts.first);
+      expect(views.first.position, const Duration(seconds: 12));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('jumps to an item by your object', (tester) async {
+      final posts = [_Post('a'), _Post('b'), _Post('c'), _Post('d')];
+      final view = ReelFeedViewController();
+      await tester.pumpWidget(
+        host(
+          ReelFeedView<_Post>(
+            items: posts,
+            videoUrl: (post) => post.url,
+            controller: view,
+            controlsBuilder: (context, page) => Text(page.data.id),
+          ),
+        ),
+      );
+      await run(tester);
+      expect(view.indexOfItem(posts[2]), 2);
+      expect(view.indexOfItem(_Post('z')), -1);
+
+      view.jumpToItem(posts[3]);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(view.index, 3);
+      expect(find.text('d'), findsOneWidget);
+
+      unawaited(view.animateToItem(posts[1]));
+      await tester.pumpAndSettle();
+      expect(view.index, 1);
+      expect(() => view.jumpToItem(_Post('z')), throwsArgumentError);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       await run(tester);
