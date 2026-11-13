@@ -1,17 +1,17 @@
 # Examples
 
-The example app in `packages/reelkit/example` shows every feature with UI
-built by the app, as ReelKit expects.
+The example app in `packages/playstack/example` shows every feature with UI
+built by the app, as PlayStack expects.
 
 ```bash
-cd packages/reelkit/example
+cd packages/playstack/example
 flutter run            # add --profile for realistic performance
 ```
 
 | Page | Shows |
 | --- | --- |
 | Single player (`lib/pages/player_page.dart`) | Custom controls, seek bar from `positions()`, speed, loop, mute, audio and subtitle track menu, subtitle text overlay, source switching, error display, fullscreen with `matchVideo` |
-| Vertical feed (`lib/pages/feed_page.dart`) | `ReelFeedView` from a list of URLs, the default controls plus a label, endless paging with `onLoadMore`, live preload and latency stats from the view controller |
+| Vertical feed (`lib/pages/feed_page.dart`) | `PlayStackFeedView` from a list of URLs, the default controls plus a label, endless paging with `onLoadMore`, live preload and latency stats from the view controller |
 | Player grid (`lib/pages/grid_page.dart`) | Four controllers, exclusive or concurrent playback |
 | Diagnostics (`lib/pages/diagnostics_page.dart`) | Capabilities, pool usage per priority, creating and disposing controllers, trimming idle players |
 | Benchmark (`lib/pages/benchmark_page.dart`) | Start latency, preloading, rapid scrolling and memory on the device; results as JSON |
@@ -19,12 +19,12 @@ flutter run            # add --profile for realistic performance
 ## Demo app
 
 `demo/` holds two small apps built the way an application would use
-ReelKit, behind a launcher. All of their UI is app code on top of
-`ReelFeedView`.
+PlayStack, behind a launcher. All of their UI is app code on top of
+`PlayStackFeedView`.
 
 Drama: a series page with continue watching and an episode grid, and a
 player that opens at an episode (`initialIndex`), continues where the
-user stopped (`startPosition`, `ReelItemView.position`), moves to the next
+user stopped (`startPosition`, `PlayStackItemView.position`), moves to the next
 episode on its own (`autoAdvance`) and jumps from an episode list
 (`jumpToItem`).
 
@@ -33,8 +33,8 @@ Reels:
 - an endless home feed with `onLoadMore` and pull to refresh
   (`onRefresh`)
 - the app's caption, like and comment buttons and a double-tap heart on
-  `ReelDefaultControls`
-- a comments sheet that pauses the feed with `ReelFeedViewController`
+  `PlayStackDefaultControls`
+- a comments sheet that pauses the feed with `PlayStackFeedViewController`
 - an author page and an explore grid that open feeds at a tapped video;
   the feed pauses under them and in the hidden tab by itself
 - watch time from `onItemViewed`, and a stats sheet with pool, preload,
@@ -50,7 +50,7 @@ flutter run
 
 ## Integration tests
 
-`packages/reelkit/example/integration_test` runs against the real engines:
+`packages/playstack/example/integration_test` runs against the real engines:
 
 | File | Covers |
 | --- | --- |

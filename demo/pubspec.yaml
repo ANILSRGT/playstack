@@ -1,5 +1,5 @@
-name: reelkit_demo
-description: A small short-video app built on ReelKit, to try the SDK.
+name: playstack_demo
+description: A small short-video app built on PlayStack, to try the SDK.
 publish_to: none
 version: 0.1.0+1
 resolution: workspace
@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  reelkit: ^0.1.0-dev.7
+  playstack: ^0.1.0-dev.7
 
 dev_dependencies:
   flutter_test:

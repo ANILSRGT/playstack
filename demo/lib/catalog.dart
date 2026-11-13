@@ -1,4 +1,4 @@
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 /// One post of the demo feed.
 class DemoVideo {
@@ -14,7 +14,7 @@ class DemoVideo {
   final String title;
   final String author;
   final String note;
-  final ReelSource source;
+  final PlayStackSource source;
 
   /// Whether the video is portrait, known before it is prepared so that the
   /// poster is laid out like the video will be.
@@ -65,7 +65,9 @@ DemoVideo _reel(String id, String title) => DemoVideo(
   title: title,
   author: '@cloudinary',
   note: 'HLS 9:16, adaptive up to 1080p',
-  source: ReelSource.network('$_cloudinary/sp_full_hd/c_fill,ar_9:16/$id.m3u8'),
+  source: PlayStackSource.network(
+    '$_cloudinary/sp_full_hd/c_fill,ar_9:16/$id.m3u8',
+  ),
   isVertical: true,
   poster: '$_cloudinary/so_0,c_fill,ar_9:16,w_540,q_auto/$id.jpg',
 );
@@ -80,7 +82,7 @@ DemoVideo _hls(
   title: title,
   author: author,
   note: note,
-  source: ReelSource.network(url),
+  source: PlayStackSource.network(url),
   poster: poster ?? _posterFor(url),
 );
 

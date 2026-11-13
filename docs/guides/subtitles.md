@@ -3,12 +3,12 @@
 ## Listing tracks
 
 ```dart
-ValueListenableBuilder<List<ReelTrack>>(
+ValueListenableBuilder<List<PlayStackTrack>>(
   valueListenable: controller.tracks,
   builder: (context, tracks, _) => Column(
     children: [
       for (final track in tracks)
-        if (track.type == ReelTrackType.audio)
+        if (track.type == PlayStackTrackType.audio)
           ListTile(
             title: Text(track.label ?? track.language ?? track.id),
             trailing: track.isSelected ? const Icon(Icons.check) : null,
@@ -19,7 +19,7 @@ ValueListenableBuilder<List<ReelTrack>>(
 );
 ```
 
-A `ReelTrack` has a `type` (`audio`, `video`, `text`), an engine-defined
+A `PlayStackTrack` has a `type` (`audio`, `video`, `text`), an engine-defined
 `id`, `isSelected`, and when known `label`, `language` (BCP 47),
 `bitrate`, `width`, `height`, `frameRate`, `codecs` and `channelCount`.
 Track ids are stable for one source; do not persist them across sources.
@@ -29,7 +29,7 @@ Track ids are stable for one source; do not persist them across sources.
 ```dart
 await controller.selectTrack(englishAudio);
 await controller.selectTrack(turkishSubtitles);
-await controller.selectAutomaticTrack(ReelTrackType.audio); // engine default
+await controller.selectAutomaticTrack(PlayStackTrackType.audio); // engine default
 await controller.disableSubtitles();
 ```
 
@@ -44,7 +44,7 @@ own widgets and style.
 ```dart
 Stack(
   children: [
-    ReelVideoView(controller: controller),
+    PlayStackVideoView(controller: controller),
     Positioned(
       left: 16,
       right: 16,
@@ -73,9 +73,9 @@ Styling and positioning from the subtitle file are not preserved.
 ```dart
 // Cap adaptive streams on cellular, for example.
 await controller.setVideoQualityLimit(
-  const ReelVideoQualityLimit(maxHeight: 720, maxBitrate: 2500000),
+  const PlayStackVideoQualityLimit(maxHeight: 720, maxBitrate: 2500000),
 );
-await controller.setVideoQualityLimit(ReelVideoQualityLimit.none);
+await controller.setVideoQualityLimit(PlayStackVideoQualityLimit.none);
 ```
 
 Changing the limit never interrupts playback: it applies at the next

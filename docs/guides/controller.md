@@ -1,28 +1,28 @@
 # Player controller
 
-`ReelPlayerController` controls one video. Create it with
-`manager.createController`; it is a `ValueListenable<ReelPlaybackState>`.
+`PlayStackPlayerController` controls one video. Create it with
+`manager.createController`; it is a `ValueListenable<PlayStackPlaybackState>`.
 
 ```dart
 final controller = manager.createController(
-  const ReelSource.network('https://example.com/a.mp4'),
-  config: const ReelPlayerConfig(looping: true, muted: true),
+  const PlayStackSource.network('https://example.com/a.mp4'),
+  config: const PlayStackPlayerConfig(looping: true, muted: true),
 );
 ```
 
 ## Sources
 
 ```dart
-ReelSource.network(
+PlayStackSource.network(
   'https://cdn.example.com/v/42.m3u8',
   headers: {'Authorization': 'Bearer $token'}, // not on web
   cacheKey: 'video-42',                        // stable key for signed URLs
-  cachePolicy: ReelCachePolicy.cache,          // or bypass for private media
+  cachePolicy: PlayStackCachePolicy.cache,          // or bypass for private media
   id: 'post-42',
 );
-ReelSource.asset('assets/intro.mp4');
-ReelSource.file('/path/on/device.mp4');        // not on web
-ReelSource.memory(bytes, mimeType: 'video/mp4'); // short clips only
+PlayStackSource.asset('assets/intro.mp4');
+PlayStackSource.file('/path/on/device.mp4');        // not on web
+PlayStackSource.memory(bytes, mimeType: 'video/mp4'); // short clips only
 ```
 
 The format (progressive, HLS, DASH) is detected from the URL; pass
@@ -47,7 +47,7 @@ awaiting the previous one.
 ## State
 
 ```dart
-ValueListenableBuilder<ReelPlaybackState>(
+ValueListenableBuilder<PlayStackPlaybackState>(
   valueListenable: controller,
   builder: (context, state, _) {
     if (state.hasError) return Text(state.error!.message);
@@ -57,7 +57,7 @@ ValueListenableBuilder<ReelPlaybackState>(
 );
 ```
 
-`ReelPlaybackStatus` is one of `idle`, `initializing`, `ready`, `playing`,
+`PlayStackPlaybackStatus` is one of `idle`, `initializing`, `ready`, `playing`,
 `paused`, `completed`, `error`, `disposed`. The state also carries
 `videoInfo` (size, rotation, duration, frame rate, bitrate, codec, live),
 `isBuffering`, `hasRenderedFirstFrame`, `isAttached` (holds a native
@@ -72,7 +72,7 @@ final now = await controller.getPosition(); // position and buffered
 final left = await controller.getRemaining();
 
 // Polls only while playing and listened to.
-StreamBuilder<ReelPositionSnapshot>(
+StreamBuilder<PlayStackPositionSnapshot>(
   stream: controller.positions(interval: const Duration(milliseconds: 200)),
   builder: (context, snapshot) => LinearProgressIndicator(
     value: _fraction(snapshot.data, controller.value.duration),

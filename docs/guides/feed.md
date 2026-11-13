@@ -1,10 +1,10 @@
 # Feeds
 
-A short-video feed is one widget. Give `ReelFeedView` your items and tell
+A short-video feed is one widget. Give `PlayStackFeedView` your items and tell
 it where each video is:
 
 ```dart
-ReelFeedView<Post>(
+PlayStackFeedView<Post>(
   items: posts,
   videoUrl: (post) => post.videoUrl,
   posterUrl: (post) => post.thumbnailUrl,   // optional, shown until the first frame
@@ -23,11 +23,11 @@ That is all. The view:
 - shows default controls: tap to pause, hold to pause, sound, fullscreen
   for landscape videos, a progress bar you can drag, and retry
 
-For a list of URLs, pass just the list: `ReelFeedView(items: urls)`. For
-assets, files or HTTP headers, use `source: (post) => ReelSource...`
+For a list of URLs, pass just the list: `PlayStackFeedView(items: urls)`. For
+assets, files or HTTP headers, use `source: (post) => PlayStackSource...`
 instead of `videoUrl`.
 
-Its settings (`ReelKitConfig.reels` and `ReelFeedConfig.reels`) are tuned
+Its settings (`PlayStackConfig.reels` and `PlayStackFeedConfig.reels`) are tuned
 for swiping two or three videos a second. They include:
 
 - five videos prepared ahead
@@ -36,7 +36,7 @@ for swiping two or three videos a second. They include:
 - fast startup at lower quality, then switching up while playing
 - muted autoplay on the web
 
-To change them, pass `manager:` (a `ReelKitManager` with your config) or
+To change them, pass `manager:` (a `PlayStackManager` with your config) or
 `feedConfig:`.
 
 ### Updating items
@@ -56,7 +56,7 @@ Pull to refresh is off until you pass `onRefresh`. Return the new items;
 they replace the feed and the view goes back to the first one:
 
 ```dart
-ReelFeedView<Post>(
+PlayStackFeedView<Post>(
   items: posts,
   videoUrl: (post) => post.videoUrl,
   onRefresh: () => api.fetchPosts(page: 0),
@@ -114,7 +114,7 @@ For a series, continue each episode where the user stopped and let them
 jump to any episode:
 
 ```dart
-ReelFeedView<Episode>(
+PlayStackFeedView<Episode>(
   items: series.episodes,
   videoUrl: (episode) => episode.url,
   controller: view,
@@ -128,7 +128,7 @@ view.jumpToItem(series.episodes[7]);  // from an episode list
 ```
 
 `startPosition` prepares the video at that point, so it does not show the
-beginning first. `ReelItemView.position` is where playback was when the
+beginning first. `PlayStackItemView.position` is where playback was when the
 user left; it is null when the video never played. A point in the last
 second of a video starts it over.
 
@@ -138,20 +138,20 @@ For a single player, set `controller.startPosition` or pass
 ## Controls
 
 `controlsBuilder` draws everything above the video. It is called for each
-page with a `ReelFeedPage`, which gives you:
+page with a `PlayStackFeedPage`, which gives you:
 
-- `data`: your item, typed (a `Post` in a `ReelFeedView<Post>`)
-- `controller`: the video's `ReelPlayerController`: play, pause, seek, state
+- `data`: your item, typed (a `Post` in a `PlayStackFeedView<Post>`)
+- `controller`: the video's `PlayStackPlayerController`: play, pause, seek, state
 - `isActive`: whether this item is the one in view
 - `isFullscreen`: whether the view is in fullscreen
 - `index`: the item's position
-- `view`: a `ReelFeedViewController`: next page, fullscreen, sound
+- `view`: a `PlayStackFeedViewController`: next page, fullscreen, sound
 
-By default the builder is `ReelDefaultControls`:
+By default the builder is `PlayStackDefaultControls`:
 
 - tap to pause and resume
 - hold to pause until the finger lifts (`holdAction:
-  ReelHoldAction.speedUp` plays 2x instead, `ReelHoldAction.none` turns it
+  PlayStackHoldAction.speedUp` plays 2x instead, `PlayStackHoldAction.none` turns it
   off)
 - a sound switch that mutes the whole feed
 - a fullscreen button on landscape videos
@@ -167,10 +167,10 @@ screen it waits 800 ms.
 Keep the defaults and add your own layer:
 
 ```dart
-ReelFeedView<Post>(
+PlayStackFeedView<Post>(
   items: posts,
   videoUrl: (post) => post.videoUrl,
-  controlsBuilder: (context, page) => ReelDefaultControls(
+  controlsBuilder: (context, page) => PlayStackDefaultControls(
     page: page,
     onDoubleTap: () => like(page.data),
     showMuteButton: false, // we draw our own
@@ -182,11 +182,11 @@ ReelFeedView<Post>(
 Buttons in your `child` react at once, even with `onDoubleTap` set. Taps on
 empty parts of it fall through to tap to pause, double tap and hold.
 
-Or replace the defaults completely. The parts are public: `ReelProgressBar`,
-`ReelBufferingIndicator` and `ReelMuteButton`.
+Or replace the defaults completely. The parts are public: `PlayStackProgressBar`,
+`PlayStackBufferingIndicator` and `PlayStackMuteButton`.
 
 ```dart
-ReelFeedView<Post>(
+PlayStackFeedView<Post>(
   items: posts,
   videoUrl: (post) => post.videoUrl,
   controlsBuilder: (context, page) => Stack(
@@ -194,9 +194,9 @@ ReelFeedView<Post>(
       MyCaption(post: page.data),
       Positioned(
         bottom: 0, left: 0, right: 0,
-        child: ReelProgressBar(controller: page.controller, active: page.isActive),
+        child: PlayStackProgressBar(controller: page.controller, active: page.isActive),
       ),
-      ReelBufferingIndicator(controller: page.controller, active: page.isActive),
+      PlayStackBufferingIndicator(controller: page.controller, active: page.isActive),
     ],
   ),
 )
@@ -211,12 +211,12 @@ replace the video layer.
 ## Direction and transitions
 
 ```dart
-ReelFeedView<Post>(
+PlayStackFeedView<Post>(
   items: posts,
   videoUrl: (post) => post.videoUrl,
   scrollDirection: Axis.horizontal, // stories, carousels
   reverse: true,                    // next item from the left (or above)
-  transition: ReelFeedTransition.stack,
+  transition: PlayStackFeedTransition.stack,
 )
 ```
 
@@ -240,7 +240,7 @@ position in pages: 0 in view, -1 one page before, 1 one page after.
 stays where it is:
 
 ```dart
-transition: ReelFeedTransition.custom((context, details, child) {
+transition: PlayStackFeedTransition.custom((context, details, child) {
   final t = details.offset.abs().clamp(0.0, 1.0);
   return Transform.translate(
     offset: details.offset < 0 ? details.hold * 0.7 : Offset.zero,
@@ -252,9 +252,9 @@ transition: ReelFeedTransition.custom((context, details, child) {
 ## Moving from code
 
 ```dart
-final view = ReelFeedViewController();
+final view = PlayStackFeedViewController();
 
-ReelFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl, controller: view);
+PlayStackFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl, controller: view);
 
 await view.nextPage();      // animated with the view's transition
 await view.previousPage();
@@ -281,7 +281,7 @@ true`. The view then stops looping its videos. If you pass your own
 manager, start from the reels preset without looping:
 
 ```dart
-manager: ReelKitManager(config: ReelKitConfig.reels(looping: false)),
+manager: PlayStackManager(config: PlayStackConfig.reels(looping: false)),
 ```
 
 ## Posters
@@ -292,19 +292,19 @@ black.
 
 ## Managing the feed yourself
 
-`ReelFeedView.feed` shows a `ReelFeedManager` you create and own. This
+`PlayStackFeedView.feed` shows a `PlayStackFeedManager` you create and own. This
 is for cases where your own code adds, inserts and removes items, or
 where several screens share one feed:
 
 ```dart
-final manager = ReelKitManager(config: ReelKitConfig.reels());
+final manager = PlayStackManager(config: PlayStackConfig.reels());
 await manager.initialize();
 final feed = manager.createFeed(
-  [for (final post in posts) ReelFeedItem(ReelSource.network(post.url), id: post.id, data: post)],
-  config: ReelFeedConfig.reels,
+  [for (final post in posts) PlayStackFeedItem(PlayStackSource.network(post.url), id: post.id, data: post)],
+  config: PlayStackFeedConfig.reels,
 );
 
-ReelFeedView<Post>.feed(
+PlayStackFeedView<Post>.feed(
   feed: feed,
   onEndReached: () => feed.addAll(morePosts()),
 )
@@ -314,14 +314,14 @@ You dispose the feed (or the manager) yourself.
 
 ## Item identity
 
-This applies to `ReelFeedView.feed`. Each `ReelFeedItem` has an `id`,
+This applies to `PlayStackFeedView.feed`. Each `PlayStackFeedItem` has an `id`,
 taken from the argument, the source's `id`, or generated. Controllers follow ids. So a playing video keeps
-playing, and `ReelFeedView` keeps it on screen, when items are inserted or
+playing, and `PlayStackFeedView` keeps it on screen, when items are inserted or
 removed above it.
 
 ```dart
 feed.addAll(nextPage);                         // endless feed
-feed.insert(0, ReelFeedItem(source, id: 'new'));
+feed.insert(0, PlayStackFeedItem(source, id: 'new'));
 feed.remove('post-17');                        // or removeAt(index)
 feed.updateSource('post-18', betterSource);    // same item, new URL
 feed.replaceAll(refreshed);                    // pull to refresh
@@ -344,10 +344,10 @@ it. Call `feed.activeController?.play()` yourself.
 
 ## Your own scroll view
 
-`ReelFeedView` is optional. A `ListView`, a grid or any custom scroll view
+`PlayStackFeedView` is optional. A `ListView`, a grid or any custom scroll view
 can drive a feed directly:
 
-- render `feed.controllerAt(index)` with a `ReelVideoView`
+- render `feed.controllerAt(index)` with a `PlayStackVideoView`
 - call `feed.setActiveIndex` with the item that is most visible
 
 ```dart
@@ -355,7 +355,7 @@ PageView.builder(
   itemCount: feed.length,
   onPageChanged: feed.setActiveIndex,
   itemBuilder: (context, index) =>
-      ReelVideoView(controller: feed.controllerAt(index), fit: BoxFit.cover),
+      PlayStackVideoView(controller: feed.controllerAt(index), fit: BoxFit.cover),
 );
 feed.setActiveIndex(0);
 ```

@@ -1,14 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import 'catalog.dart';
 import 'demo_state.dart';
 import 'post_controls.dart';
 import 'stats_sheet.dart';
 
-/// A reels screen: the whole feed is one [ReelFeedView].
+/// A reels screen: the whole feed is one [PlayStackFeedView].
 ///
 /// Without [items] it is the endless home feed: it loads more videos near
 /// the end and refreshes when pulled down. With [items] it shows that list,
@@ -30,7 +30,7 @@ class ReelsPage extends StatefulWidget {
 }
 
 class _ReelsPageState extends State<ReelsPage> {
-  final _view = ReelFeedViewController();
+  final _view = PlayStackFeedViewController();
 
   bool get _isHomeFeed => widget.items == null;
 
@@ -72,13 +72,13 @@ class _ReelsPageState extends State<ReelsPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          ReelFeedView<DemoVideo>(
+          PlayStackFeedView<DemoVideo>(
             items: widget.items ?? demoCatalog,
             source: (video) => video.source,
             posterUrl: (video) => video.poster,
             controller: _view,
             initialIndex: widget.initialIndex,
-            transition: ReelFeedTransition.stack,
+            transition: PlayStackFeedTransition.stack,
             onLoadMore: _isHomeFeed ? _loadMore : null,
             onRefresh: _isHomeFeed ? _refresh : null,
             onItemViewed: demoState.recordView,
@@ -100,7 +100,7 @@ class _TopBar extends StatelessWidget {
     required this.onStats,
   });
 
-  final ReelFeedViewController view;
+  final PlayStackFeedViewController view;
   final String title;
   final VoidCallback onStats;
 

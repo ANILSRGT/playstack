@@ -12,27 +12,27 @@
 
 ## Add the dependency
 
-Applications depend on `reelkit` only. The platform packages
-(`reelkit_android`, `reelkit_ios`, `reelkit_web`) are endorsed and are
+Applications depend on `playstack` only. The platform packages
+(`playstack_android`, `playstack_ios`, `playstack_web`) are endorsed and are
 added automatically.
 
 ```yaml
 dependencies:
-  reelkit: ^0.1.0
+  playstack: ^0.1.0
 ```
 
 Until the packages are published, depend on the repository:
 
 ```yaml
 dependencies:
-  reelkit:
+  playstack:
     git:
-      url: https://github.com/ANILSRGT/reelkit
-      path: packages/reelkit
+      url: https://github.com/ANILSRGT/playstack
+      path: packages/playstack
 ```
 
 ```dart
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 ```
 
 ## Android
@@ -59,7 +59,7 @@ background mode.
 
 Nothing to configure for MP4/WebM. HLS plays natively in Safari; in other
 browsers load [HLS.js](https://github.com/video-dev/hls.js) in
-`web/index.html` and ReelKit uses it when `window.Hls` exists:
+`web/index.html` and PlayStack uses it when `window.Hls` exists:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
@@ -72,7 +72,7 @@ gesture. See [Platform support](platforms.md).
 ## Verify
 
 ```dart
-final manager = ReelKitManager();
+final manager = PlayStackManager();
 await manager.initialize();
 print(manager.capabilities.engineName);
 // AndroidX Media3 ExoPlayer, AVFoundation AVPlayer or HTMLVideoElement

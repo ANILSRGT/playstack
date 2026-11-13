@@ -8,11 +8,11 @@
 | Play, pause, seek, loop, volume, mute, speed | Yes | Yes | Yes |
 | First frame while paused (preparing ahead) | Yes | Yes | Yes |
 | Rotation metadata | Yes | Yes | Applied by the browser |
-| `ReelSource.network` | Yes | Yes | Yes |
+| `PlayStackSource.network` | Yes | Yes | Yes |
 | Custom HTTP headers | Yes | Yes (`AVURLAssetHTTPHeaderFieldsKey`) | No: `<video>` cannot send them; rejected with `invalidSource` |
-| `ReelSource.asset` | Yes | Yes | Yes |
-| `ReelSource.file` | Yes | Yes | No (`invalidSource`) |
-| `ReelSource.memory` | Yes (in memory) | Yes (staged to a temporary file) | Yes (Blob URL) |
+| `PlayStackSource.asset` | Yes | Yes | Yes |
+| `PlayStackSource.file` | Yes | Yes | No (`invalidSource`) |
+| `PlayStackSource.memory` | Yes (in memory) | Yes (staged to a temporary file) | Yes (Blob URL) |
 | HLS | Yes | Yes | Safari natively; elsewhere with HLS.js loaded by the app (`window.Hls`), otherwise `unsupportedFormat` |
 | DASH | Yes | No (`unsupportedFormat`) | No (`unsupportedFormat`) |
 | Autoplay with sound | Yes | Yes | Blocked until a user gesture (`playbackNotAllowed`); muted autoplay works |
@@ -29,7 +29,7 @@
 | Decoder-shortage detection | `ERROR_CODE_DECODER_INIT_FAILED` | `AVError.decoderTemporarilyUnavailable` | Not distinguishable |
 | Same controller in two views | Yes | Yes | No: one `<video>` element, one view at a time |
 
-`ReelPlatformCapabilities` (`manager.capabilities`) reports these at run
+`PlayStackPlatformCapabilities` (`manager.capabilities`) reports these at run
 time and never claims a feature the engine does not provide:
 
 ```dart
@@ -43,7 +43,7 @@ print('${caps.engineName} ${caps.engineVersion}, '
 ## What was verified where
 
 - **Android and iOS:** the integration suite in
-  `packages/reelkit/example/integration_test` passes on an Android 16
+  `packages/playstack/example/integration_test` passes on an Android 16
   (API 36) arm64 emulator and an iOS 26.5 simulator, including the
   benchmark. Rendering orientation was checked against ffmpeg reference
   frames.

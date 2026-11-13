@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import 'drama_data.dart';
 import 'series_page.dart';
@@ -28,7 +28,7 @@ class EpisodePlayerPage extends StatefulWidget {
 }
 
 class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
-  final _view = ReelFeedViewController();
+  final _view = PlayStackFeedViewController();
 
   @override
   void dispose() {
@@ -52,7 +52,7 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
   Widget build(BuildContext context) {
     final series = widget.series;
     return Scaffold(
-      body: ReelFeedView<Episode>(
+      body: PlayStackFeedView<Episode>(
         items: series.episodes,
         source: (episode) => episode.source,
         posterUrl: (episode) => episode.poster,
@@ -61,10 +61,10 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
         startPosition: watchProgress.positionOf,
         autoAdvance: true,
         onItemViewed: watchProgress.record,
-        controlsBuilder: (context, page) => ReelDefaultControls(
+        controlsBuilder: (context, page) => PlayStackDefaultControls(
           page: page,
           // Hold to watch at 2x, as drama apps do.
-          holdAction: ReelHoldAction.speedUp,
+          holdAction: PlayStackHoldAction.speedUp,
           child: page.isFullscreen
               ? null
               : _EpisodeOverlay(

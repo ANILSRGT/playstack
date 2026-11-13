@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import 'catalog.dart';
 
@@ -7,7 +7,7 @@ import 'catalog.dart';
 /// keep this in its own state management and send views to its backend.
 class DemoState extends ChangeNotifier {
   final Set<DemoVideo> _liked = {};
-  final List<ReelItemView<DemoVideo>> _views = [];
+  final List<PlayStackItemView<DemoVideo>> _views = [];
 
   bool isLiked(DemoVideo video) => _liked.contains(video);
 
@@ -20,10 +20,10 @@ class DemoState extends ChangeNotifier {
     if (_liked.add(video)) notifyListeners();
   }
 
-  /// Every visit reported by `ReelFeedView.onItemViewed`, oldest first.
-  List<ReelItemView<DemoVideo>> get views => List.unmodifiable(_views);
+  /// Every visit reported by `PlayStackFeedView.onItemViewed`, oldest first.
+  List<PlayStackItemView<DemoVideo>> get views => List.unmodifiable(_views);
 
-  void recordView(ReelItemView<DemoVideo> view) {
+  void recordView(PlayStackItemView<DemoVideo> view) {
     _views.add(view);
     notifyListeners();
   }

@@ -1,17 +1,17 @@
-name: reelkit_workspace
-description: Development workspace for the ReelKit federated Flutter plugin.
+name: playstack_workspace
+description: Development workspace for the PlayStack federated Flutter plugin.
 publish_to: none
 
 environment:
   sdk: ^3.13.0
 
 workspace:
-  - packages/reelkit
-  - packages/reelkit/example
-  - packages/reelkit_platform_interface
-  - packages/reelkit_android
-  - packages/reelkit_ios
-  - packages/reelkit_web
+  - packages/playstack
+  - packages/playstack/example
+  - packages/playstack_platform_interface
+  - packages/playstack_android
+  - packages/playstack_ios
+  - packages/playstack_web
   - demo
 
 dev_dependencies:

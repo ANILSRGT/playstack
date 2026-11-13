@@ -1,6 +1,6 @@
 {
-    "name": "reelkit_demo",
-    "short_name": "reelkit_demo",
+    "name": "playstack_demo",
+    "short_name": "playstack_demo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,19 +1,19 @@
 # Errors and retry
 
-Every failure is a `ReelKitException` with a `ReelKitErrorCode`, a
+Every failure is a `PlayStackException` with a `PlayStackErrorCode`, a
 `message` for logs and optional engine `details`.
 
 ```dart
 try {
   await controller.play();
-} on ReelKitException catch (error) {
+} on PlayStackException catch (error) {
   switch (error.code) {
-    case ReelKitErrorCode.network:
-    case ReelKitErrorCode.timeout:
+    case PlayStackErrorCode.network:
+    case PlayStackErrorCode.timeout:
       showRetry();
-    case ReelKitErrorCode.sourceNotFound:
+    case PlayStackErrorCode.sourceNotFound:
       removeItem();
-    case ReelKitErrorCode.playbackNotAllowed:
+    case PlayStackErrorCode.playbackNotAllowed:
       showTapToPlay();
     default:
       log(error.toString());
@@ -22,7 +22,7 @@ try {
 ```
 
 Errors are also reflected in the state: `controller.value.hasError` and
-`controller.value.error`, so a `ReelVideoView.errorBuilder` or a
+`controller.value.error`, so a `PlayStackVideoView.errorBuilder` or a
 `ValueListenableBuilder` can show them without a `try`.
 
 ## Codes
@@ -30,12 +30,12 @@ Errors are also reflected in the state: `controller.value.hasError` and
 | Code | Meaning |
 | --- | --- |
 | `network` | Connection failed or the server answered with an error other than 404/410 |
-| `timeout` | Preparation did not finish within `ReelPlayerConfig.initializeTimeout` (30 s) |
+| `timeout` | Preparation did not finish within `PlayStackPlayerConfig.initializeTimeout` (30 s) |
 | `sourceNotFound` | HTTP 404/410, missing file or asset |
 | `invalidSource` | Malformed source, or not usable on this platform (file or headers on web) |
 | `unsupportedFormat` | Container or codec not supported (for example DASH on iOS) |
 | `decoder` | Decoding failed, or no decoder exists for the media |
-| `decoderUnavailable` | A decoder exists but every instance is in use; ReelKit shrinks the pool and retries once |
+| `decoderUnavailable` | A decoder exists but every instance is in use; PlayStack shrinks the pool and retries once |
 | `playbackNotAllowed` | The browser blocked autoplay with sound |
 | `notAllowed` | A request needed a user gesture or permission (web fullscreen) |
 | `poolExhausted` | Every native player is held by a controller of equal or higher priority |
@@ -46,7 +46,7 @@ Errors are also reflected in the state: `controller.value.hasError` and
 
 ## Automatic retry
 
-`ReelRetryConfig` retries `network` and `timeout` failures:
+`PlayStackRetryConfig` retries `network` and `timeout` failures:
 
 - a failed preparation is retried inside the same `initialize` / `play`
   call, which completes only when it succeeds or retries run out;
@@ -55,14 +55,14 @@ Errors are also reflected in the state: `controller.value.hasError` and
 - controllers that failed offline retry when the network returns.
 
 ```dart
-const ReelPlayerConfig(
-  retry: ReelRetryConfig(
+const PlayStackPlayerConfig(
+  retry: PlayStackRetryConfig(
     maxAttempts: 3,                       // default 2
     initialDelay: Duration(milliseconds: 500),
     multiplier: 2,                        // 0.5 s, 1 s, 2 s
     maxDelay: Duration(seconds: 8),
   ),
-  // retry: ReelRetryConfig.none,
+  // retry: PlayStackRetryConfig.none,
 );
 ```
 

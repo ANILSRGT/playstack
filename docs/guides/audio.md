@@ -1,12 +1,12 @@
 # Audio
 
 ```dart
-ReelKitManager(
-  config: const ReelKitConfig(
-    audio: ReelAudioConfig(
+PlayStackManager(
+  config: const PlayStackConfig(
+    audio: PlayStackAudioConfig(
       handleAudioFocus: true,          // Android
       pauseOnAudioRouteLoss: true,     // headphones unplugged
-      iosAudioSessionCategory: ReelAudioSessionCategory.playback,
+      iosAudioSessionCategory: PlayStackAudioSessionCategory.playback,
       mixWithOthers: false,            // iOS, with a managed category
       resumeAfterInterruption: true,   // iOS
     ),
@@ -39,10 +39,10 @@ engine sets them.
   `resumeAfterInterruption`, playback resumes when the system says it
   should.
 - When the audio route goes away (headphones unplugged), AVPlayer pauses
-  itself; ReelKit reports it.
+  itself; PlayStack reports it.
 
 Background audio also needs the *Audio* background mode and
-`ReelLifecycleConfig(pauseOnBackground: false)`.
+`PlayStackLifecycleConfig(pauseOnBackground: false)`.
 
 ## Web
 
@@ -53,8 +53,8 @@ Start muted and unmute from a tap.
 ```dart
 try {
   await controller.play();
-} on ReelKitException catch (error) {
-  if (error.code == ReelKitErrorCode.playbackNotAllowed) {
+} on PlayStackException catch (error) {
+  if (error.code == PlayStackErrorCode.playbackNotAllowed) {
     await controller.setMuted(true);
     await controller.play();
   }
@@ -66,9 +66,9 @@ try {
 ```dart
 controller.interruptions.listen((interruption) {
   switch (interruption.type) {
-    case ReelInterruptionType.audioInterruption:
+    case PlayStackInterruptionType.audioInterruption:
       // another app or the system took audio; ended tells when it is over
-    case ReelInterruptionType.audioRouteLost:
+    case PlayStackInterruptionType.audioRouteLost:
       // headphones were unplugged
   }
 });

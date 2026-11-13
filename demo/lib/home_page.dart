@@ -7,7 +7,7 @@ import 'reels_page.dart';
 ///
 /// The tabs live in an [IndexedStack], so the feed keeps its place while
 /// another tab is shown. [TickerMode] tells the feed it is hidden, and
-/// `ReelFeedView` pauses itself until the tab is shown again.
+/// `PlayStackFeedView` pauses itself until the tab is shown again.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 

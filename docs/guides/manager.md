@@ -1,18 +1,18 @@
 # Player manager
 
-`ReelKitManager` owns the engine connection, a pool of native players and
+`PlayStackManager` owns the engine connection, a pool of native players and
 every controller and feed created from it.
 
 ```dart
-final manager = ReelKitManager(
-  config: const ReelKitConfig(
-    pool: ReelPoolConfig(maxPlayers: 3),        // omit for a device-adaptive limit
-    player: ReelPlayerConfig(looping: true),    // defaults for controllers
+final manager = PlayStackManager(
+  config: const PlayStackConfig(
+    pool: PlayStackPoolConfig(maxPlayers: 3),        // omit for a device-adaptive limit
+    player: PlayStackPlayerConfig(looping: true),    // defaults for controllers
     exclusivePlayback: true,                    // one video plays at a time
-    lifecycle: ReelLifecycleConfig(),           // pause in background, resume after
-    cache: ReelCacheConfig(maxBytes: 512 << 20),
-    audio: ReelAudioConfig(),
-    fullscreen: ReelFullscreenConfig(appOrientations: [DeviceOrientation.portraitUp]),
+    lifecycle: PlayStackLifecycleConfig(),           // pause in background, resume after
+    cache: PlayStackCacheConfig(maxBytes: 512 << 20),
+    audio: PlayStackAudioConfig(),
+    fullscreen: PlayStackFullscreenConfig(appOrientations: [DeviceOrientation.portraitUp]),
   ),
 );
 await manager.initialize();
@@ -26,7 +26,7 @@ initializes the engine.
 
 ## The pool
 
-A native player owns a decoder, buffers and a render target, so ReelKit
+A native player owns a decoder, buffers and a render target, so PlayStack
 keeps at most `maxPlayers` of them and moves them between controllers.
 
 - **Adaptive limit.** Without `maxPlayers`, the limit is the engine's
@@ -63,24 +63,24 @@ play together.
 ## App lifecycle and memory
 
 - When the app is hidden, playing controllers pause and resume when it is
-  shown again (`ReelLifecycleConfig`). Transient `inactive` states, such as
+  shown again (`PlayStackLifecycleConfig`). Transient `inactive` states, such as
   the notification shade, do not pause.
 - On a memory warning, feeds shrink their preload window, controllers with
   `background` priority give their players back and idle players are
   destroyed.
 - `manager.pauseAll()` pauses everything, for example when another route
-  covers your own player screen. `ReelFeedView` does this for its feed by
+  covers your own player screen. `PlayStackFeedView` does this for its feed by
   itself (see [Feeds](feed.md#pausing)).
 
 ## Network status
 
-`manager.networkStatus` is a `ValueListenable<ReelNetworkStatus>`
+`manager.networkStatus` is a `ValueListenable<PlayStackNetworkStatus>`
 (connected, metered, constrained, transport). Feeds use it to size the
 preload window; controllers that failed for lack of network retry when it
 returns.
 
 ```dart
-ValueListenableBuilder<ReelNetworkStatus>(
+ValueListenableBuilder<PlayStackNetworkStatus>(
   valueListenable: manager.networkStatus,
   builder: (context, status, _) =>
       status.isConnected ? const SizedBox.shrink() : const Text('Offline'),

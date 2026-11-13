@@ -20,7 +20,7 @@ class LauncherPage extends StatelessWidget {
             children: [
               const Spacer(),
               Text(
-                'ReelKit',
+                'PlayStack',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w800,
@@ -28,7 +28,7 @@ class LauncherPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Two apps built on one widget, ReelFeedView.',
+                'Two apps built on one widget, PlayStackFeedView.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium,
               ),

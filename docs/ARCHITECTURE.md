@@ -1,6 +1,6 @@
-# ReelKit architecture
+# PlayStack architecture
 
-ReelKit manages native video playback. The application owns the look: the
+PlayStack manages native video playback. The application owns the look: the
 optional feed view handles paging and transitions, and every control on it
 can be replaced. This
 document records the structure and the decisions behind it. It is updated with
@@ -8,31 +8,31 @@ each milestone.
 
 ## Packages
 
-ReelKit is a federated Flutter plugin developed in a Dart pub workspace.
+PlayStack is a federated Flutter plugin developed in a Dart pub workspace.
 
 | Package | Role |
 | --- | --- |
-| `packages/reelkit` | App-facing API: `ReelKitManager`, `ReelPlayerController`, `ReelVideoView`, configuration, player pool. Pure Dart. |
-| `packages/reelkit_platform_interface` | Engine contract (`ReelKitPlatform`) and shared models: sources, video info, events, typed errors. |
-| `packages/reelkit_android` | Android engine: Kotlin, AndroidX Media3 ExoPlayer, Flutter `SurfaceProducer` textures. |
-| `packages/reelkit_ios` | iOS engine: Swift, AVFoundation `AVPlayer`, `FlutterTexture` + `AVPlayerItemVideoOutput`. Swift Package Manager and CocoaPods. |
-| `packages/reelkit_web` | Web engine: Dart, `HTMLVideoElement` through a platform view. |
-| `packages/reelkit/example` | Example and diagnostics app, device integration tests. |
-| `pigeons/reelkit_messages.dart` | Single typed wire schema for Android and iOS. Run `tool/generate_pigeons.sh` after changing it. |
+| `packages/playstack` | App-facing API: `PlayStackManager`, `PlayStackPlayerController`, `PlayStackVideoView`, configuration, player pool. Pure Dart. |
+| `packages/playstack_platform_interface` | Engine contract (`PlayStackPlatform`) and shared models: sources, video info, events, typed errors. |
+| `packages/playstack_android` | Android engine: Kotlin, AndroidX Media3 ExoPlayer, Flutter `SurfaceProducer` textures. |
+| `packages/playstack_ios` | iOS engine: Swift, AVFoundation `AVPlayer`, `FlutterTexture` + `AVPlayerItemVideoOutput`. Swift Package Manager and CocoaPods. |
+| `packages/playstack_web` | Web engine: Dart, `HTMLVideoElement` through a platform view. |
+| `packages/playstack/example` | Example and diagnostics app, device integration tests. |
+| `pigeons/playstack_messages.dart` | Single typed wire schema for Android and iOS. Run `tool/generate_pigeons.sh` after changing it. |
 
 ## Layers
 
 ```
- Application UI (ReelFeedView + controls, or PageView, ListView...)
-        │ commands                    ▲ ValueListenable<ReelPlaybackState>
+ Application UI (PlayStackFeedView + controls, or PageView, ListView...)
+        │ commands                    ▲ ValueListenable<PlayStackPlaybackState>
  ┌──────▼─────────────────────────────┴──────────┐
- │ ReelPlayerController (one per video, cheap)   │  serialized commands,
+ │ PlayStackPlayerController (one per video, cheap)   │  serialized commands,
  │                                               │  state machine
  ├───────────────────────────────────────────────┤
- │ ReelKitManager  ── ReelPlayerPool             │  lease / reuse / revoke,
+ │ PlayStackManager  ── PlayStackPlayerPool             │  lease / reuse / revoke,
  │   event routing     (bounded native players)  │  hard player limit
  ├───────────────────────────────────────────────┤
- │ ReelKitPlatform (platform interface)          │
+ │ PlayStackPlatform (platform interface)          │
  ├──────────────┬───────────────┬────────────────┤
  │ Pigeon       │ Pigeon        │ JS interop     │
  │ Media3       │ AVPlayer      │ <video>        │
@@ -54,7 +54,7 @@ takes the player of the lowest-priority, least recently used controller whose
 priority is strictly lower (`background < preload < visible < active`).
 Equal priority never steals; the request fails with `poolExhausted` instead.
 
-**Adaptive limit.** `ReelPoolConfig.maxPlayers` defaults to null, which uses
+**Adaptive limit.** `PlayStackPoolConfig.maxPlayers` defaults to null, which uses
 the engine's `recommendedMaxPlayers` capped at `maxAdaptivePlayers` (4). The
 recommendation comes from real device data: Android uses the low-RAM flag,
 total memory and the hardware H.264 decoder `maxSupportedInstances`; iOS uses
@@ -70,7 +70,7 @@ into the next one.
 
 **No high-frequency traffic.** Frames never cross a channel. Events are
 state transitions only. Position is pulled on demand (`getPosition`) instead
-of being pushed every tick, and `ReelPlaybackState` deliberately excludes
+of being pushed every tick, and `PlayStackPlaybackState` deliberately excludes
 position so that `ValueListenableBuilder`s do not rebuild every frame. When a
 pooled player changes owner, only settings that differ from what the native
 player already has are sent.
@@ -78,7 +78,7 @@ player already has are sent.
 **Serialized commands per controller.** `play`, `pause`, `seekTo`, settings
 and `dispose` run one at a time in call order. Commands still queued when
 `dispose` is called complete without effect; commands after `dispose` throw
-`ReelKitErrorCode.disposed`.
+`PlayStackErrorCode.disposed`.
 
 **Rendering.**
 - Android: `TextureRegistry.createSurfaceProducer()`. The producer's callback
@@ -91,7 +91,7 @@ and `dispose` run one at a time in call order. Commands still queued when
   scrolling feeds. The cost is a display-link-driven buffer pull while
   playing, which milestone 2 limits to playing players only.
 - Web: `HTMLVideoElement` in a platform view; browsers offer no texture path.
-- `ReelVideoView` lays the render widget out at the video's display size
+- `PlayStackVideoView` lays the render widget out at the video's display size
   (pixel aspect ratio and outstanding rotation applied) and scales it with
   `FittedBox`, so every `BoxFit` and `Alignment` behaves exactly as for images
   on all platforms. Engines report the rotation still to be applied (0 when
@@ -146,7 +146,7 @@ player causes no channel traffic.
 them; on `resumed` it resumes only those. `inactive` is ignored because it is
 transient (notification shade, incoming call banner).
 
-**Exclusive playback.** A `ReelPlaybackCoordinator` per manager decides who
+**Exclusive playback.** A `PlayStackPlaybackCoordinator` per manager decides who
 may play. `play` registers the request synchronously, before the command is
 queued, and asks every other controller that plays or has a pending `play`
 to yield. Yielding is itself a queued command that pauses only if that
@@ -170,7 +170,7 @@ lifetime. If no player can be taken, the original `decoderUnavailable` error
 is reported. Decoder failures during playback (after preparation) are
 reported, not retried.
 
-**Feed view.** `ReelFeedView` is a thin layer over `ReelFeedManager`.
+**Feed view.** `PlayStackFeedView` is a thin layer over `PlayStackFeedManager`.
 It is a `PageView` that reports page changes with `setActiveIndex` and
 follows the feed when the active index moves on its own (items inserted
 above). Pages are keyed by item id, so their state survives insertions.
@@ -178,7 +178,7 @@ Transitions are transforms computed from each page's offset relative to
 the scroll position. There are no custom render objects, so dragging and
 programmatic moves (`animateToPage`) animate the same way. Slide is the
 identity and skips the per-frame work. Everything above the video comes
-from `controlsBuilder`. The defaults (`ReelDefaultControls`) are built
+from `controlsBuilder`. The defaults (`PlayStackDefaultControls`) are built
 from small public widgets that apps can reuse.
 
 The main constructor takes the app's own items (`List<T>`). The view
@@ -187,14 +187,14 @@ item ids, and disposes both when it is removed. A junior developer never
 handles ids, managers or batching. A new `items` list that extends the
 previous one is appended; any other list replaces the feed. `onLoadMore`
 runs one call at a time, and an empty result ends the feed.
-`ReelFeedView.feed` keeps the lower-level path for apps that manage a
-`ReelFeedManager` themselves; that feed is never disposed by the view.
+`PlayStackFeedView.feed` keeps the lower-level path for apps that manage a
+`PlayStackFeedManager` themselves; that feed is never disposed by the view.
 
 **Memory pressure.** Idle native players are destroyed and `background`
 controllers lose their players (they prepare again on demand). Releases are
 awaited before trimming so that their players are destroyed too.
 
-**Feed manager.** `ReelFeedManager` is the only component that knows about
+**Feed manager.** `PlayStackFeedManager` is the only component that knows about
 item order. It never owns a widget: the app reports the item in view and
 the feed translates that into controller priorities and commands. Every
 change (index, items, network, memory, pool size) re-plans synchronously:
@@ -207,7 +207,7 @@ in-flight preparation immediately, which detaches its source on the native
 side. Controllers far outside the window are disposed to keep endless feeds
 flat; the native player count is bounded by the pool regardless.
 
-**Preload window.** `ReelPreloadWindow.resolve` is a pure function of the
+**Preload window.** `PlayStackPreloadWindow.resolve` is a pure function of the
 configuration, network status, low-RAM flag, memory-warning cooldown and
 the pool size (`maxPlayers - 1`, so it follows decoder-shortage
 reductions). It is unit-tested on its own.
@@ -239,8 +239,8 @@ the whole process.
 
 **Fullscreen and orientation.** Flutter cannot read the preferred
 orientations an app set, so restoring "what was there" is impossible
-without help. ReelKit therefore restores an explicit, registered policy
-(`ReelFullscreenConfig`, updatable with `setAppPolicy`), and leaves the
+without help. PlayStack therefore restores an explicit, registered policy
+(`PlayStackFullscreenConfig`, updatable with `setAppPolicy`), and leaves the
 orientation untouched unless fullscreen asks for one. When it did lock the
 orientation, exit first locks to the orientation the view had before
 (portrait or landscape, from the view size) for a moment and then applies
@@ -283,11 +283,11 @@ without a release/acquire round trip.
 | No public API for concurrent decode sessions; many `AVPlayer`s with items increase memory and can fail silently. | iOS | Memory-based limit; items are detached from released players; `decoderTemporarilyUnavailable` triggers the decoder-shortage handling. |
 | `AVPlayerItemVideoOutput` + display link costs CPU if left running. | iOS | Display link only while playing or awaiting a frame; paused players keep the last buffer. |
 | HTTP headers use `AVURLAssetHTTPHeaderFieldsKey`, which is not in the public headers. | iOS | Widely used (also by `video_player`); revisit with `AVAssetResourceLoader` if Apple removes it. |
-| Audio session category belongs to the host app. | iOS | ReelKit does not change it unless `ReelAudioConfig.iosAudioSessionCategory` is set, and then only when playback starts. |
+| Audio session category belongs to the host app. | iOS | PlayStack does not change it unless `PlayStackAudioConfig.iosAudioSessionCategory` is set, and then only when playback starts. |
 | Autoplay with sound is blocked; only muted autoplay is allowed. | Web | Muted autoplay policy and typed errors (milestone 2/6). |
 | `<video>` cannot send custom HTTP headers; no disk cache guarantees; HLS only native on Safari. | Web | Rejected with typed errors and reported through capabilities. HLS.js is used when the app loads it; not yet run in a browser. |
 | Platform views are costlier than textures. | Web | Unavoidable; keep the pool small. |
-| A platform view's element can be in one place only. | Web | One `ReelVideoView` per controller at a time; documented in the rendering and fullscreen guides. |
+| A platform view's element can be in one place only. | Web | One `PlayStackVideoView` per controller at a time; documented in the rendering and fullscreen guides. |
 | Orientation and fullscreen APIs differ per platform and per window mode (iPad multitasking, Android large screens, browser fullscreen permission). | All | Explicit orientation coordination, restore registered policy (milestone 6). |
 
 ## Measuring
@@ -295,8 +295,8 @@ without a release/acquire round trip.
 Start latency is measured until the playback position moves, not until the
 engine accepts `play`: both engines accept a prepared video's `play` in a
 few milliseconds but start their clock only once audio output runs (about
-100 ms in the baseline). `ReelPlayerMetrics.lastStartLatency` and
-`ReelFeedStats` report the cheaper "accepted" signal because they must not
+100 ms in the baseline). `PlayStackPlayerMetrics.lastStartLatency` and
+`PlayStackFeedStats` report the cheaper "accepted" signal because they must not
 poll; the example benchmark polls the position instead. Method and
 baseline: [BENCHMARKS.md](BENCHMARKS.md).
 

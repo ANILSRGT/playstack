@@ -1,17 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import 'demo_state.dart';
 
-/// Live view of what ReelKit is doing: pool, preloading, start latency,
+/// Live view of what PlayStack is doing: pool, preloading, start latency,
 /// network, cache, and what the user watched (`onItemViewed`).
 class StatsSheet extends StatefulWidget {
   const StatsSheet({super.key, required this.manager, required this.feed});
 
-  final ReelKitManager manager;
-  final ReelFeedManager feed;
+  final PlayStackManager manager;
+  final PlayStackFeedManager feed;
 
   @override
   State<StatsSheet> createState() => _StatsSheetState();
@@ -19,7 +19,7 @@ class StatsSheet extends StatefulWidget {
 
 class _StatsSheetState extends State<StatsSheet> {
   late final Timer _refresh;
-  ReelCacheInfo? _cache;
+  PlayStackCacheInfo? _cache;
 
   @override
   void initState() {

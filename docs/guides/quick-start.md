@@ -3,21 +3,21 @@
 For a short-video feed you need one widget:
 
 ```dart
-ReelFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl)
+PlayStackFeedView<Post>(items: posts, videoUrl: (post) => post.videoUrl)
 ```
 
 See [Feeds](feed.md) for controls, transitions and loading more. The rest
 of this page shows a single player, where three objects do the work:
 
-- `ReelKitManager` owns the native engine and a bounded pool of native
+- `PlayStackManager` owns the native engine and a bounded pool of native
   players. Create one per playback context (a feed, a screen).
-- `ReelPlayerController` controls one video. Creating it is free; it
+- `PlayStackPlayerController` controls one video. Creating it is free; it
   borrows a native player from the pool when it prepares or plays.
-- `ReelVideoView` renders a controller's frames. It has no controls.
+- `PlayStackVideoView` renders a controller's frames. It has no controls.
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 class VideoScreen extends StatefulWidget {
   const VideoScreen({super.key, required this.url});
@@ -29,8 +29,8 @@ class VideoScreen extends StatefulWidget {
 }
 
 class _VideoScreenState extends State<VideoScreen> {
-  final manager = ReelKitManager();
-  ReelPlayerController? controller;
+  final manager = PlayStackManager();
+  PlayStackPlayerController? controller;
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _VideoScreenState extends State<VideoScreen> {
   Future<void> _start() async {
     await manager.initialize();
     final controller = manager.createController(
-      ReelSource.network(widget.url),
+      PlayStackSource.network(widget.url),
     );
     setState(() => this.controller = controller);
     await controller.play(); // prepares on demand
@@ -60,9 +60,9 @@ class _VideoScreenState extends State<VideoScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        ReelVideoView(controller: controller, fit: BoxFit.cover),
+        PlayStackVideoView(controller: controller, fit: BoxFit.cover),
         // Your controls: rebuild from the controller's state.
-        ValueListenableBuilder<ReelPlaybackState>(
+        ValueListenableBuilder<PlayStackPlaybackState>(
           valueListenable: controller,
           builder: (context, state, _) => Center(
             child: IconButton(

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import '../catalog.dart';
 
@@ -15,7 +15,7 @@ class Episode {
 
   final int number;
   final String title;
-  final ReelSource source;
+  final PlayStackSource source;
   final String? poster;
 }
 
@@ -74,8 +74,8 @@ class WatchProgress extends ChangeNotifier {
         : null;
   }
 
-  /// Records a visit reported by `ReelFeedView.onItemViewed`.
-  void record(ReelItemView<Episode> view) {
+  /// Records a visit reported by `PlayStackFeedView.onItemViewed`.
+  void record(PlayStackItemView<Episode> view) {
     final episode = view.data;
     if (view.position == null && !view.completed) return; // never played
     _lastEpisode = episode.number;

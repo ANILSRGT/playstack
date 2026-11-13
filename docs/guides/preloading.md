@@ -33,11 +33,11 @@ actually applied (`feed.preloadWindow`) is reduced by:
 | Pool size | At most `maxPlayers - 1` items, items behind give way first |
 
 ```dart
-const ReelFeedConfig(
+const PlayStackFeedConfig(
   preloadAhead: 3,
   preloadBehind: 1,
   maxConcurrentPreloads: 1,
-  network: ReelNetworkPreloadPolicy(meteredPreloadAhead: 1),
+  network: PlayStackNetworkPreloadPolicy(meteredPreloadAhead: 1),
   lowMemoryPreloadAhead: 1,
   retryFailedPreloads: true,
 );
@@ -52,18 +52,18 @@ per swipe (prepared on arrival: 10-35 % with the defaults, 70-85 % with
 these settings):
 
 ```dart
-final manager = ReelKitManager(
-  config: const ReelKitConfig(
-    pool: ReelPoolConfig(maxPlayers: 7),
-    player: ReelPlayerConfig(
+final manager = PlayStackManager(
+  config: const PlayStackConfig(
+    pool: PlayStackPoolConfig(maxPlayers: 7),
+    player: PlayStackPlayerConfig(
       // Prepare at a low rendition; playing switches up.
-      startupQualityLimit: ReelVideoQualityLimit(maxBitrate: 1600000),
+      startupQualityLimit: PlayStackVideoQualityLimit(maxBitrate: 1600000),
     ),
   ),
 );
 final feed = manager.createFeed(
   items,
-  config: const ReelFeedConfig(
+  config: const PlayStackFeedConfig(
     preloadAhead: 5,
     preloadBehind: 1,
     maxConcurrentPreloads: 3,
@@ -75,11 +75,11 @@ final feed = manager.createFeed(
 rendition of the master playlist, often 1080p, and five parallel 1080p
 starts saturate the connection. The cost is that the first seconds of a
 video play at the startup rendition. Also show a poster
-(`ReelVideoView.poster`, a thumbnail from your video service) so an item
+(`PlayStackVideoView.poster`, a thumbnail from your video service) so an item
 that is not ready yet never shows black. Measure on your devices and
 network with the demo's `integration_test/swipe_test.dart`.
 
-Cap quality to the view as well (`ReelPlayerConfig.videoQualityLimit`, in
+Cap quality to the view as well (`PlayStackPlayerConfig.videoQualityLimit`, in
 physical pixels): a landscape video in a portrait feed is only as wide as
 the screen, and switching up to its 1080p rendition while the next items
 preload can outrun the network, so playback stops until the segment
@@ -90,7 +90,7 @@ needs, which makes this worse. Lift the limit in fullscreen. The demo's
 ## Buffer limit
 
 A prepared item that is not playing buffers only
-`ReelPlayerConfig.preloadBufferDuration` (5 s), so preloading three items
+`PlayStackPlayerConfig.preloadBufferDuration` (5 s), so preloading three items
 does not download three whole videos. Once it plays, the engine's normal
 buffering applies. Android enforces the limit; iOS treats it as a
 preference (`preferredForwardBufferDuration`); browsers decide themselves.
@@ -101,7 +101,7 @@ Controllers can be prepared by hand:
 
 ```dart
 final next = manager.createController(nextSource)
-  ..priority = ReelPlayerPriority.preload;
+  ..priority = PlayStackPlayerPriority.preload;
 await next.initialize();     // first frame ready, paused, 5 s buffered
 // later
 await next.play();           // starts almost instantly

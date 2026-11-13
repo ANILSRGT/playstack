@@ -1,7 +1,7 @@
 # Benchmarks
 
 Measured with the example app's benchmark
-(`packages/reelkit/example/lib/benchmark/reel_benchmark.dart`), which the
+(`packages/playstack/example/lib/benchmark/playstack_benchmark.dart`), which the
 integration test `integration_test/benchmark_test.dart` and the example's
 *Benchmark* page both run.
 
@@ -28,10 +28,10 @@ model.
     the first native player.
   - **Cold start:** `play()` on an unprepared controller whose native
     player is reused from the pool (10 samples). *Preparation* and *time to
-    first frame* come from `ReelPlayerController.metrics`.
+    first frame* come from `PlayStackPlayerController.metrics`.
   - **Preloaded start:** `play()` on a controller whose first frame was
     already rendered by `initialize()` (10 samples).
-  - **Swipe:** a 21-item `ReelFeedManager` feed, 1.2 s on each item, then
+  - **Swipe:** a 21-item `PlayStackFeedManager` feed, 1.2 s on each item, then
     `setActiveIndex(next)`; measured until the new item's position moves.
   - **Rapid scroll:** `setActiveIndex` on 500 items, one change per frame
     (16 ms), with `maxPlayers: 3`; pool usage is sampled after every
@@ -42,7 +42,7 @@ model.
     native player (`trimIdlePlayers`), so every cycle allocates and frees a
     native player and a 1080p decoder.
 
-## Results (2026-11-10, ReelKit 0.1.0-dev.7)
+## Results (2026-11-10, PlayStack 0.1.0-dev.7)
 
 Host: Apple M4 Pro, 24 GB, macOS 27.0.1.
 
@@ -92,7 +92,7 @@ window with network sources for meaningful web numbers.
   removes about 90 ms on iOS (190 → 98 ms). What remains, about 100 ms, is
   the engines starting audio output and their clock after `play`; it is
   the same for a video prepared seconds earlier. `metrics.lastStartLatency`
-  and `ReelFeedStats.averageStartLatency` measure until the engine
+  and `PlayStackFeedStats.averageStartLatency` measure until the engine
   *accepts* `play` (1–5 ms for prepared videos), which is why this
   benchmark measures position instead.
 - **The pool holds under abuse.** 500 index changes, one per frame, never
@@ -115,7 +115,7 @@ On a physical device, in profile mode (Android supports profile builds on
 arm64 emulators too; iOS simulators run debug only):
 
 ```bash
-cd packages/reelkit/example
+cd packages/playstack/example
 flutter drive --profile \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/benchmark_test.dart \

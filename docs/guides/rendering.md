@@ -1,10 +1,10 @@
 # Rendering
 
-`ReelVideoView` draws a controller's frames and nothing else: no controls,
+`PlayStackVideoView` draws a controller's frames and nothing else: no controls,
 no gestures, no progress bar.
 
 ```dart
-ReelVideoView(
+PlayStackVideoView(
   controller: controller,
   fit: BoxFit.cover,                    // any BoxFit
   alignment: Alignment.topCenter,       // any AlignmentGeometry
@@ -32,7 +32,7 @@ like an `Image`.
 // Let the video decide its height in a list.
 AspectRatio(
   aspectRatio: controller.value.aspectRatio ?? 16 / 9,
-  child: ReelVideoView(controller: controller),
+  child: PlayStackVideoView(controller: controller),
 );
 ```
 
@@ -56,7 +56,7 @@ Rebuild controls from the controller's state; read the position from a
 stream that polls only while playing.
 
 ```dart
-ValueListenableBuilder<ReelPlaybackState>(
+ValueListenableBuilder<PlayStackPlaybackState>(
   valueListenable: controller,
   builder: (context, state, _) => Row(
     children: [
@@ -65,7 +65,7 @@ ValueListenableBuilder<ReelPlaybackState>(
         onPressed: state.isPlaying ? controller.pause : controller.play,
       ),
       Expanded(
-        child: StreamBuilder<ReelPositionSnapshot>(
+        child: StreamBuilder<PlayStackPositionSnapshot>(
           stream: controller.positions(),
           builder: (context, snapshot) {
             final total = state.duration?.inMilliseconds ?? 0;
@@ -88,5 +88,5 @@ ValueListenableBuilder<ReelPlaybackState>(
 
 ## Web
 
-One `ReelVideoView` per controller at a time: the video is a single
+One `PlayStackVideoView` per controller at a time: the video is a single
 `<video>` element. See [Fullscreen](fullscreen.md#platform-notes).

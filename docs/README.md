@@ -1,4 +1,4 @@
-# ReelKit documentation
+# PlayStack documentation
 
 Guides:
 

@@ -1,20 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:reelkit/reelkit.dart';
+import 'package:playstack/playstack.dart';
 
 import 'author_page.dart';
 import 'catalog.dart';
 import 'comments_sheet.dart';
 import 'demo_state.dart';
 
-/// The controls of one reel: ReelKit's default controls (tap and hold to
+/// The controls of one reel: PlayStack's default controls (tap and hold to
 /// pause, sound, fullscreen, progress, retry) plus the app's own layer:
 /// caption, author, like and comments, and a heart on double tap.
 class PostControls extends StatefulWidget {
   const PostControls({super.key, required this.page});
 
-  final ReelFeedPage<DemoVideo> page;
+  final PlayStackFeedPage<DemoVideo> page;
 
   @override
   State<PostControls> createState() => _PostControlsState();
@@ -41,7 +41,7 @@ class _PostControlsState extends State<PostControls>
   @override
   Widget build(BuildContext context) {
     final page = widget.page;
-    return ReelDefaultControls(
+    return PlayStackDefaultControls(
       page: page,
       onDoubleTap: _onDoubleTap,
       child: Stack(
@@ -76,7 +76,7 @@ class _Caption extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
-          // A pushed page covers the feed; ReelFeedView pauses until it is
+          // A pushed page covers the feed; PlayStackFeedView pauses until it is
           // popped.
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
@@ -137,7 +137,7 @@ class _Caption extends StatelessWidget {
 class _Actions extends StatelessWidget {
   const _Actions({required this.page});
 
-  final ReelFeedPage<DemoVideo> page;
+  final PlayStackFeedPage<DemoVideo> page;
 
   Future<void> _openComments(BuildContext context) async {
     // A bottom sheet leaves the feed visible, so the video would keep
