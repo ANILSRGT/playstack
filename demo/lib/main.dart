@@ -5,8 +5,9 @@ import 'launcher_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // A reels app is portrait; PlayStackFeedView turns the screen for landscape
-  // videos in fullscreen and back again.
+  // A reels app is portrait. Turning the phone sideways while a video plays
+  // still opens it fullscreen (PlayStackFeedView.fullscreenOnRotate reads the
+  // motion sensors), and the portrait lock comes back afterwards.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const DemoApp());
 }
