@@ -1,12 +1,42 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:playstack/playstack.dart';
 
 import 'drama/drama_data.dart';
 import 'drama/series_page.dart';
 import 'home_page.dart';
+import 'reels_page.dart';
 
 /// The first screen: pick which app to try.
-class LauncherPage extends StatelessWidget {
+///
+/// It also plays the role of a splash screen: it starts preparing the reels
+/// feed right away, so the first video plays the moment Reels opens.
+class LauncherPage extends StatefulWidget {
   const LauncherPage({super.key});
+
+  @override
+  State<LauncherPage> createState() => _LauncherPageState();
+}
+
+class _LauncherPageState extends State<LauncherPage> {
+  PlayStackFeedPreload<Object>? _preload = preloadHomeFeed();
+
+  @override
+  void dispose() {
+    _preload?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openReels() async {
+    // A preload is shown once; prepare a fresh one for the next visit.
+    final preload = _preload;
+    _preload = null;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => HomePage(preload: preload)));
+    if (mounted) _preload = preloadHomeFeed();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +69,7 @@ class LauncherPage extends StatelessWidget {
                 subtitle:
                     'Endless short videos: likes, comments, pull to refresh, '
                     'explore grid',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const HomePage()),
-                ),
+                onTap: () => unawaited(_openReels()),
               ),
               const SizedBox(height: 16),
               _DemoButton(

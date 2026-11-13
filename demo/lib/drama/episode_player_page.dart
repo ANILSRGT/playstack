@@ -52,26 +52,91 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
   Widget build(BuildContext context) {
     final series = widget.series;
     return Scaffold(
-      body: PlayStackFeedView<Episode>(
-        items: series.episodes,
-        source: (episode) => episode.source,
-        posterUrl: (episode) => episode.poster,
-        controller: _view,
-        initialIndex: series.episodes.indexOf(widget.episode),
-        startPosition: watchProgress.positionOf,
-        autoAdvance: true,
-        onItemViewed: watchProgress.record,
-        controlsBuilder: (context, page) => PlayStackDefaultControls(
-          page: page,
-          // Hold to watch at 2x, as drama apps do.
-          holdAction: PlayStackHoldAction.speedUp,
-          child: page.isFullscreen
-              ? null
-              : _EpisodeOverlay(
-                  series: series,
-                  episode: page.data,
-                  onEpisodes: () => unawaited(_showEpisodes(page.data)),
+      // Rebuilt when an episode is unlocked: isLocked is asked again and the
+      // episode starts playing.
+      body: ListenableBuilder(
+        listenable: watchProgress,
+        builder: (context, _) => PlayStackFeedView<Episode>(
+          items: series.episodes,
+          source: (episode) => episode.source,
+          posterUrl: (episode) => episode.poster,
+          controller: _view,
+          initialIndex: series.episodes.indexOf(widget.episode),
+          startPosition: watchProgress.positionOf,
+          isLocked: watchProgress.isLocked,
+          lockedBuilder: (context, episode, isActive) =>
+              _Paywall(series: series, episode: episode),
+          autoAdvance: true,
+          onItemViewed: watchProgress.record,
+          controlsBuilder: (context, page) => PlayStackDefaultControls(
+            page: page,
+            // Hold to watch at 2x, as drama apps do.
+            holdAction: PlayStackHoldAction.speedUp,
+            child: page.isFullscreen
+                ? null
+                : _EpisodeOverlay(
+                    series: series,
+                    episode: page.data,
+                    onEpisodes: () => unawaited(_showEpisodes(page.data)),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What a locked episode shows over its poster.
+class _Paywall extends StatelessWidget {
+  const _Paywall({required this.series, required this.episode});
+
+  final Series series;
+  final Episode episode;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ColoredBox(
+      color: const Color(0xB3000000),
+      child: SafeArea(
+        child: Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_rounded, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Episode ${episode.number} is locked',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'The first ${WatchProgress.freeEpisodes} episodes of '
+                      '${series.title} are free.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () => watchProgress.unlock(episode),
+                      icon: const Icon(Icons.lock_open_rounded),
+                      label: const Text('Unlock episode (demo)'),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+          ],
         ),
       ),
     );

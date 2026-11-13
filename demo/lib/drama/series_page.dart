@@ -121,6 +121,7 @@ class EpisodeTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final finished = watchProgress.isFinished(episode);
     final started = watchProgress.positionOf(episode) != null;
+    final locked = watchProgress.isLocked(episode);
     return Material(
       color: isCurrent ? scheme.primary : scheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(10),
@@ -139,6 +140,16 @@ class EpisodeTile extends StatelessWidget {
                 ),
               ),
             ),
+            if (locked)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Icon(
+                  Icons.lock_rounded,
+                  size: 12,
+                  color: isCurrent ? scheme.onPrimary : scheme.onSurfaceVariant,
+                ),
+              ),
             if (finished)
               const Positioned(
                 top: 4,

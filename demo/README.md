@@ -8,7 +8,9 @@ one `PlayStackFeedView`; everything else is the app's own UI.
 
 | File | Shows |
 | --- | --- |
-| `lib/reels_page.dart` | `PlayStackFeedView` with `onLoadMore`, pull to refresh (`onRefresh`), watch time (`onItemViewed`), the stack transition, and a top bar that hides in fullscreen through `PlayStackFeedViewController` |
+| `lib/launcher_page.dart` | Acts as a splash screen: prepares the reels feed with `PlayStackFeedPreload`, so the first video plays as Reels opens |
+| `lib/suggestion_page.dart` | A page without video between videos (`pageBuilder`) |
+| `lib/reels_page.dart` | `PlayStackFeedView` (or `.preloaded`) over a mixed list of videos and cards (`page.cast`), with `onLoadMore`, pull to refresh (`onRefresh`), watch time (`onItemViewed`), the stack transition, and a top bar that hides in fullscreen through `PlayStackFeedViewController` |
 | `lib/post_controls.dart` | The app's caption, like and comment buttons and a double-tap heart, layered on `PlayStackDefaultControls` (tap or hold to pause, sound, fullscreen, seekable progress, retry) |
 | `lib/home_page.dart` | Tabs in an `IndexedStack` with `TickerMode`: the feed pauses while its tab is hidden |
 | `lib/explore_page.dart`, `lib/author_page.dart` | Grids that open a feed at the tapped video; the feed below pauses under the pushed page |
@@ -20,7 +22,7 @@ one `PlayStackFeedView`; everything else is the app's own UI.
 | File | Shows |
 | --- | --- |
 | `lib/drama/series_page.dart` | A series page: continue where you stopped, or pick any episode |
-| `lib/drama/episode_player_page.dart` | Episodes as a vertical feed: `initialIndex`, `startPosition` to continue, `autoAdvance` to the next episode, `onItemViewed` to save the position, an episode list that jumps with `jumpToItem`, hold for 2x |
+| `lib/drama/episode_player_page.dart` | Episodes 6 and later are locked behind a paywall (`isLocked`, `lockedBuilder`) until unlocked. Episodes as a vertical feed: `initialIndex`, `startPosition` to continue, `autoAdvance` to the next episode, `onItemViewed` to save the position, an episode list that jumps with `jumpToItem`, hold for 2x |
 | `lib/drama/drama_data.dart` | The series and the saved progress |
 
 `lib/catalog.dart` lists the public test media: vertical 9:16 clips and

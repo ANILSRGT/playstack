@@ -51,7 +51,22 @@ final Series demoSeries = Series(
 /// Where the user is in each episode. A real app would save this on the
 /// device or its backend.
 class WatchProgress extends ChangeNotifier {
+  /// Episodes after this one need unlocking, as in short-drama apps.
+  static const freeEpisodes = 5;
+
   final Map<int, Duration> _positions = {};
+  final Set<int> _unlocked = {};
+
+  /// Whether [episode] is still locked for this user.
+  bool isLocked(Episode episode) =>
+      episode.number > freeEpisodes && !_unlocked.contains(episode.number);
+
+  /// Unlocks [episode], as after a purchase or a rewarded ad. A real app
+  /// would ask its store or backend first.
+  void unlock(Episode episode) {
+    if (_unlocked.add(episode.number)) notifyListeners();
+  }
+
   final Set<int> _finished = {};
   int? _lastEpisode;
 

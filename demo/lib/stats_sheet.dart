@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:playstack/playstack.dart';
 
+import 'catalog.dart';
 import 'demo_state.dart';
 
 /// Live view of what PlayStack is doing: pool, preloading, start latency,
@@ -83,7 +84,7 @@ class _StatsSheetState extends State<StatsSheet> {
                   'to the end',
               'total watch time ${(demoState.totalWatchTime.inMilliseconds / 1000).toStringAsFixed(1)} s',
               for (final view in views.reversed.take(3))
-                '· ${view.data.title}: '
+                '· ${(view.data as DemoVideo).title}: '
                     '${(view.watchTime.inMilliseconds / 1000).toStringAsFixed(1)} s'
                     '${view.watchedFraction == null ? '' : ' (${(view.watchedFraction! * 100).round()}%)'}',
             ]),

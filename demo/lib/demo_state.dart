@@ -7,7 +7,7 @@ import 'catalog.dart';
 /// keep this in its own state management and send views to its backend.
 class DemoState extends ChangeNotifier {
   final Set<DemoVideo> _liked = {};
-  final List<PlayStackItemView<DemoVideo>> _views = [];
+  final List<PlayStackItemView<Object>> _views = [];
 
   bool isLiked(DemoVideo video) => _liked.contains(video);
 
@@ -21,9 +21,9 @@ class DemoState extends ChangeNotifier {
   }
 
   /// Every visit reported by `PlayStackFeedView.onItemViewed`, oldest first.
-  List<PlayStackItemView<DemoVideo>> get views => List.unmodifiable(_views);
+  List<PlayStackItemView<Object>> get views => List.unmodifiable(_views);
 
-  void recordView(PlayStackItemView<DemoVideo> view) {
+  void recordView(PlayStackItemView<Object> view) {
     _views.add(view);
     notifyListeners();
   }

@@ -7,21 +7,40 @@ import 'catalog.dart';
 import 'demo_state.dart';
 import 'post_controls.dart';
 import 'stats_sheet.dart';
+import 'suggestion_page.dart';
+
+/// How the reels feed reads its items: videos, and suggestion cards
+/// without video.
+PlayStackSource? _videoOf(Object entry) =>
+    entry is DemoVideo ? entry.source : null;
+
+String? _posterOf(Object entry) => entry is DemoVideo ? entry.poster : null;
+
+/// Starts preparing the home feed before it is opened. The launcher calls
+/// it at start, like a splash screen would.
+PlayStackFeedPreload<Object> preloadHomeFeed() => PlayStackFeedPreload<Object>(
+  items: withSuggestions(demoCatalog),
+  source: _videoOf,
+  posterUrl: _posterOf,
+);
 
 /// A reels screen: the whole feed is one [PlayStackFeedView].
 ///
 /// Without [items] it is the endless home feed: it loads more videos near
-/// the end and refreshes when pulled down. With [items] it shows that list,
-/// opened at [initialIndex], as when a video is tapped in a grid.
+/// the end, mixes in suggestion cards and refreshes when pulled down. With
+/// [preload] it shows a home feed prepared ahead. With [items] it shows that
+/// list, opened at [initialIndex], as when a video is tapped in a grid.
 class ReelsPage extends StatefulWidget {
   const ReelsPage({
     super.key,
     this.items,
+    this.preload,
     this.initialIndex = 0,
     this.title = 'Reels',
   });
 
   final List<DemoVideo>? items;
+  final PlayStackFeedPreload<Object>? preload;
   final int initialIndex;
   final String title;
 
@@ -32,6 +51,9 @@ class ReelsPage extends StatefulWidget {
 class _ReelsPageState extends State<ReelsPage> {
   final _view = PlayStackFeedViewController();
 
+  // Kept in state: a new list on every build would replace the feed.
+  late final List<Object> _items = widget.items ?? withSuggestions(demoCatalog);
+
   bool get _isHomeFeed => widget.items == null;
 
   @override
@@ -41,16 +63,22 @@ class _ReelsPageState extends State<ReelsPage> {
   }
 
   /// The next page of the endless feed, as an API would return it.
-  Future<List<DemoVideo>> _loadMore() async {
+  Future<List<Object>> _loadMore() async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    return demoCatalog;
+    return withSuggestions(demoCatalog);
   }
 
   /// A fresh feed after pull to refresh.
-  Future<List<DemoVideo>> _refresh() async {
+  Future<List<Object>> _refresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 800));
-    return [...demoCatalog]..shuffle();
+    return withSuggestions([...demoCatalog]..shuffle());
   }
+
+  Widget _controls(BuildContext context, PlayStackFeedPage<Object> page) =>
+      PostControls(page: page.cast<DemoVideo>());
+
+  Widget _suggestion(BuildContext context, Object entry, bool isActive) =>
+      SuggestionPage(card: entry as SuggestionCard);
 
   void _showStats() {
     final manager = _view.manager;
@@ -72,18 +100,32 @@ class _ReelsPageState extends State<ReelsPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          PlayStackFeedView<DemoVideo>(
-            items: widget.items ?? demoCatalog,
-            source: (video) => video.source,
-            posterUrl: (video) => video.poster,
-            controller: _view,
-            initialIndex: widget.initialIndex,
-            transition: PlayStackFeedTransition.stack,
-            onLoadMore: _isHomeFeed ? _loadMore : null,
-            onRefresh: _isHomeFeed ? _refresh : null,
-            onItemViewed: demoState.recordView,
-            controlsBuilder: (context, page) => PostControls(page: page),
-          ),
+          if (widget.preload case final preload?)
+            // Prepared on the launcher: the first video plays at once.
+            PlayStackFeedView<Object>.preloaded(
+              preload,
+              controller: _view,
+              transition: PlayStackFeedTransition.stack,
+              onLoadMore: _loadMore,
+              onRefresh: _refresh,
+              onItemViewed: demoState.recordView,
+              controlsBuilder: _controls,
+              pageBuilder: _suggestion,
+            )
+          else
+            PlayStackFeedView<Object>(
+              items: _items,
+              source: _videoOf,
+              posterUrl: _posterOf,
+              controller: _view,
+              initialIndex: widget.initialIndex,
+              transition: PlayStackFeedTransition.stack,
+              onLoadMore: _isHomeFeed ? _loadMore : null,
+              onRefresh: _isHomeFeed ? _refresh : null,
+              onItemViewed: demoState.recordView,
+              controlsBuilder: _controls,
+              pageBuilder: _suggestion,
+            ),
           _TopBar(view: _view, title: widget.title, onStats: _showStats),
         ],
       ),

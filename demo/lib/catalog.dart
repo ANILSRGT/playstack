@@ -56,6 +56,25 @@ const _sampleComments = [
 /// the same service, shown at once while the video prepares.
 final List<DemoVideo> demoCatalog = _interleave(_vertical, _landscape);
 
+/// A page without video in the reels feed: accounts to follow.
+class SuggestionCard {
+  const SuggestionCard(this.authors);
+
+  final List<String> authors;
+}
+
+/// [videos] with a [SuggestionCard] after every [every] videos, as a feed
+/// API would return them.
+List<Object> withSuggestions(List<DemoVideo> videos, {int every = 6}) {
+  final authors = {for (final video in videos) video.author}.toList();
+  return [
+    for (final (i, video) in videos.indexed) ...[
+      video,
+      if ((i + 1) % every == 0) SuggestionCard(authors),
+    ],
+  ];
+}
+
 /// The vertical 9:16 clips only; the drama demo uses them as episodes.
 List<DemoVideo> get verticalVideos => List.unmodifiable(_vertical);
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:playstack/playstack.dart';
 
 import 'explore_page.dart';
 import 'reels_page.dart';
@@ -9,7 +10,10 @@ import 'reels_page.dart';
 /// another tab is shown. [TickerMode] tells the feed it is hidden, and
 /// `PlayStackFeedView` pauses itself until the tab is shown again.
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.preload});
+
+  /// The home feed, prepared ahead by the launcher.
+  final PlayStackFeedPreload<Object>? preload;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -20,7 +24,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    const tabs = [ReelsPage(), ExplorePage()];
+    final tabs = [ReelsPage(preload: widget.preload), const ExplorePage()];
     return Scaffold(
       body: IndexedStack(
         index: _tab,
