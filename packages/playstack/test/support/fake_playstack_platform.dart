@@ -386,6 +386,60 @@ class FakePlayStackPlatform extends PlayStackPlatform {
   Future<List<DeviceOrientation>?> getAppOrientations() async =>
       appOrientations;
 
+  /// Every list passed to setPreferredOrientations.
+  final List<List<DeviceOrientation>> preferredOrientations =
+      <List<DeviceOrientation>>[];
+
+  @override
+  Future<void> setPreferredOrientations(
+    List<DeviceOrientation> orientations,
+  ) async => preferredOrientations.add(orientations);
+
+  /// Every setMediaSession call, as (playerId, info, canSkipNext,
+  /// canSkipPrevious).
+  final List<(int?, PlayStackMediaInfo?, bool, bool)> mediaSessions =
+      <(int?, PlayStackMediaInfo?, bool, bool)>[];
+
+  @override
+  Future<void> setMediaSession(
+    int? playerId,
+    PlayStackMediaInfo? info, {
+    bool canSkipNext = false,
+    bool canSkipPrevious = false,
+  }) async =>
+      mediaSessions.add((playerId, info, canSkipNext, canSkipPrevious));
+
+  /// Every setPictureInPicture call, as (playerId, autoEnter).
+  final List<(int?, bool)> pictureInPictures = <(int?, bool)>[];
+
+  /// Returned by isPictureInPictureSupported.
+  bool supportsPictureInPicture = true;
+  int pictureInPictureStarts = 0;
+
+  @override
+  Future<void> setPictureInPicture(
+    int? playerId, {
+    required bool autoEnter,
+  }) async => pictureInPictures.add((playerId, autoEnter));
+
+  @override
+  Future<bool> startPictureInPicture() async {
+    pictureInPictureStarts++;
+    return supportsPictureInPicture;
+  }
+
+  @override
+  Future<bool> isPictureInPictureSupported() async => supportsPictureInPicture;
+
+  /// Sends media control commands and Picture-in-Picture changes.
+  // Closed with the test process.
+  // ignore: close_sinks
+  final StreamController<PlayStackSystemEvent> systemEventController =
+      StreamController<PlayStackSystemEvent>.broadcast(sync: true);
+
+  @override
+  Stream<PlayStackSystemEvent> get systemEvents => systemEventController.stream;
+
   @override
   Stream<PlayStackNetworkStatus> get networkStatusChanges => _network.stream;
 

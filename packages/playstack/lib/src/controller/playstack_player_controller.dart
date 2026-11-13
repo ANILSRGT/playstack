@@ -11,6 +11,7 @@ import 'playstack_playback_state.dart';
 import 'playstack_player_metrics.dart';
 import 'playstack_position_stream.dart';
 import 'playstack_track_state.dart';
+import 'playstack_video_quality.dart';
 
 /// Why the system paused or resumed playback, emitted by
 /// [PlayStackPlayerController.interruptions]: a phone call, another app taking
@@ -420,6 +421,7 @@ class PlayStackPlayerController extends ChangeNotifier
     final resume = _value.isPlaying;
     _source = source;
     _tracks.resetForNewSource();
+    _videoQuality.value = null;
     _update(
       _value.copyWith(
         clearVideoInfo: true,
@@ -460,6 +462,63 @@ class PlayStackPlayerController extends ChangeNotifier
   /// Turns subtitles off: [subtitles] becomes empty until a text track is selected again.
   Future<void> disableSubtitles() =>
       selectAutomaticTrack(PlayStackTrackType.text);
+
+  /// The engine's id of the native player this controller holds, or null
+  /// while it holds none. Used by engine features tied to a player (media
+  /// controls, Picture-in-Picture).
+  @internal
+  int? get nativePlayerId => _lease?.playerId;
+
+  /// The picture qualities the user can choose, highest first: one per
+  /// rendition of an adaptive stream (HLS, DASH). Fewer than two means there
+  /// is nothing to choose, as for a single MP4 file. Updates with [tracks].
+  List<PlayStackVideoQuality> get videoQualities =>
+      PlayStackVideoQuality.fromTracks(_tracks.tracks.value);
+
+  /// The quality the user chose with [setVideoQuality], or null for
+  /// automatic quality (the default).
+  ValueListenable<PlayStackVideoQuality?> get videoQuality => _videoQuality;
+  final ValueNotifier<PlayStackVideoQuality?> _videoQuality =
+      ValueNotifier<PlayStackVideoQuality?>(null);
+
+  /// Plays [quality] (one of [videoQualities]), or a lower rendition when the
+  /// network cannot keep up; null returns to automatic quality.
+  ///
+  /// The choice replaces the app's own limits ([setVideoQualityLimit], the
+  /// screen-sized cap of feeds) for this video, until another source is set.
+  Future<void> setVideoQuality(PlayStackVideoQuality? quality) =>
+      _command(() async {
+        _videoQuality.value = quality;
+        if (_managesQualityLimit) {
+          await _applySettings();
+        } else {
+          await _tracks.setQualityLimit(
+            _preparedPlayerId,
+            quality?.limit ?? PlayStackVideoQualityLimit.none,
+          );
+        }
+        await _switchQualityNow(quality);
+      });
+
+  /// A limit alone applies from the next segment the engine loads, after
+  /// what is already buffered (often many seconds). The user expects the
+  /// picture to change now: Android selects the rendition, which drops the
+  /// buffer; elsewhere a seek to the current position reloads it.
+  Future<void> _switchQualityNow(PlayStackVideoQuality? quality) async {
+    final playerId = _preparedPlayerId;
+    if (playerId == null) return;
+    final platform = _host.platform;
+    final trackId = quality?.trackId;
+    if (_host.capabilities.supportsVideoTrackSelection &&
+        (quality == null || trackId != null)) {
+      await _tracks.select(playerId, PlayStackTrackType.video, trackId);
+      await _refreshTracks();
+      return;
+    }
+    final position = await platform.getPosition(playerId);
+    if (_preparedPlayerId != playerId) return;
+    await platform.seekTo(playerId, position.position);
+  }
 
   /// Caps adaptive video quality, for example on metered networks. Pass
   /// [PlayStackVideoQualityLimit.none] to remove the cap.
@@ -610,6 +669,7 @@ class PlayStackPlayerController extends ChangeNotifier
     }
     _positionStreams.clear();
     _tracks.dispose();
+    _videoQuality.dispose();
     _positionChanges.dispose();
     unawaited(_interruptions.close());
     _disposedNotifier = true;
@@ -1000,6 +1060,9 @@ class PlayStackPlayerController extends ChangeNotifier
   /// The app's limit, tightened by [_startupQualityLimit] until playback
   /// starts.
   PlayStackVideoQualityLimit get _desiredQualityLimit {
+    // The user's choice wins over the app's limits.
+    final chosen = _videoQuality.value;
+    if (chosen != null) return chosen.limit;
     final limit = _tracks.qualityLimit;
     final startup = _startupQualityLimit;
     if (startup == null || _startedPlayback) return limit;

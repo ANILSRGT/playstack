@@ -32,3 +32,18 @@ final class AudioSessionCoordinator {
     try? session.setActive(true)
   }
 }
+
+extension AudioSessionCoordinator {
+  /// Sound in the background, the lock screen controls and
+  /// Picture-in-Picture need the `playback` category without mixing: with
+  /// another category iOS stops the video in the background and shows no
+  /// controls. Called when the app turns one of them on.
+  static func requireBackgroundPlayback() {
+    let session = AVAudioSession.sharedInstance()
+    let mixes = session.categoryOptions.contains(.mixWithOthers)
+    if session.category == .playback && !mixes { return }
+    if session.category == .playAndRecord && !mixes { return }
+    try? session.setCategory(.playback, mode: .moviePlayback, options: [])
+    try? session.setActive(true)
+  }
+}

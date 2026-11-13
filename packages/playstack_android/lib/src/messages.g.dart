@@ -130,6 +130,30 @@ enum PlatformInterruptionType {
   audioRouteLost,
 }
 
+/// What a system media control, Picture-in-Picture or the app asked for.
+enum PlatformSystemEventType {
+  /// Play from the lock screen, notification, headphones or car.
+  play,
+
+  /// Pause from the same places.
+  pause,
+
+  /// Move to [PlatformSystemEvent.positionMs].
+  seek,
+
+  /// Skip to the next item.
+  next,
+
+  /// Skip to the previous item.
+  previous,
+
+  /// Picture-in-Picture started (or is starting).
+  pictureInPictureStarted,
+
+  /// Picture-in-Picture ended.
+  pictureInPictureStopped,
+}
+
 /// Engine-wide settings, applied by the first `initialize` call.
 class PlatformEngineConfig {
   PlatformEngineConfig({
@@ -268,6 +292,130 @@ class PlatformCacheInfo {
   @override
   String toString() {
     return 'PlatformCacheInfo(enabled: $enabled, usedBytes: $usedBytes, maxBytes: $maxBytes)';
+  }
+}
+
+class PlatformSystemEvent {
+  PlatformSystemEvent({required this.type, this.positionMs});
+
+  PlatformSystemEventType type;
+
+  /// For [PlatformSystemEventType.seek].
+  int? positionMs;
+
+  List<Object?> _toList() {
+    return <Object?>[type, positionMs];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformSystemEvent decode(Object result) {
+    result as List<Object?>;
+    return PlatformSystemEvent(
+      type: result[0]! as PlatformSystemEventType,
+      positionMs: result[1] as int?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformSystemEvent || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(type, other.type) &&
+        _deepEquals(positionMs, other.positionMs);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformSystemEvent(type: $type, positionMs: $positionMs)';
+  }
+}
+
+/// What the system's media controls show about the playing video.
+class PlatformMediaInfo {
+  PlatformMediaInfo({
+    this.title,
+    this.artist,
+    this.album,
+    this.artworkUrl,
+    required this.canSkipNext,
+    required this.canSkipPrevious,
+  });
+
+  String? title;
+
+  String? artist;
+
+  String? album;
+
+  String? artworkUrl;
+
+  bool canSkipNext;
+
+  bool canSkipPrevious;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      title,
+      artist,
+      album,
+      artworkUrl,
+      canSkipNext,
+      canSkipPrevious,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformMediaInfo decode(Object result) {
+    result as List<Object?>;
+    return PlatformMediaInfo(
+      title: result[0] as String?,
+      artist: result[1] as String?,
+      album: result[2] as String?,
+      artworkUrl: result[3] as String?,
+      canSkipNext: result[4]! as bool,
+      canSkipPrevious: result[5]! as bool,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformMediaInfo || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(title, other.title) &&
+        _deepEquals(artist, other.artist) &&
+        _deepEquals(album, other.album) &&
+        _deepEquals(artworkUrl, other.artworkUrl) &&
+        _deepEquals(canSkipNext, other.canSkipNext) &&
+        _deepEquals(canSkipPrevious, other.canSkipPrevious);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformMediaInfo(title: $title, artist: $artist, album: $album, artworkUrl: $artworkUrl, canSkipNext: $canSkipNext, canSkipPrevious: $canSkipPrevious)';
   }
 }
 
@@ -1508,62 +1656,71 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformInterruptionType) {
       buffer.putUint8(136);
       writeValue(buffer, value.index);
-    } else if (value is PlatformEngineConfig) {
+    } else if (value is PlatformSystemEventType) {
       buffer.putUint8(137);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformCacheInfo) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformEngineConfig) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformDeviceOrientationEvent) {
+    } else if (value is PlatformCacheInfo) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformNetworkStatus) {
+    } else if (value is PlatformSystemEvent) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTrack) {
+    } else if (value is PlatformMediaInfo) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+    } else if (value is PlatformDeviceOrientationEvent) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(153);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformFirstFrameEvent) {
       buffer.putUint8(154);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInterruptionEvent) {
+    } else if (value is PlatformErrorEvent) {
       buffer.putUint8(155);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformTracksChangedEvent) {
+      buffer.putUint8(156);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(157);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformInterruptionEvent) {
+      buffer.putUint8(158);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1600,42 +1757,49 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformInterruptionType.values[value];
       case 137:
-        return PlatformEngineConfig.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformSystemEventType.values[value];
       case 138:
-        return PlatformCacheInfo.decode(readValue(buffer)!);
+        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 139:
-        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
+        return PlatformCacheInfo.decode(readValue(buffer)!);
       case 140:
-        return PlatformNetworkStatus.decode(readValue(buffer)!);
+        return PlatformSystemEvent.decode(readValue(buffer)!);
       case 141:
-        return PlatformTrack.decode(readValue(buffer)!);
+        return PlatformMediaInfo.decode(readValue(buffer)!);
       case 142:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
       case 143:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 144:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 145:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 146:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 147:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 148:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 149:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 150:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 151:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 152:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 153:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
       case 154:
-        return PlatformCuesEvent.decode(readValue(buffer)!);
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
       case 155:
+        return PlatformErrorEvent.decode(readValue(buffer)!);
+      case 156:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 157:
+        return PlatformCuesEvent.decode(readValue(buffer)!);
+      case 158:
         return PlatformInterruptionEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -2018,6 +2182,107 @@ class PlayStackHostApi {
     return pigeonVar_replyValue! as PlatformNetworkStatus;
   }
 
+  /// Shows [playerId] in the system's media controls (lock screen,
+  /// notification, headphones, car) with [info]; null removes them. The
+  /// controls send [PlatformSystemEvent]s; they do not act on the player.
+  Future<void> setMediaSession(int? playerId, PlatformMediaInfo? info) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.setMediaSession$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, info],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Prepares Picture-in-Picture for [playerId]; null turns it off. With
+  /// [autoEnter] the video moves to a small window when the user leaves the
+  /// app while it plays.
+  Future<void> setPictureInPicture(int? playerId, bool autoEnter) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.setPictureInPicture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, autoEnter],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Starts Picture-in-Picture for the player prepared with
+  /// [setPictureInPicture]. False when it could not start.
+  Future<bool> startPictureInPicture() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.startPictureInPicture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  /// Ends Picture-in-Picture (iOS; Android leaves it when the user does).
+  Future<void> stopPictureInPicture() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.stopPictureInPicture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Whether the device and the app support Picture-in-Picture.
+  Future<bool> isPictureInPictureSupported() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.isPictureInPictureSupported$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
   /// The orientations the app allows right now (what it last passed to
   /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
   /// orientation it declares, or when the platform cannot tell.
@@ -2183,5 +2448,26 @@ Stream<PlatformDeviceOrientationEvent> deviceOrientationEvents({
     dynamic event,
   ) {
     return event as PlatformDeviceOrientationEvent;
+  });
+}
+
+/// Media control commands and Picture-in-Picture changes.
+///
+/// Returns a broadcast [Stream] of events from the `systemEvents` event channel.
+///
+/// Each call to this method creates a new [EventChannel], so it should
+/// not be called multiple times for the same `instanceName`. To deliver
+/// events to multiple listeners, call this method once and listen to the
+/// returned broadcast stream multiple times instead.
+Stream<PlatformSystemEvent> systemEvents({String instanceName = ''}) {
+  if (instanceName.isNotEmpty) {
+    instanceName = '.$instanceName';
+  }
+  final EventChannel systemEventsChannel = EventChannel(
+    'dev.flutter.pigeon.playstack_android.PlayStackEventApi.systemEvents$instanceName',
+    pigeonMethodCodec,
+  );
+  return systemEventsChannel.receiveBroadcastStream().map((dynamic event) {
+    return event as PlatformSystemEvent;
   });
 }

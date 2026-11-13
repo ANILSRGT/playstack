@@ -5,8 +5,11 @@ import 'package:flutter/material.dart'
     show
         DefaultMaterialLocalizations,
         Icons,
+        Material,
         MaterialLocalizations,
         RefreshIndicator;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -21,6 +24,7 @@ import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../manager/playstack_manager.dart';
 import '../pool/playstack_player_pool.dart';
+import '../system/playstack_media_session.dart';
 import '../view/playstack_video_view.dart';
 import 'playstack_default_controls.dart';
 import 'playstack_feed_transition.dart';
@@ -75,6 +79,8 @@ class PlayStackFeedPage<T> {
     required this.controller,
     required this.isActive,
     required this.isFullscreen,
+    this.isCinemaMode = false,
+    this.isScreenLocked = false,
   });
 
   /// Your item for this page: the element of [PlayStackFeedView.items] it shows,
@@ -98,6 +104,8 @@ class PlayStackFeedPage<T> {
     controller: controller,
     isActive: isActive,
     isFullscreen: isFullscreen,
+    isCinemaMode: isCinemaMode,
+    isScreenLocked: isScreenLocked,
   );
 
   /// The video player of this page.
@@ -122,6 +130,19 @@ class PlayStackFeedPage<T> {
   /// [PlayStackFeedViewController.enterFullscreen]). Hide captions and buttons
   /// there, or show an exit button.
   final bool isFullscreen;
+
+  /// Whether the view is in cinema mode (see
+  /// [PlayStackFeedViewController.enterCinemaMode]): hide your buttons and
+  /// captions so that only the video and its subtitles remain. The view
+  /// takes the next tap itself to leave cinema mode, so your hidden buttons
+  /// cannot be hit by accident.
+  final bool isCinemaMode;
+
+  /// Whether the screen is locked (see
+  /// [PlayStackFeedViewController.lockScreen]). Touches never reach your
+  /// controls while it is; the view shows
+  /// [PlayStackFeedView.screenLockBuilder] above them instead.
+  final bool isScreenLocked;
 
   /// Position of this page in the feed, starting at 0. It changes when items
   /// are inserted above; use [PlayStackFeedItem.id] of [item] to identify the item.
@@ -151,11 +172,38 @@ class PlayStackFeedPage<T> {
       other.index == index &&
       other.controller == controller &&
       other.isActive == isActive &&
-      other.isFullscreen == isFullscreen;
+      other.isFullscreen == isFullscreen &&
+      other.isCinemaMode == isCinemaMode &&
+      other.isScreenLocked == isScreenLocked;
 
   @override
-  int get hashCode =>
-      Object.hash(feed, view, item, index, controller, isActive, isFullscreen);
+  int get hashCode => Object.hash(
+    feed,
+    view,
+    item,
+    index,
+    controller,
+    isActive,
+    isFullscreen,
+    isCinemaMode,
+    isScreenLocked,
+  );
+}
+
+/// When a [PlayStackFeedView] enters cinema mode by itself (see
+/// [PlayStackFeedViewController.enterCinemaMode]).
+enum PlayStackCinemaMode {
+  /// Never by itself: only from a cinema button or
+  /// [PlayStackFeedViewController.enterCinemaMode].
+  manual,
+
+  /// In fullscreen, after `cinemaModeDelay` without a touch while a video
+  /// plays, as video players do. The default.
+  fullscreen,
+
+  /// Everywhere, after `cinemaModeDelay` without a touch while a video
+  /// plays.
+  always,
 }
 
 /// How long the user watched one item, passed to
@@ -420,6 +468,51 @@ class PlayStackFeedViewController extends ChangeNotifier {
   /// single fullscreen button.
   Future<void> toggleFullscreen() =>
       isFullscreen ? exitFullscreen() : enterFullscreen();
+
+  /// Whether the view is in cinema mode: the controls are hidden and the
+  /// next tap brings them back. Listen to the controller to rebuild when it
+  /// changes.
+  bool get isCinemaMode => _view?._cinema ?? false;
+
+  /// Hides the controls until the user taps the video, for an uncluttered
+  /// picture. A cinema button calls this; the view also enters cinema mode
+  /// on its own when [PlayStackFeedView.cinemaMode] says so.
+  ///
+  /// Swiping still moves the feed. Builders see
+  /// [PlayStackFeedPage.isCinemaMode] as true.
+  void enterCinemaMode() => _attached._setCinema(true);
+
+  /// Shows the controls again, as a tap does in cinema mode.
+  void exitCinemaMode() => _attached._setCinema(false);
+
+  /// Enters cinema mode, or leaves it when already in it.
+  void toggleCinemaMode() => _attached._setCinema(!isCinemaMode);
+
+  /// Whether the screen is locked (see [lockScreen]).
+  bool get isScreenLocked => _view?._screenLocked ?? false;
+
+  /// Locks the screen, as when the user puts the phone down or watches in
+  /// bed: the controls hide, touches no longer pause the video or move the
+  /// feed, the back button is ignored and the screen no longer turns when
+  /// the device does. Only the view's unlock control
+  /// ([PlayStackFeedView.screenLockBuilder]) and [unlockScreen] end it.
+  ///
+  /// The screen locks only when this is called, from a lock button of your
+  /// controls for example; the default controls have one in fullscreen.
+  Future<void> lockScreen() => _attached._setScreenLocked(true);
+
+  /// Unlocks the screen locked by [lockScreen].
+  Future<void> unlockScreen() => _attached._setScreenLocked(false);
+
+  /// Whether the video in view plays in the floating window of
+  /// Picture-in-Picture now.
+  bool get isPictureInPicture => _view?._inPictureInPicture ?? false;
+
+  /// Moves the video in view to a floating window (Picture-in-Picture), for
+  /// a button. Completes with false where it is not supported or could not
+  /// start. With [PlayStackFeedView.pictureInPicture] it also starts when
+  /// the user leaves the app.
+  Future<bool> startPictureInPicture() => _attached._startPictureInPicture();
 
   /// Mutes ([muted] true) or unmutes every video of the feed, including videos
   /// added later, like the sound switch of a short-video app. Does nothing
@@ -763,6 +856,11 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
     this.fullscreenOnRotate = true,
+    this.cinemaMode = PlayStackCinemaMode.fullscreen,
+    this.cinemaModeDelay = const Duration(seconds: 3),
+    this.screenLockBuilder,
+    this.mediaInfo,
+    this.pictureInPicture = false,
   }) : feed = null,
        preload = null,
        onEndReached = null,
@@ -804,6 +902,11 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
     this.fullscreenOnRotate = true,
+    this.cinemaMode = PlayStackCinemaMode.fullscreen,
+    this.cinemaModeDelay = const Duration(seconds: 3),
+    this.screenLockBuilder,
+    this.mediaInfo,
+    this.pictureInPicture = false,
   }) : items = preload.items,
        videoUrl = preload.videoUrl,
        source = preload.source,
@@ -861,6 +964,11 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
     this.fullscreenOnRotate = true,
+    this.cinemaMode = PlayStackCinemaMode.fullscreen,
+    this.cinemaModeDelay = const Duration(seconds: 3),
+    this.screenLockBuilder,
+    this.mediaInfo,
+    this.pictureInPicture = false,
   }) : items = null,
        preload = null,
        videoUrl = null,
@@ -1132,7 +1240,11 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// A locked item is never prepared or played, and its page shows its
   /// poster with [lockedBuilder] on top. It is asked again on every rebuild:
   /// after the user unlocks an episode, call `setState` and the video plays.
-  /// [autoAdvance] stops at a locked episode.
+  /// [autoAdvance] stops at a locked episode. While the user is away (in
+  /// the background or Picture-in-Picture) it does not move to one: the
+  /// ended video stays in the media controls, and the locked episode is
+  /// shown when the app is opened again. The skip buttons of the media
+  /// controls never lead to a locked item.
   final bool Function(T item)? isLocked;
 
   /// Builds what a locked item shows over its poster: a paywall, a "watch an
@@ -1192,6 +1304,58 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// device sideways, the feed stays as it is until the device is turned
   /// upright again.
   final bool fullscreenOnRotate;
+
+  /// When the view enters cinema mode by itself: never
+  /// ([PlayStackCinemaMode.manual]: only a cinema button or
+  /// [PlayStackFeedViewController.enterCinemaMode]), in fullscreen
+  /// ([PlayStackCinemaMode.fullscreen], the default) or everywhere
+  /// ([PlayStackCinemaMode.always]).
+  ///
+  /// In the automatic modes the controls hide after [cinemaModeDelay]
+  /// without a touch while a video plays, and a tap brings them back.
+  final PlayStackCinemaMode cinemaMode;
+
+  /// How long the controls stay after the last touch before an automatic
+  /// [cinemaMode] hides them, 3 seconds by default.
+  final Duration cinemaModeDelay;
+
+  /// What the screen shows while it is locked (see
+  /// [PlayStackFeedViewController.lockScreen]), above the hidden controls.
+  /// It receives every touch; call `page.view.unlockScreen()` from it to
+  /// unlock.
+  ///
+  /// Defaults to [PlayStackScreenLockOverlay]: a tap shows an unlock button
+  /// for a few seconds.
+  final PlayStackFeedPageBuilder<T>? screenLockBuilder;
+
+  /// What the system's media controls show for an item: return a
+  /// [PlayStackMediaInfo] to show the video in view on the lock screen, in
+  /// the notification shade (Android), in Control Center (iOS), on
+  /// headphones and in cars, with play, pause, the position bar and skip
+  /// buttons that move the feed. The video in view then keeps playing while
+  /// the app is in the background, for listening.
+  ///
+  /// ```dart
+  /// mediaInfo: (episode) => PlayStackMediaInfo(
+  ///   title: episode.title,
+  ///   artist: series.title,
+  ///   artworkUrl: episode.poster,
+  /// ),
+  /// ```
+  ///
+  /// Null (the default), or null for an item, shows nothing and pauses in
+  /// the background as usual. Needs platform setup for background audio;
+  /// see `PlayStackMediaSession`.
+  final PlayStackMediaInfo? Function(T item)? mediaInfo;
+
+  /// Whether the video in view moves to a floating window when the user
+  /// leaves the app while it plays (Picture-in-Picture). False by default.
+  /// [PlayStackFeedViewController.startPictureInPicture] also starts it from
+  /// a button.
+  ///
+  /// Needs platform setup; see `PlayStackPictureInPicture`. Where it is not
+  /// supported nothing happens.
+  final bool pictureInPicture;
 
   /// Called when the user leaves an item (swipes to another one, or the view
   /// is removed) with how long they watched it: watch time, whether they
@@ -1263,7 +1427,25 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   /// Bumped when the widget changes, to rebuild the fullscreen page with
   /// the new builders.
   final ValueNotifier<int> _widgetUpdates = ValueNotifier<int>(0);
+
+  // Media controls and Picture-in-Picture.
+  bool _ownsMediaSession = false;
+  bool _ownsPictureInPicture = false;
+  bool _inPictureInPicture = false;
+  bool _routeForPictureInPicture = false;
+  PlayStackPictureInPicture? _pictureInPictureListened;
+
+  // Cinema mode and the screen lock.
+  bool _cinema = false;
+  bool _screenLocked = false;
+  Timer? _cinemaTimer;
   bool _advanced = false;
+
+  /// A video ended while the user was away (background, Picture-in-Picture)
+  /// and the next item is locked or has no video: the move waits until the
+  /// app is open again, so the paywall is seen instead of a frozen window.
+  bool _advanceWhenBack = false;
+  AppLifecycleListener? _lifecycle;
   bool _loadingMore = false;
   bool _exhausted = false;
   int _endReachedAtLength = -1;
@@ -1294,6 +1476,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   void initState() {
     super.initState();
     _controller._view = this;
+    _lifecycle = AppLifecycleListener(onResume: _onAppResumed);
     final feed = widget.feed;
     if (feed != null) {
       _attach(feed);
@@ -1429,6 +1612,9 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     fullscreen.isFullscreen.addListener(_onFullscreenChanged);
     _isFullscreen = fullscreen.isFullscreen.value;
     _syncDeviceOrientations();
+    final pictureInPicture = feed.manager.pictureInPicture;
+    _pictureInPictureListened = pictureInPicture;
+    pictureInPicture.isActive.addListener(_onPictureInPictureChanged);
     if (feed.length > 0 && feed.activeIndex.value == null) {
       // Not during build: activating notifies the feed's listeners.
       scheduleMicrotask(() {
@@ -1454,6 +1640,11 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     }
     _fullscreen?.isFullscreen.removeListener(_onFullscreenChanged);
     _stopDeviceOrientations();
+    _pictureInPictureListened?.isActive.removeListener(
+      _onPictureInPictureChanged,
+    );
+    _pictureInPictureListened = null;
+    _releaseSystem(feed);
     if (feed == null || feed.isDisposed) return;
     feed.removeListener(_onItemsChanged);
     feed.activeIndex.removeListener(_onActiveChanged);
@@ -1485,12 +1676,20 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (oldWidget.fullscreenOnRotate != widget.fullscreenOnRotate) {
       _syncDeviceOrientations();
     }
+    if (oldWidget.cinemaMode != widget.cinemaMode ||
+        oldWidget.cinemaModeDelay != widget.cinemaModeDelay) {
+      _scheduleCinema();
+    }
     final items = widget.items;
     final owned = _ownedFeed;
     if (owned != null && items != null && !identical(items, oldWidget.items)) {
       _syncItems(owned, oldWidget.items ?? const [], items);
     }
     if (owned != null && !owned.isDisposed) _syncLocks(owned);
+    if (oldWidget.mediaInfo != widget.mediaInfo ||
+        oldWidget.pictureInPicture != widget.pictureInPicture) {
+      _syncSystem();
+    }
     // The fullscreen page uses this widget's builders.
     if (_fullscreenRoute != null) _widgetUpdates.value++;
   }
@@ -1517,6 +1716,8 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
 
   @override
   void dispose() {
+    _lifecycle?.dispose();
+    _lifecycle = null;
     final fullscreen = _fullscreen;
     _detach();
     final route = _fullscreenRoute;
@@ -1536,6 +1737,10 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       scheduleMicrotask(updates.dispose);
     }
     if (_controller._view == this) _controller._view = null;
+    _cinemaTimer?.cancel();
+    if (_screenLocked && fullscreen != null) {
+      unawaited(fullscreen.unlockOrientation().catchError(_ignore));
+    }
     _ownController?.dispose();
     _pages?.dispose();
     _ownedFeed?.dispose();
@@ -1565,11 +1770,13 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
 
   void _onActiveChanged() {
     if (!mounted) return;
+    _syncSystem();
     _trackViewed();
     final index = _feed?.activeIndex.value;
     if (index == null) return;
     _followFeed();
     _watchActive();
+    if (!_cinema) _scheduleCinema();
     // The feed hides the active page's video while fullscreen.
     if (_fullscreenRoute != null) setState(() {});
     _precache(index);
@@ -1785,6 +1992,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (active == _watched) return;
     _unwatch();
     _advanced = false;
+    _advanceWhenBack = false;
     _watched = active?..addListener(_onActiveState);
   }
 
@@ -1802,8 +2010,35 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (!_advanced &&
         watched.value.status == PlayStackPlaybackStatus.completed) {
       _advanced = true;
-      unawaited(_controller.nextPage());
+      _advance();
     }
+  }
+
+  /// Whether the user sees the app itself: not in the background and not in
+  /// the floating window.
+  bool get _userInApp =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+      !_inPictureInPicture;
+
+  void _advance() {
+    final feed = _feed;
+    final index = feed?.activeIndex.value;
+    if (feed == null || index == null || index + 1 >= feed.length) return;
+    if (_userInApp) {
+      unawaited(_controller.nextPage());
+    } else if (feed.itemAt(index + 1).isPlayable) {
+      // No frames run in the background: move the feed at once, the page
+      // follows when the app is shown again.
+      feed.setActiveIndex(index + 1);
+    } else {
+      _advanceWhenBack = true;
+    }
+  }
+
+  void _onAppResumed() {
+    if (!_advanceWhenBack || !mounted || !_userInApp) return;
+    _advanceWhenBack = false;
+    unawaited(_controller.nextPage());
   }
 
   // --- navigation and fullscreen ------------------------------------------
@@ -1857,6 +2092,11 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   }
 
   Future<void> _exitFullscreen() async {
+    // Leaving fullscreen restores the orientation policy; nothing to unlock.
+    if (_screenLocked) {
+      _screenLocked = false;
+      _viewChanged();
+    }
     _closeFullscreenRoute();
     await _fullscreen?.exit();
     _restoreQuality();
@@ -1866,7 +2106,14 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     final value = _fullscreen?.isFullscreen.value ?? false;
     if (value == _isFullscreen || !mounted) return;
     setState(() => _isFullscreen = value);
-    if (!value) {
+    if (value) {
+      _scheduleCinema();
+    } else {
+      _screenLocked = false;
+      if (widget.cinemaMode == PlayStackCinemaMode.fullscreen) {
+        _cinema = false;
+        _cinemaTimer?.cancel();
+      }
       // Left from outside the view (Escape in a browser).
       _closeFullscreenRoute();
       _restoreQuality();
@@ -1902,6 +2149,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   void _onRotated(Orientation orientation) {
     // The sensors know better: an unlocked interface turns with the device.
     if (!widget.fullscreenOnRotate || _deviceOrientations != null) return;
+    if (_screenLocked) return;
     if (orientation == Orientation.portrait) {
       _awaitUpright = false;
       if (_isFullscreen && _rotatedIn) {
@@ -1953,7 +2201,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
             : null);
     _device = orientation;
     if (previous == null || previous == orientation || !mounted) return;
-    if (orientation == DeviceOrientation.portraitDown) return;
+    if (orientation == DeviceOrientation.portraitDown || _screenLocked) return;
     if (orientation == DeviceOrientation.portraitUp) {
       _awaitUpright = false;
       // Fullscreen opened by turning the device, or opened with the button
@@ -1977,6 +2225,209 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     unawaited(_enterFullscreen(rotated: true).catchError(_ignore));
   }
 
+  // --- media controls and Picture-in-Picture -------------------------------
+
+  /// Hands the video in view to the media controls and Picture-in-Picture,
+  /// as [PlayStackFeedView.mediaInfo] and [PlayStackFeedView.pictureInPicture]
+  /// say.
+  void _syncSystem() {
+    final feed = _feed;
+    if (feed == null || feed.isDisposed) return;
+    final manager = feed.manager;
+    final index = feed.activeIndex.value;
+    final item = index == null || index >= feed.length
+        ? null
+        : feed.itemAt(index);
+    final controller = item != null && item.isPlayable
+        ? feed.activeController
+        : null;
+
+    final mediaInfo = controller == null
+        ? null
+        : widget.mediaInfo?.call(item!.data as T);
+    final session = manager.mediaSession;
+    if (controller != null && mediaInfo != null) {
+      _ownsMediaSession = true;
+      unawaited(
+        session
+            .show(
+              controller,
+              mediaInfo,
+              // Never to a locked item or a page without video: the lock
+              // screen cannot show a paywall.
+              onNext: _playableAt(feed, index! + 1) ? _skipNext : null,
+              onPrevious: _playableAt(feed, index - 1) ? _skipPrevious : null,
+            )
+            .catchError(_reportSystem),
+      );
+    } else if (_ownsMediaSession) {
+      _ownsMediaSession = false;
+      unawaited(session.clear().catchError(_reportSystem));
+    }
+
+    final pictureInPicture = manager.pictureInPicture;
+    if (controller != null && widget.pictureInPicture) {
+      _ownsPictureInPicture = true;
+      unawaited(pictureInPicture.enable(controller).catchError(_reportSystem));
+    } else if (_ownsPictureInPicture && controller == null) {
+      _ownsPictureInPicture = false;
+      unawaited(pictureInPicture.disable().catchError(_reportSystem));
+    }
+  }
+
+  void _releaseSystem(PlayStackFeedManager? feed) {
+    if (feed == null || feed.isDisposed) return;
+    final manager = feed.manager;
+    if (_ownsMediaSession) {
+      _ownsMediaSession = false;
+      unawaited(manager.mediaSession.clear().catchError(_reportSystem));
+    }
+    if (_ownsPictureInPicture) {
+      _ownsPictureInPicture = false;
+      unawaited(manager.pictureInPicture.disable().catchError(_reportSystem));
+    }
+  }
+
+  // The skip buttons of the media controls also work in the background,
+  // where no frames run: the feed moves at once and the page follows when
+  // the app is shown again.
+  static bool _playableAt(PlayStackFeedManager feed, int index) =>
+      index >= 0 && index < feed.length && feed.itemAt(index).isPlayable;
+
+  void _skipNext() {
+    final feed = _feed;
+    final index = feed?.activeIndex.value;
+    if (feed == null || index == null || !_playableAt(feed, index + 1)) return;
+    feed.setActiveIndex(index + 1);
+  }
+
+  void _skipPrevious() {
+    final feed = _feed;
+    final index = feed?.activeIndex.value;
+    if (feed == null || index == null || !_playableAt(feed, index - 1)) return;
+    feed.setActiveIndex(index - 1);
+  }
+
+  Future<bool> _startPictureInPicture() async {
+    final feed = _feed;
+    final controller = feed?.activeController;
+    if (feed == null || controller == null) return false;
+    final pictureInPicture = feed.manager.pictureInPicture;
+    if (!await pictureInPicture.isSupported()) return false;
+    _ownsPictureInPicture = true;
+    await pictureInPicture.enable(
+      controller,
+      autoEnter: widget.pictureInPicture,
+    );
+    return pictureInPicture.start();
+  }
+
+  /// On Android the whole app is shown in the floating window: show only
+  /// the video, as video apps do. On iOS the system shows the video itself.
+  void _onPictureInPictureChanged() {
+    final pictureInPicture = _pictureInPictureListened;
+    if (pictureInPicture == null || !mounted) return;
+    final feed = _feed;
+    final active =
+        pictureInPicture.isActive.value &&
+        feed != null &&
+        identical(pictureInPicture.controller, feed.activeController);
+    if (active == _inPictureInPicture) return;
+    _inPictureInPicture = active;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      if (active && _fullscreenRoute == null) {
+        _routeForPictureInPicture = true;
+        _openFullscreenRoute();
+      } else if (!active && _routeForPictureInPicture) {
+        _routeForPictureInPicture = false;
+        _closeFullscreenRoute();
+      }
+    }
+    _viewChanged();
+  }
+
+  static void _reportSystem(Object error, StackTrace stack) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'playstack',
+        context: ErrorDescription(
+          'while updating the media controls or Picture-in-Picture',
+        ),
+      ),
+    );
+  }
+
+  // --- cinema mode and screen lock ------------------------------------------
+
+  /// Rebuilds the feed and the fullscreen route, and tells listeners.
+  void _viewChanged() {
+    if (!mounted) return;
+    setState(() {});
+    if (_fullscreenRoute != null) _widgetUpdates.value++;
+    _controller._changed();
+  }
+
+  bool get _autoCinema => switch (widget.cinemaMode) {
+    PlayStackCinemaMode.manual => false,
+    PlayStackCinemaMode.fullscreen => _isFullscreen,
+    PlayStackCinemaMode.always => true,
+  };
+
+  void _setCinema(bool on) {
+    // The lock keeps the controls hidden until it is unlocked.
+    if (_screenLocked) return;
+    _cinemaTimer?.cancel();
+    _cinemaTimer = null;
+    if (on != _cinema) {
+      _cinema = on;
+      _viewChanged();
+    }
+    if (!on) _scheduleCinema();
+  }
+
+  /// Starts the countdown of an automatic [PlayStackFeedView.cinemaMode].
+  void _scheduleCinema() {
+    _cinemaTimer?.cancel();
+    _cinemaTimer = null;
+    if (!mounted || !_autoCinema || _cinema || _screenLocked) return;
+    _cinemaTimer = Timer(widget.cinemaModeDelay, () {
+      _cinemaTimer = null;
+      if (!mounted || !_autoCinema) return;
+      final playing = _feed?.activeController?.value.isPlaying ?? false;
+      // Paused videos keep their controls; check again later.
+      playing ? _setCinema(true) : _scheduleCinema();
+    });
+  }
+
+  /// A finger touched the feed: the controls stay a while longer.
+  void _onUserActivity() {
+    if (!_cinema) _scheduleCinema();
+  }
+
+  Future<void> _setScreenLocked(bool locked) async {
+    if (locked == _screenLocked) return;
+    _screenLocked = locked;
+    _cinemaTimer?.cancel();
+    _cinemaTimer = null;
+    // Unlocking brings the controls back.
+    if (!locked) _cinema = false;
+    _viewChanged();
+    if (!locked) _scheduleCinema();
+    final fullscreen = _fullscreen;
+    if (fullscreen == null) return;
+    try {
+      if (locked) {
+        await fullscreen.lockOrientation();
+      } else {
+        await fullscreen.unlockOrientation();
+      }
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while locking the orientation');
+    }
+  }
+
   /// Shows the video on a route above the app's screens, so bars around the
   /// feed (a bottom navigation bar, an app bar) are covered. Without a
   /// navigator the feed goes fullscreen where it is.
@@ -1989,11 +2440,19 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       // route shows it (a web video element can be in one place only).
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
-      pageBuilder: (context, _, _) => PopScope(
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) _onFullscreenRoutePopped();
-        },
-        child: _buildFullscreenPage(context),
+      pageBuilder: (context, _, _) => ValueListenableBuilder<int>(
+        valueListenable: _widgetUpdates,
+        builder: (context, _, _) => PopScope(
+          canPop: !_screenLocked,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) _onFullscreenRoutePopped();
+          },
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _onUserActivity(),
+            child: _buildFullscreenPage(context),
+          ),
+        ),
       ),
     );
     setState(() => _fullscreenRoute = route);
@@ -2022,7 +2481,8 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     final feed = _feed;
     final background = ColoredBox(color: widget.backgroundColor);
     if (feed == null || feed.isDisposed) return background;
-    return ColoredBox(
+    // The route has no Scaffold: Material gives text a proper style.
+    return Material(
       color: widget.backgroundColor,
       child: ListenableBuilder(
         listenable: Listenable.merge([feed, feed.activeIndex, _widgetUpdates]),
@@ -2040,8 +2500,14 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
               item: item,
               index: index,
               isFullscreen: true,
+              isCinemaMode: _cinema,
+              isScreenLocked: _screenLocked,
               videoBuilder: widget.videoBuilder,
-              controlsBuilder: widget.controlsBuilder,
+              // The floating window shows only the video.
+              controlsBuilder: _inPictureInPicture
+                  ? null
+                  : widget.controlsBuilder,
+              screenLockBuilder: widget.screenLockBuilder,
               pageBuilder: widget.pageBuilder,
               lockedBuilder: widget.lockedBuilder,
               fit: widget.fit,
@@ -2088,69 +2554,79 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     // Fullscreen in place, when there was no navigator for a route.
     final inPlace = _isFullscreen && _fullscreenRoute == null;
     return PopScope(
-      canPop: !inPlace,
+      canPop: !inPlace && !_screenLocked,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && inPlace) unawaited(_exitFullscreen());
+        if (!didPop && inPlace && !_screenLocked) {
+          unawaited(_exitFullscreen());
+        }
       },
-      child: ColoredBox(
-        color: widget.backgroundColor,
-        child: _withRefresh(
-          context,
-          LayoutBuilder(
-            builder: (context, constraints) => PageView.builder(
-              controller: pages,
-              scrollDirection: widget.scrollDirection,
-              reverse: widget.reverse,
-              physics: inPlace
-                  ? const NeverScrollableScrollPhysics()
-                  : widget.physics,
-              onPageChanged: _onPageChanged,
-              itemCount: feed.length,
-              findChildIndexCallback: (key) {
-                if (key is! ValueKey<String>) return null;
-                final index = feed.indexOf(key.value);
-                return index < 0 ? null : index;
-              },
-              itemBuilder: (context, index) {
-                final item = feed.itemAt(index);
-                Widget page =
-                    _fullscreenRoute != null && index == feed.activeIndex.value
-                    // Shown by the fullscreen route.
-                    ? const SizedBox.expand()
-                    : _PageContent<T>(
-                        feed: feed,
-                        view: _controller,
-                        item: item,
-                        index: index,
-                        isFullscreen: inPlace,
-                        videoBuilder: widget.videoBuilder,
-                        controlsBuilder: widget.controlsBuilder,
-                        pageBuilder: widget.pageBuilder,
-                        lockedBuilder: widget.lockedBuilder,
-                        fit: widget.fit,
-                      );
-                page = _ScrollHandoff(
-                  axis: widget.scrollDirection,
-                  reverse: widget.reverse,
-                  onEdge: _onInnerEdge,
-                  child: page,
-                );
-                if (!widget.transition.isIdentity) {
-                  page = _TransitionedPage(
-                    pages: pages,
-                    index: index,
-                    transition: widget.transition,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _onUserActivity(),
+        child: ColoredBox(
+          color: widget.backgroundColor,
+          child: _withRefresh(
+            context,
+            LayoutBuilder(
+              builder: (context, constraints) => PageView.builder(
+                controller: pages,
+                scrollDirection: widget.scrollDirection,
+                reverse: widget.reverse,
+                physics: inPlace || _screenLocked
+                    ? const NeverScrollableScrollPhysics()
+                    : widget.physics,
+                onPageChanged: _onPageChanged,
+                itemCount: feed.length,
+                findChildIndexCallback: (key) {
+                  if (key is! ValueKey<String>) return null;
+                  final index = feed.indexOf(key.value);
+                  return index < 0 ? null : index;
+                },
+                itemBuilder: (context, index) {
+                  final item = feed.itemAt(index);
+                  Widget page =
+                      _fullscreenRoute != null &&
+                          index == feed.activeIndex.value
+                      // Shown by the fullscreen route.
+                      ? const SizedBox.expand()
+                      : _PageContent<T>(
+                          feed: feed,
+                          view: _controller,
+                          item: item,
+                          index: index,
+                          isFullscreen: inPlace,
+                          isCinemaMode: _cinema,
+                          isScreenLocked: _screenLocked,
+                          videoBuilder: widget.videoBuilder,
+                          controlsBuilder: widget.controlsBuilder,
+                          screenLockBuilder: widget.screenLockBuilder,
+                          pageBuilder: widget.pageBuilder,
+                          lockedBuilder: widget.lockedBuilder,
+                          fit: widget.fit,
+                        );
+                  page = _ScrollHandoff(
                     axis: widget.scrollDirection,
                     reverse: widget.reverse,
-                    size: constraints.biggest,
+                    onEdge: _onInnerEdge,
                     child: page,
                   );
-                }
-                return KeyedSubtree(
-                  key: ValueKey<String>(item.id),
-                  child: page,
-                );
-              },
+                  if (!widget.transition.isIdentity) {
+                    page = _TransitionedPage(
+                      pages: pages,
+                      index: index,
+                      transition: widget.transition,
+                      axis: widget.scrollDirection,
+                      reverse: widget.reverse,
+                      size: constraints.biggest,
+                      child: page,
+                    );
+                  }
+                  return KeyedSubtree(
+                    key: ValueKey<String>(item.id),
+                    child: page,
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -2210,8 +2686,11 @@ class _PageContent<T> extends StatelessWidget {
     required this.item,
     required this.index,
     required this.isFullscreen,
+    required this.isCinemaMode,
+    required this.isScreenLocked,
     required this.videoBuilder,
     required this.controlsBuilder,
+    required this.screenLockBuilder,
     required this.pageBuilder,
     required this.lockedBuilder,
     required this.fit,
@@ -2222,8 +2701,11 @@ class _PageContent<T> extends StatelessWidget {
   final PlayStackFeedItem item;
   final int index;
   final bool isFullscreen;
+  final bool isCinemaMode;
+  final bool isScreenLocked;
   final PlayStackFeedPageBuilder<T>? videoBuilder;
   final PlayStackFeedPageBuilder<T>? controlsBuilder;
+  final PlayStackFeedPageBuilder<T>? screenLockBuilder;
   final PlayStackFeedItemBuilder<T>? pageBuilder;
   final PlayStackFeedItemBuilder<T>? lockedBuilder;
   final BoxFit? fit;
@@ -2270,6 +2752,8 @@ class _PageContent<T> extends StatelessWidget {
           controller: controller,
           isActive: active == index,
           isFullscreen: isFullscreen,
+          isCinemaMode: isCinemaMode,
+          isScreenLocked: isScreenLocked,
         );
         final controls = controlsBuilder?.call(context, page);
         return Stack(
@@ -2277,6 +2761,18 @@ class _PageContent<T> extends StatelessWidget {
           children: [
             videoBuilder?.call(context, page) ?? _video(controller),
             ?controls,
+            if (isScreenLocked)
+              // Above the controls: every touch ends here.
+              screenLockBuilder?.call(context, page) ??
+                  PlayStackScreenLockOverlay(page: page)
+            else if (isCinemaMode)
+              // The next tap brings the hidden controls back instead of
+              // reaching them. Swipes still move the feed.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: view.exitCinemaMode,
+                child: const SizedBox.expand(),
+              ),
           ],
         );
       },

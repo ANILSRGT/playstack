@@ -12,6 +12,7 @@ import '../feed/playstack_feed_item.dart';
 import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../pool/playstack_player_pool.dart';
+import '../system/playstack_media_session.dart';
 import 'playstack_playback_coordinator.dart';
 
 /// The entry point of PlayStack: starts the native video engine, keeps a
@@ -58,6 +59,9 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   StreamSubscription<PlayStackNetworkStatus>? _networkEvents;
   PlayStackCacheManager? _cache;
   PlayStackFullscreenManager? _fullscreen;
+  PlayStackMediaSession? _mediaSession;
+  PlayStackPictureInPicture? _pictureInPicture;
+  StreamSubscription<PlayStackSystemEvent>? _systemEvents;
 
   Future<void>? _initialization;
   PlayStackPlatformCapabilities? _capabilities;
@@ -109,6 +113,19 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   PlayStackFullscreenManager get fullscreen =>
       _fullscreen ?? (throw _notInitialized());
 
+  /// Shows a video in the system's media controls (lock screen,
+  /// notification, headphones) and keeps it playing in the background.
+  /// `PlayStackFeedView.mediaInfo` uses it for you. Throws before
+  /// [initialize].
+  PlayStackMediaSession get mediaSession =>
+      _mediaSession ?? (throw _notInitialized());
+
+  /// Plays a video in a floating window outside the app.
+  /// `PlayStackFeedView.pictureInPicture` uses it for you. Throws before
+  /// [initialize].
+  PlayStackPictureInPicture get pictureInPicture =>
+      _pictureInPicture ?? (throw _notInitialized());
+
   /// The device's connection: offline, Wi-Fi, mobile data, metered, data
   /// saver. Feeds use it to preload less on mobile data; show it to the user
   /// if you like. [PlayStackNetworkStatus.unknown] before [initialize] and on
@@ -158,6 +175,14 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
     _capabilities = capabilities;
     _cache = PlayStackCacheManager(platform, capabilities);
     _fullscreen = PlayStackFullscreenManager(platform, config.fullscreen);
+    final mediaSession = _mediaSession = PlayStackMediaSession(platform);
+    final pictureInPicture = _pictureInPicture = PlayStackPictureInPicture(
+      platform,
+    );
+    _systemEvents = platform.systemEvents.listen((event) {
+      mediaSession.handle(event);
+      pictureInPicture.handle(event);
+    }, onError: (Object _) {});
     final playerConfig = config.player;
     _pool = PlayStackPlayerPool(
       platform: platform,
@@ -262,6 +287,16 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
     _bindingObserver?.detach();
     _bindingObserver = null;
     _pausedByLifecycle.clear();
+    unawaited(_systemEvents?.cancel());
+    _systemEvents = null;
+    try {
+      await _mediaSession?.clear();
+      await _pictureInPicture?.disable();
+    } on Object catch (error, stack) {
+      _reportError(error, stack, 'while removing the media controls');
+    }
+    _mediaSession?.dispose();
+    _pictureInPicture?.dispose();
     try {
       await _fullscreen?.dispose();
     } on Object catch (error, stack) {
@@ -421,6 +456,11 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
           _controllers,
         )) {
           if (!controller.value.isPlaying) continue;
+          // Background audio and the floating window keep playing.
+          if ((_mediaSession?.keepsPlaying(controller) ?? false) ||
+              (_pictureInPicture?.keepsPlaying(controller) ?? false)) {
+            continue;
+          }
           _pausedByLifecycle.add(controller);
           unawaited(controller.pause().catchError(_reportLifecycleError));
         }

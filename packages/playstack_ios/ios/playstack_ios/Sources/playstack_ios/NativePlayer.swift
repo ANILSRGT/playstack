@@ -46,6 +46,8 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   private var firstFrameSent = false
   private var awaitingFrame = false
   private var lastReportedPlaying = false
+  /// Renditions of an HLS stream, loaded once it is ready.
+  private var variants: [AVAssetVariant] = []
   private var rotationDegrees: Int64 = 0
   private var pixelAspectRatio: Double = 1
 
@@ -55,6 +57,26 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   private var released = false
 
   private static let noSource: Int64 = -1
+
+  /// Called when playing, pausing, seeking or the duration change; the
+  /// lock screen controls follow the player with it.
+  var onPlaybackChange: (() -> Void)?
+
+  /// The player, for Picture-in-Picture.
+  var avPlayer: AVPlayer { player }
+
+  var isPlaying: Bool { player.rate != 0 }
+
+  var positionSeconds: Double {
+    let time = player.currentTime()
+    return time.isNumeric ? CMTimeGetSeconds(time) : 0
+  }
+
+  /// Nil for live streams and before the source is ready.
+  var durationSeconds: Double? {
+    guard let duration = item?.duration, duration.isNumeric else { return nil }
+    return CMTimeGetSeconds(duration)
+  }
 
   init(
     id: Int64, options: PlatformPlayerOptions, events: PlayerEventDispatcher,
@@ -146,9 +168,21 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     let time = CMTime(value: positionMs, timescale: 1000)
     awaitingFrame = true
     updateDisplayLink()
-    player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-      DispatchQueue.main.async(execute: completion)
+    var answered = false
+    let answer = { [weak self] in
+      guard !answered else { return }
+      answered = true
+      self?.onPlaybackChange?()
+      completion()
     }
+    player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero) { _ in
+      DispatchQueue.main.async(execute: answer)
+    }
+    // AVPlayer sometimes never calls the completion of an exact seek on a
+    // paused item that has played (seen on iOS 26). The seek still takes
+    // effect, so the caller is answered after a moment rather than waiting
+    // forever.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: answer)
   }
 
   private var pausedBufferLimit: TimeInterval?
@@ -168,7 +202,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
 
   func tracks() -> [PlatformTrack] {
     guard let item, initializedSent else { return [] }
-    return TrackSelection.list(item)
+    return TrackSelection.list(item, variants: variants)
   }
 
   func selectTrack(type: PlatformTrackType, trackId: String?) throws {
@@ -230,6 +264,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   func release() {
     guard !released else { return }
     released = true
+    onPlaybackChange = nil
     detachItem()
     playerObservations.forEach { $0.invalidate() }
     playerObservations.removeAll()
@@ -384,10 +419,32 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
           rotationDegrees: rotationDegrees, pixelAspectRatio: pixelAspectRatio))
       emitState(player.timeControlStatus == .waitingToPlayAtSpecifiedRate ? .buffering : .ready)
       updateDisplayLink()
+      loadVariants(of: item)
+      onPlaybackChange?()
     case .failed:
       emitError(item.error)
     default:
       break
+    }
+  }
+
+  /// Reads the stream's renditions for quality menus, then tells Dart the
+  /// track list changed.
+  private func loadVariants(of item: AVPlayerItem) {
+    guard let asset = item.asset as? AVURLAsset else { return }
+    let generation = self.generation
+    Task { @MainActor [weak self, weak item] in
+      let loaded: [AVAssetVariant]
+      if #available(iOS 16.0, *) {
+        loaded = (try? await asset.load(.variants)) ?? []
+      } else {
+        loaded = asset.variants
+      }
+      guard let self, let item, item === self.item, self.generation == generation,
+        !loaded.isEmpty
+      else { return }
+      self.variants = loaded
+      self.events.emit(PlatformTracksChangedEvent(playerId: self.id, generation: generation))
     }
   }
 
@@ -407,6 +464,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
 
   private func reportPlaying(_ isPlaying: Bool) {
     updateDisplayLink()
+    onPlaybackChange?()
     guard generation != NativePlayer.noSource, isPlaying != lastReportedPlaying else { return }
     lastReportedPlaying = isPlaying
     events.emit(PlatformIsPlayingEvent(playerId: id, generation: generation, isPlaying: isPlaying))
@@ -479,6 +537,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     lastReportedPlaying = false
     rotationDegrees = 0
     pixelAspectRatio = 1
+    variants = []
     itemObservations.forEach { $0.invalidate() }
     itemObservations.removeAll()
     itemNotifications.forEach { NotificationCenter.default.removeObserver($0) }

@@ -208,6 +208,19 @@ PlayStackFeedView<Post>(
   `PlayStackDefaultControls` unless you pass your own `controlsBuilder`. Its
   defaults (`PlayStackConfig.reels`, `PlayStackFeedConfig.reels`) are tuned for
   fast swiping.
+- **Cinema mode and screen lock.** `PlayStackFeedView.cinemaMode` hides the
+  controls until the next tap, from a button or by itself after a few
+  seconds (in fullscreen by default, or `always`). The screen lock, turned on only from a
+  button (`view.lockScreen()`), ignores touches, swipes, back and rotation.
+- **Picture quality.** `controller.videoQualities` and `setVideoQuality`
+  let the user pick a rendition of an HLS or DASH stream; the default
+  settings sheet lists them.
+- **Media controls and Picture-in-Picture.** `PlayStackFeedView.mediaInfo`
+  (or `manager.mediaSession`) shows the video on the lock screen and in the
+  notification and keeps its sound playing in the background;
+  `pictureInPicture: true` (or `manager.pictureInPicture`) moves it to a
+  floating window when the user leaves the app. Both need platform setup
+  ([guide](docs/guides/background-playback.md)).
 
 Each concept has a guide with examples in [docs/](docs/README.md).
 

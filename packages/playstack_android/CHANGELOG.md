@@ -1,5 +1,11 @@
 ## Unreleased
 
+* Media controls through a Media3 `MediaSession` whose commands go to Dart;
+  `PlayStackMediaService` (declared by the app) shows the notification and
+  keeps playback alive in the background.
+* Picture-in-Picture of the activity with the video's aspect ratio,
+  automatic on leaving the app (`setAutoEnterEnabled` on Android 12+, the
+  user-leave hint before).
 * Device orientation from `OrientationEventListener`, also while the
   activity is locked to one orientation, and the app's requested
   orientation for restoring it after fullscreen.

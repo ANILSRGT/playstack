@@ -5,6 +5,7 @@ import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
 import '../controller/playstack_playback_state.dart';
 import '../controller/playstack_player_controller.dart';
+import '../controller/playstack_video_quality.dart';
 import '../feed/playstack_feed_manager.dart';
 import 'playstack_feed_view.dart';
 
@@ -33,8 +34,8 @@ enum PlayStackHoldAction {
 /// * a sound switch at the bottom right that mutes the whole feed;
 /// * a fullscreen button next to it on landscape videos (an exit button in
 ///   fullscreen);
-/// * a settings button that opens [PlayStackSettingsSheet]: playback speed
-///   and subtitles;
+/// * a settings button that opens [PlayStackSettingsSheet]: playback speed,
+///   quality and subtitles;
 /// * the subtitle text, when a subtitle track is on (see
 ///   [PlayStackSubtitles]);
 /// * hold to pause (or to play faster, see [holdAction]);
@@ -42,7 +43,12 @@ enum PlayStackHoldAction {
 ///   the video;
 /// * a spinner that appears only when loading takes long (see
 ///   [bufferingIndicatorDelay]);
-/// * a retry button when a video fails.
+/// * a retry button when a video fails;
+/// * in fullscreen, a cinema button that hides the controls until the next
+///   tap, and a lock button (see [PlayStackFeedViewController.lockScreen]).
+///
+/// In cinema mode and while the screen is locked only the video, the
+/// subtitles and the loading spinner stay on screen.
 ///
 /// Keep them and add your own layer on top with [child]:
 ///
@@ -74,10 +80,13 @@ class PlayStackDefaultControls extends StatefulWidget {
     this.showProgress = true,
     this.showSettingsButton = true,
     this.showSubtitles = true,
+    this.showCinemaModeButton = true,
+    this.showLockButton = true,
     this.playbackSpeeds = PlayStackSettingsSheet.defaultSpeeds,
     this.seekable = true,
     this.showBufferingIndicator = true,
     this.bufferingIndicatorDelay = const Duration(seconds: 2),
+    this.bufferingIndicator,
     this.color = const Color(0xFFFFFFFF),
   });
 
@@ -145,6 +154,16 @@ class PlayStackDefaultControls extends StatefulWidget {
   /// picks a track in the settings sheet, unless the stream turns one on.
   final bool showSubtitles;
 
+  /// Whether a cinema button hides the controls until the next tap
+  /// ([PlayStackFeedViewController.enterCinemaMode]). True by default.
+  final bool showCinemaModeButton;
+
+  /// Whether a lock button is shown
+  /// ([PlayStackFeedViewController.lockScreen]): touches, swipes and
+  /// turning the device are ignored until the user unlocks. True by
+  /// default.
+  final bool showLockButton;
+
   /// The speeds offered in the settings sheet.
   /// [PlayStackSettingsSheet.defaultSpeeds] (0.5x to 2x) by default.
   final List<double> playbackSpeeds;
@@ -161,6 +180,10 @@ class PlayStackDefaultControls extends StatefulWidget {
   /// looks like a brief pause rather than a loading screen. Over a black
   /// screen (no frame and no poster yet) the spinner appears after 800 ms.
   final Duration bufferingIndicatorDelay;
+
+  /// What is shown while the video loads, for example your own animation.
+  /// Null shows a spinner. Appears after the same delays.
+  final Widget? bufferingIndicator;
 
   /// Color of the icons, the spinner and the progress bar. White by default.
   final Color color;
@@ -265,6 +288,10 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
           );
         }
         final shadow = [const Shadow(blurRadius: 8)];
+        // Cinema mode and the screen lock leave the picture alone; the view
+        // takes the touches meanwhile.
+        final hidden = page.isCinemaMode || page.isScreenLocked;
+        Widget chrome(Widget child) => _Chrome(hidden: hidden, child: child);
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -285,8 +312,8 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
             ),
             // Above the gesture layer, not inside it: its buttons get their
             // taps at once instead of waiting for a possible double tap.
-            ?widget.child,
-            if (_holding == PlayStackHoldAction.speedUp)
+            if (widget.child case final child?) chrome(child),
+            if (_holding == PlayStackHoldAction.speedUp && !hidden)
               Positioned(
                 top: 16,
                 left: 0,
@@ -326,8 +353,11 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
                 hasPoster: page.item.poster != null,
                 delay: widget.bufferingIndicatorDelay,
                 color: widget.color,
+                indicator: widget.bufferingIndicator,
               ),
-            if (_pausedByUser && state.status == PlayStackPlaybackStatus.paused)
+            if (_pausedByUser &&
+                state.status == PlayStackPlaybackStatus.paused &&
+                !hidden)
               IgnorePointer(
                 child: Center(
                   child: Icon(
@@ -341,46 +371,64 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
             Positioned(
               right: 4,
               bottom: 12,
-              child: SafeArea(
-                top: false,
-                left: false,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.showFullscreenButton &&
-                        (page.isFullscreen || (state.aspectRatio ?? 0) > 1))
-                      _IconButton(
-                        icon: page.isFullscreen
-                            ? Icons.fullscreen_exit_rounded
-                            : Icons.fullscreen_rounded,
-                        label: page.isFullscreen
-                            ? 'Exit fullscreen'
-                            : 'Fullscreen',
-                        color: widget.color,
-                        onTap: () => unawaited(
-                          page.view.toggleFullscreen().catchError(_ignore),
-                        ),
-                      ),
-                    if (widget.showSettingsButton)
-                      _IconButton(
-                        icon: Icons.tune_rounded,
-                        label: 'Playback settings',
-                        color: widget.color,
-                        onTap: () => unawaited(
-                          PlayStackSettingsSheet.show(
-                            context,
-                            controller: _controller,
-                            speeds: widget.playbackSpeeds,
+              child: chrome(
+                SafeArea(
+                  top: false,
+                  left: false,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.showLockButton)
+                        _IconButton(
+                          icon: Icons.lock_outline_rounded,
+                          label: 'Lock screen',
+                          color: widget.color,
+                          onTap: () => unawaited(
+                            page.view.lockScreen().catchError(_ignore),
                           ),
                         ),
-                      ),
-                    if (widget.showMuteButton)
-                      PlayStackMuteButton(
-                        controller: _controller,
-                        feed: page.feed,
-                        color: widget.color,
-                      ),
-                  ],
+                      if (widget.showCinemaModeButton)
+                        _IconButton(
+                          icon: Icons.visibility_off_outlined,
+                          label: 'Hide controls',
+                          color: widget.color,
+                          onTap: page.view.enterCinemaMode,
+                        ),
+                      if (widget.showFullscreenButton &&
+                          (page.isFullscreen || (state.aspectRatio ?? 0) > 1))
+                        _IconButton(
+                          icon: page.isFullscreen
+                              ? Icons.fullscreen_exit_rounded
+                              : Icons.fullscreen_rounded,
+                          label: page.isFullscreen
+                              ? 'Exit fullscreen'
+                              : 'Fullscreen',
+                          color: widget.color,
+                          onTap: () => unawaited(
+                            page.view.toggleFullscreen().catchError(_ignore),
+                          ),
+                        ),
+                      if (widget.showSettingsButton)
+                        _IconButton(
+                          icon: Icons.tune_rounded,
+                          label: 'Playback settings',
+                          color: widget.color,
+                          onTap: () => unawaited(
+                            PlayStackSettingsSheet.show(
+                              context,
+                              controller: _controller,
+                              speeds: widget.playbackSpeeds,
+                            ),
+                          ),
+                        ),
+                      if (widget.showMuteButton)
+                        PlayStackMuteButton(
+                          controller: _controller,
+                          feed: page.feed,
+                          color: widget.color,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -388,7 +436,7 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
               Positioned(
                 left: 24,
                 right: 24,
-                bottom: page.isFullscreen ? 32 : 120,
+                bottom: page.isFullscreen || hidden ? 32 : 120,
                 child: IgnorePointer(
                   child: PlayStackSubtitles(controller: _controller),
                 ),
@@ -398,11 +446,13 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: PlayStackProgressBar(
-                  controller: _controller,
-                  active: page.isActive,
-                  color: widget.color,
-                  seekable: widget.seekable,
+                child: chrome(
+                  PlayStackProgressBar(
+                    controller: _controller,
+                    active: page.isActive,
+                    color: widget.color,
+                    seekable: widget.seekable,
+                  ),
                 ),
               ),
           ],
@@ -607,6 +657,7 @@ class PlayStackBufferingIndicator extends StatelessWidget {
     this.blackScreenDelay = const Duration(milliseconds: 800),
     this.color = const Color(0xFFFFFFFF),
     this.size = 36,
+    this.indicator,
   });
 
   /// The video whose loading is shown, usually `page.controller`.
@@ -634,6 +685,10 @@ class PlayStackBufferingIndicator extends StatelessWidget {
   /// Diameter of the spinner in logical pixels, 36 by default.
   final double size;
 
+  /// Shown instead of the spinner, for example an animation of your app.
+  /// It is centered and sized by itself; [color] and [size] do not apply.
+  final Widget? indicator;
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<PlayStackPlaybackState>(
@@ -652,10 +707,15 @@ class PlayStackBufferingIndicator extends StatelessWidget {
               : blackScreenDelay,
           child: IgnorePointer(
             child: Center(
-              child: SizedBox.square(
-                dimension: size,
-                child: CircularProgressIndicator(strokeWidth: 3, color: color),
-              ),
+              child:
+                  indicator ??
+                  SizedBox.square(
+                    dimension: size,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      color: color,
+                    ),
+                  ),
             ),
           ),
         );
@@ -766,8 +826,8 @@ class PlayStackSubtitles extends StatelessWidget {
   }
 }
 
-/// A bottom sheet to change a video's playback speed and subtitles, opened
-/// by the settings button of [PlayStackDefaultControls].
+/// A bottom sheet to change a video's playback speed, quality and
+/// subtitles, opened by the settings button of [PlayStackDefaultControls].
 ///
 /// Open it from your own controls with [show]:
 ///
@@ -781,8 +841,10 @@ class PlayStackSubtitles extends StatelessWidget {
 /// )
 /// ```
 ///
-/// The subtitle section lists the text tracks of the video and appears only
-/// when it has some. The sheet uses the app's Material theme.
+/// The quality section lists [PlayStackPlayerController.videoQualities] and
+/// appears only for streams with several renditions; the subtitle section
+/// lists the text tracks and appears only when there are some. The sheet
+/// uses the app's Material theme.
 class PlayStackSettingsSheet extends StatelessWidget {
   /// Creates the sheet's content for [controller]. Usually opened with
   /// [show] instead.
@@ -869,6 +931,7 @@ class PlayStackSettingsSheet extends StatelessWidget {
                             ),
                         ],
                       ),
+                      _QualityChoice(controller: controller),
                       if (subtitles.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         Text('Subtitles', style: theme.textTheme.titleSmall),
@@ -904,6 +967,55 @@ class PlayStackSettingsSheet extends StatelessWidget {
                 },
               ),
         ),
+      ),
+    );
+  }
+}
+
+/// The quality chips of [PlayStackSettingsSheet]; nothing when the video has
+/// a single rendition.
+class _QualityChoice extends StatelessWidget {
+  const _QualityChoice({required this.controller});
+
+  final PlayStackPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final qualities = controller.videoQualities;
+    if (qualities.length < 2) return const SizedBox.shrink();
+    return ValueListenableBuilder<PlayStackVideoQuality?>(
+      valueListenable: controller.videoQuality,
+      builder: (context, chosen, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 20),
+          Text('Quality', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Auto'),
+                selected: chosen == null,
+                onSelected: (_) => unawaited(
+                  controller.setVideoQuality(null).catchError((Object _) {}),
+                ),
+              ),
+              for (final quality in qualities)
+                ChoiceChip(
+                  label: Text(quality.label),
+                  selected: chosen == quality,
+                  onSelected: (_) => unawaited(
+                    controller
+                        .setVideoQuality(quality)
+                        .catchError((Object _) {}),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1045,6 +1157,142 @@ class _ErrorRetry extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Fades out the parts of the controls hidden in cinema mode and while the
+/// screen is locked, and keeps touches off them meanwhile.
+class _Chrome extends StatelessWidget {
+  const _Chrome({required this.hidden, required this.child});
+
+  final bool hidden;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: hidden,
+      child: AnimatedOpacity(
+        opacity: hidden ? 0 : 1,
+        duration: const Duration(milliseconds: 200),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// What a locked screen shows (see [PlayStackFeedViewController.lockScreen]):
+/// nothing until the user taps, then an unlock button for a few seconds.
+///
+/// It is the default `PlayStackFeedView.screenLockBuilder`. It takes every
+/// touch, so the controls under it cannot be used until the screen is
+/// unlocked.
+class PlayStackScreenLockOverlay extends StatefulWidget {
+  /// Creates the lock overlay of [page].
+  const PlayStackScreenLockOverlay({
+    super.key,
+    required this.page,
+    this.color = const Color(0xFFFFFFFF),
+    this.visibleFor = const Duration(seconds: 3),
+  });
+
+  /// The page, whose `view` is unlocked by the button.
+  final PlayStackFeedPage<Object?> page;
+
+  /// Color of the button's icon and text, white by default.
+  final Color color;
+
+  /// How long the unlock button stays after a tap, 3 seconds by default.
+  final Duration visibleFor;
+
+  @override
+  State<PlayStackScreenLockOverlay> createState() =>
+      _PlayStackScreenLockOverlayState();
+}
+
+class _PlayStackScreenLockOverlayState
+    extends State<PlayStackScreenLockOverlay> {
+  bool _shown = false;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _show() {
+    _timer?.cancel();
+    _timer = Timer(widget.visibleFor, () {
+      if (mounted) setState(() => _shown = false);
+    });
+    if (!_shown) setState(() => _shown = true);
+  }
+
+  void _unlock() {
+    _timer?.cancel();
+    unawaited(widget.page.view.unlockScreen().catchError((Object _) {}));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _show,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              minimum: const EdgeInsets.only(bottom: 24),
+              child: _Chrome(
+                hidden: !_shown,
+                child: Semantics(
+                  button: true,
+                  label: 'Unlock screen',
+                  child: GestureDetector(
+                    onTap: _unlock,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0x99000000),
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.lock_open_rounded,
+                              color: widget.color,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Unlock',
+                              style: TextStyle(
+                                inherit: false,
+                                color: widget.color,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

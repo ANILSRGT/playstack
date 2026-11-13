@@ -20,6 +20,7 @@ export 'package:playstack_platform_interface/playstack_platform_interface.dart'
         PlayStackInterruptionType,
         PlayStackErrorCode,
         PlayStackException,
+        PlayStackMediaInfo,
         PlayStackMemorySource,
         PlayStackNetworkSource,
         PlayStackNetworkStatus,
@@ -38,6 +39,7 @@ export 'src/config/playstack_config.dart';
 export 'src/controller/playstack_playback_state.dart';
 export 'src/controller/playstack_player_controller.dart'
     show PlayStackInterruption, PlayStackPlayerController;
+export 'src/controller/playstack_video_quality.dart';
 export 'src/controller/playstack_player_metrics.dart';
 export 'src/feed/playstack_feed_config.dart';
 export 'src/feed/playstack_feed_item.dart';
@@ -51,4 +53,5 @@ export 'src/fullscreen/playstack_fullscreen_manager.dart';
 export 'src/manager/playstack_manager.dart';
 export 'src/pool/playstack_player_pool.dart'
     show PlayStackPlayerPriority, PlayStackPoolStats;
+export 'src/system/playstack_media_session.dart';
 export 'src/view/playstack_video_view.dart';

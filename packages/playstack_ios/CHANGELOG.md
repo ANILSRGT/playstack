@@ -1,5 +1,13 @@
 ## Unreleased
 
+* A seek after playing and pausing no longer leaves `seekTo` waiting
+  forever when AVPlayer skips the completion of the exact seek.
+* Media controls through `MPNowPlayingInfoCenter` and
+  `MPRemoteCommandCenter`, with artwork.
+* Picture-in-Picture through `AVPictureInPictureController`, automatic on
+  leaving the app.
+* HLS variants (`AVAssetVariant`, iOS 15+) are listed as video tracks, so
+  the user can choose a quality.
 * Device orientation from `UIDevice` notifications, also while the app is
   locked to one orientation, and the app's supported orientations for
   restoring them after fullscreen.

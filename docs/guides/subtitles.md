@@ -70,6 +70,24 @@ Styling and positioning from the subtitle file are not preserved.
 
 ## Video quality
 
+Let the user pick a rendition of an adaptive stream:
+
+```dart
+controller.videoQualities;                 // List<PlayStackVideoQuality>, highest first
+await controller.setVideoQuality(controller.videoQualities.last); // 360p, say
+await controller.setVideoQuality(null);    // back to automatic
+controller.videoQuality;                   // ValueListenable<PlayStackVideoQuality?>
+```
+
+`videoQualities` has one entry per size (`label` is `720p` style) and is
+empty or a single entry for an MP4 file, where there is nothing to choose.
+A choice caps the stream at that rendition, so the engine still steps down
+when the network cannot keep up. It replaces the app's own limits below
+for this video until another source is set. The default feed settings
+sheet lists the qualities.
+
+To cap quality for the app instead of the user:
+
 ```dart
 // Cap adaptive streams on cellular, for example.
 await controller.setVideoQualityLimit(
@@ -96,6 +114,7 @@ On Android a specific video track (rendition) can also be selected with
 | Audio tracks | Yes | Yes (media selection) | Only where the browser exposes `audioTracks` (Safari) |
 | Subtitle tracks and text | In-band, HLS and DASH | Legible media selection | Tracks the browser exposes, for example HLS in Safari; Chromium does not expose in-band MP4 text |
 | Video rendition selection | Yes | No: listed for information, AVFoundation chooses | No |
+| User quality choice (`setVideoQuality`) | Yes | Yes (HLS variants, iOS 15+) | No |
 | Quality limit | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |
 
 `capabilities.supportsTrackSelection`, `supportsVideoTrackSelection` and

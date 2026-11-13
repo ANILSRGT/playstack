@@ -1,5 +1,10 @@
 ## Unreleased
 
+* `PlayStackMediaInfo`, `PlayStackSystemEvent` and
+  `PlayStackSystemEventType`; `setMediaSession`, `setPictureInPicture`,
+  `startPictureInPicture`, `stopPictureInPicture`,
+  `isPictureInPictureSupported` and `systemEvents`, with no-op defaults.
+* `setPreferredOrientations` (defaults to `SystemChrome`).
 * `deviceOrientationChanges` (how the user holds the device, from the
   motion sensors) and `getAppOrientations` (the orientations the app allows
   right now).

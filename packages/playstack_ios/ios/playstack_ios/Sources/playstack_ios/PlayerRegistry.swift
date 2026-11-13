@@ -8,6 +8,8 @@ final class PlayerRegistry: PlayStackHostApi {
   private let events: PlayerEventDispatcher
   private let network: NetworkMonitor
   private let orientation: DeviceOrientationMonitor
+  private let mediaSession: MediaSessionCoordinator
+  private let pictureInPicture: PictureInPictureCoordinator
   private let sources: SourceResolver
   private var players: [Int64: NativePlayer] = [:]
   private var nextPlayerId: Int64 = 1
@@ -19,12 +21,15 @@ final class PlayerRegistry: PlayStackHostApi {
     textureRegistry: FlutterTextureRegistry, events: PlayerEventDispatcher,
     network: NetworkMonitor,
     orientation: DeviceOrientationMonitor,
+    systemEvents: SystemEvents,
     assetLookup: @escaping (String, String?) -> String
   ) {
     self.textureRegistry = textureRegistry
     self.events = events
     self.network = network
     self.orientation = orientation
+    mediaSession = MediaSessionCoordinator(events: systemEvents)
+    pictureInPicture = PictureInPictureCoordinator(events: systemEvents)
     sources = SourceResolver(assetLookup: assetLookup)
   }
 
@@ -57,7 +62,10 @@ final class PlayerRegistry: PlayStackHostApi {
 
   @MainActor
   func disposePlayer(playerId: Int64) async throws {
-    players.removeValue(forKey: playerId)?.release()
+    guard let player = players.removeValue(forKey: playerId) else { return }
+    mediaSession.playerReleased(player)
+    pictureInPicture.playerReleased(player)
+    player.release()
   }
 
   func setSource(playerId: Int64, source: PlatformSource, generation: Int64) throws {
@@ -96,6 +104,26 @@ final class PlayerRegistry: PlayStackHostApi {
 
   func getNetworkStatus() throws -> PlatformNetworkStatus {
     network.current()
+  }
+
+  func setMediaSession(playerId: Int64?, info: PlatformMediaInfo?) throws {
+    mediaSession.show(playerId.flatMap { players[$0] }, info: info)
+  }
+
+  func setPictureInPicture(playerId: Int64?, autoEnter: Bool) throws {
+    pictureInPicture.setPlayer(playerId.flatMap { players[$0] }, autoEnter: autoEnter)
+  }
+
+  func startPictureInPicture() throws -> Bool {
+    pictureInPicture.start()
+  }
+
+  func stopPictureInPicture() throws {
+    pictureInPicture.stop()
+  }
+
+  func isPictureInPictureSupported() throws -> Bool {
+    PictureInPictureCoordinator.isSupported
   }
 
   func getAppOrientations() throws -> [PlatformOrientation] {
@@ -162,6 +190,8 @@ final class PlayerRegistry: PlayStackHostApi {
   }
 
   func releaseAll() {
+    mediaSession.clear()
+    pictureInPicture.setPlayer(nil, autoEnter: false)
     for player in players.values { player.release() }
     players.removeAll()
   }

@@ -10,6 +10,7 @@ import 'playstack_network_status.dart';
 import 'playstack_platform_capabilities.dart';
 import 'playstack_platform_event.dart';
 import 'playstack_source.dart';
+import 'playstack_system.dart';
 import 'playstack_track.dart';
 
 /// The contract every PlayStack engine implements.
@@ -203,10 +204,50 @@ abstract class PlayStackPlatform extends PlatformInterface {
     );
   }
 
+  /// Allows only [orientations] (all when empty), for example to keep the
+  /// screen from turning while it is locked. Uses
+  /// `SystemChrome.setPreferredOrientations`, which browsers ignore.
+  Future<void> setPreferredOrientations(List<DeviceOrientation> orientations) =>
+      SystemChrome.setPreferredOrientations(orientations);
+
   /// The orientations the app allows right now, as last passed to
   /// `SystemChrome.setPreferredOrientations`. Empty when it allows every
   /// orientation it declares; null when the engine cannot tell.
   Future<List<DeviceOrientation>?> getAppOrientations() async => null;
+
+  /// Shows [playerId] in the system's media controls (lock screen,
+  /// notification, headphones, car) with [info]; a null [playerId] removes
+  /// them. The controls do not act on the player: they send
+  /// [systemEvents]. [canSkipNext] and [canSkipPrevious] enable the skip
+  /// buttons. Engines without system media controls do nothing.
+  Future<void> setMediaSession(
+    int? playerId,
+    PlayStackMediaInfo? info, {
+    bool canSkipNext = false,
+    bool canSkipPrevious = false,
+  }) async {}
+
+  /// Prepares Picture-in-Picture for [playerId]; null turns it off. With
+  /// [autoEnter] the video moves to a small window when the user leaves the
+  /// app while it plays. Engines without it do nothing.
+  Future<void> setPictureInPicture(
+    int? playerId, {
+    required bool autoEnter,
+  }) async {}
+
+  /// Starts Picture-in-Picture for the player prepared with
+  /// [setPictureInPicture]. False when it could not start.
+  Future<bool> startPictureInPicture() async => false;
+
+  /// Ends Picture-in-Picture where the platform allows it (iOS).
+  Future<void> stopPictureInPicture() async {}
+
+  /// Whether the device and the app support Picture-in-Picture.
+  Future<bool> isPictureInPictureSupported() async => false;
+
+  /// Commands from the system's media controls and Picture-in-Picture
+  /// changes. Empty for engines without them.
+  Stream<PlayStackSystemEvent> get systemEvents => const Stream.empty();
 
   /// Events of all native players of this engine.
   Stream<PlayStackPlatformEvent> get events {

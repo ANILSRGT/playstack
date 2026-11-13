@@ -5,11 +5,12 @@ import Foundation
 ///
 /// Audio and text use AVFoundation media selection groups; ids are
 /// `"audio:<n>"` / `"text:<n>"` (index in the group). AVFoundation does not
-/// allow choosing a specific video rendition, so the current video track is
-/// listed for information only and video quality is controlled with
-/// `preferredPeakBitRate` / `preferredMaximumResolution` instead.
+/// allow choosing a specific video rendition, so the current video track and
+/// the stream's renditions (`"variant:<n>"`, HLS only) are listed for
+/// information, and video quality is controlled with `preferredPeakBitRate`
+/// / `preferredMaximumResolution` instead.
 enum TrackSelection {
-  static func list(_ item: AVPlayerItem) -> [PlatformTrack] {
+  static func list(_ item: AVPlayerItem, variants: [AVAssetVariant] = []) -> [PlatformTrack] {
     var tracks: [PlatformTrack] = []
     let selection = item.currentMediaSelection
     for (type, characteristic) in groups {
@@ -38,6 +39,16 @@ enum TrackSelection {
           height: size.height > 0 ? Int64(size.height) : nil,
           frameRate: video.nominalFrameRate > 0 ? Double(video.nominalFrameRate) : nil,
           codecs: codec(of: video)))
+    }
+    for (index, variant) in variants.enumerated() {
+      guard let size = variant.videoAttributes?.presentationSize, size.width > 0, size.height > 0
+      else { continue }
+      tracks.append(
+        PlatformTrack(
+          id: "variant:\(index)", type: .video, isSelected: false, label: nil, language: nil,
+          bitrate: variant.peakBitRate.map { Int64($0) },
+          width: Int64(size.width), height: Int64(size.height),
+          frameRate: variant.videoAttributes?.nominalFrameRate))
     }
     return tracks
   }

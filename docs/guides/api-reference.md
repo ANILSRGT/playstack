@@ -32,14 +32,16 @@ Library: `package:playstack/playstack.dart` (re-exports the types of
 | `PlayStackFeedItemBuilder` | Builds pages without video and locked items (`pageBuilder`, `lockedBuilder`) | [Feeds](feed.md#pages-without-video) |
 | `PlayStackItemView` | Watch time and position of one visit, from `PlayStackFeedView.onItemViewed` | [Feeds](feed.md#watch-time) |
 | `PlayStackConfig.reels`, `PlayStackFeedConfig.reels` | Presets tuned for fast swiping | [Feeds](feed.md) |
-| `PlayStackDefaultControls`, `PlayStackHoldAction`, `PlayStackProgressBar`, `PlayStackBufferingIndicator`, `PlayStackMuteButton`, `PlayStackSubtitles`, `PlayStackSettingsSheet` | Default feed controls and their parts | [Feeds](feed.md) |
+| `PlayStackDefaultControls`, `PlayStackHoldAction`, `PlayStackProgressBar`, `PlayStackBufferingIndicator`, `PlayStackMuteButton`, `PlayStackSubtitles`, `PlayStackSettingsSheet`, `PlayStackScreenLockOverlay` | Default feed controls and their parts | [Feeds](feed.md) |
+| `PlayStackCinemaMode` | When a feed hides its controls by itself; the screen lock | [Feeds](feed.md#cinema-mode-and-screen-lock) |
+| `PlayStackMediaSession`, `PlayStackMediaInfo`, `PlayStackPictureInPicture` | Lock screen and notification controls, background sound, Picture-in-Picture (`manager.mediaSession`, `manager.pictureInPicture`) | [Media controls and Picture-in-Picture](background-playback.md) |
 | `PlayStackPreloadWindow`, `PlayStackFeedStats` | Applied window and feed counters | [Preloading](preloading.md) |
 | `PlayStackPoolConfig`, `PlayStackPoolStats`, `PlayStackPlayerPriority` | Native player pool | [Manager](manager.md) |
 | `PlayStackCacheConfig`, `PlayStackCacheManager`, `PlayStackCacheInfo` | Disk cache | [Caching](caching.md) |
 | `PlayStackFullscreenManager`, `PlayStackFullscreenConfig`, `PlayStackFullscreenOrientation` | Fullscreen and orientation | [Fullscreen](fullscreen.md) |
 | `PlayStackAudioConfig`, `PlayStackAudioSessionCategory`, `PlayStackInterruption`, `PlayStackInterruptionType` | Audio focus, session and interruptions | [Audio](audio.md) |
 | `PlayStackLifecycleConfig` | Background and foreground behavior | [Manager](manager.md) |
-| `PlayStackTrack`, `PlayStackTrackType`, `PlayStackVideoQualityLimit` | Tracks, subtitles, quality caps | [Tracks and subtitles](subtitles.md) |
+| `PlayStackTrack`, `PlayStackTrackType`, `PlayStackVideoQuality`, `PlayStackVideoQualityLimit` | Tracks, subtitles, the user's quality choice, quality caps | [Tracks and subtitles](subtitles.md) |
 | `PlayStackVideoInfo`, `PlayStackPositionSnapshot`, `PlayStackPlayerMetrics` | Video properties, position, timings | [Controller](controller.md) |
 | `PlayStackNetworkStatus`, `PlayStackNetworkType` | Connectivity | [Manager](manager.md) |
 | `PlayStackPlatformCapabilities` | What the engine supports | [Platform support](platforms.md) |

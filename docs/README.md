@@ -10,14 +10,15 @@ Guides:
 6. [Preloading](guides/preloading.md)
 7. [Caching](guides/caching.md)
 8. [Fullscreen and orientation](guides/fullscreen.md)
-9. [Rendering](guides/rendering.md)
-10. [Audio](guides/audio.md)
-11. [Tracks and subtitles](guides/subtitles.md)
-12. [Errors and retry](guides/errors.md)
-13. [Platform support](guides/platforms.md)
-14. [Performance tuning](guides/performance.md)
-15. [API reference](guides/api-reference.md)
-16. [Examples](guides/examples.md)
+9. [Media controls and Picture-in-Picture](guides/background-playback.md)
+10. [Rendering](guides/rendering.md)
+11. [Audio](guides/audio.md)
+12. [Tracks and subtitles](guides/subtitles.md)
+13. [Errors and retry](guides/errors.md)
+14. [Platform support](guides/platforms.md)
+15. [Performance tuning](guides/performance.md)
+16. [API reference](guides/api-reference.md)
+17. [Examples](guides/examples.md)
 
 Reference:
 

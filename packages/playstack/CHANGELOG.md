@@ -1,5 +1,33 @@
 ## Unreleased
 
+* `PlayStackDefaultControls.bufferingIndicator` and
+  `PlayStackBufferingIndicator.indicator` replace the loading spinner, for
+  example with an animation of the app.
+* Cinema mode: `PlayStackFeedView.cinemaMode` (`manual`, `fullscreen` by
+  default, `always`) and `cinemaModeDelay` hide the controls until the
+  next tap;
+  `PlayStackFeedViewController.enterCinemaMode`, `exitCinemaMode`,
+  `toggleCinemaMode`; `PlayStackFeedPage.isCinemaMode`.
+* Screen lock: `PlayStackFeedViewController.lockScreen` / `unlockScreen`
+  ignore touches, swipes, back and rotation until unlocked;
+  `screenLockBuilder`, default `PlayStackScreenLockOverlay`;
+  `PlayStackFeedPage.isScreenLocked`. `PlayStackDefaultControls` hides
+  itself in both and shows cinema and lock buttons
+  (`showCinemaModeButton`, `showLockButton`).
+* Picture quality: `PlayStackVideoQuality`,
+  `PlayStackPlayerController.videoQualities`, `videoQuality` and
+  `setVideoQuality`. A choice takes effect at once: Android selects the
+  rendition, other engines reload the buffer in place. The default
+  settings sheet lists the qualities.
+* Media controls: `PlayStackManager.mediaSession` (`PlayStackMediaSession`)
+  and `PlayStackFeedView.mediaInfo` show a video on the lock screen, in the
+  notification and in Control Center, with play, pause, seek and skip, and
+  keep its sound playing in the background.
+* Picture-in-Picture: `PlayStackManager.pictureInPicture`
+  (`PlayStackPictureInPicture`), `PlayStackFeedView.pictureInPicture` and
+  `PlayStackFeedViewController.startPictureInPicture`.
+* The lifecycle pause skips the video in the media controls and the video
+  in an open Picture-in-Picture window.
 * `PlayStackFeedView<T>`: a complete feed screen in one widget. Pass `items`
   and `videoUrl` (and optionally `posterUrl` and `onLoadMore`). The view
   creates and releases its players and handles paging, vertical or

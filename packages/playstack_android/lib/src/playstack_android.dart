@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
 import 'messages.g.dart';
+import 'messages.g.dart' as pigeon show systemEvents;
 
 /// Android implementation of [PlayStackPlatform].
 ///
@@ -18,7 +19,9 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
     @visibleForTesting Stream<PlatformNetworkStatus>? networkStream,
     @visibleForTesting
     Stream<PlatformDeviceOrientationEvent>? deviceOrientationStream,
-  }) : _api = api ?? PlayStackHostApi(),
+    @visibleForTesting Stream<PlatformSystemEvent>? systemStream,
+  }) : _rawSystemEvents = systemStream,
+       _api = api ?? PlayStackHostApi(),
        _rawEvents = eventStream,
        _rawNetworkEvents = networkStream,
        _rawDeviceOrientations = deviceOrientationStream;
@@ -32,6 +35,7 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   final Stream<PlatformPlayerEvent>? _rawEvents;
   final Stream<PlatformNetworkStatus>? _rawNetworkEvents;
   final Stream<PlatformDeviceOrientationEvent>? _rawDeviceOrientations;
+  final Stream<PlatformSystemEvent>? _rawSystemEvents;
   final Map<int, int> _textureIds = <int, int>{};
   Stream<PlayStackPlatformEvent>? _events;
 
@@ -221,6 +225,64 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Stream<PlayStackNetworkStatus> get networkStatusChanges =>
       (_rawNetworkEvents ?? networkEvents()).map(_toNetworkStatus);
+
+  @override
+  Future<void> setMediaSession(
+    int? playerId,
+    PlayStackMediaInfo? info, {
+    bool canSkipNext = false,
+    bool canSkipPrevious = false,
+  }) => _guard(
+    () => _api.setMediaSession(
+      playerId,
+      info == null
+          ? null
+          : PlatformMediaInfo(
+              title: info.title,
+              artist: info.artist,
+              album: info.album,
+              artworkUrl: info.artworkUrl,
+              canSkipNext: canSkipNext,
+              canSkipPrevious: canSkipPrevious,
+            ),
+    ),
+  );
+
+  @override
+  Future<void> setPictureInPicture(int? playerId, {required bool autoEnter}) =>
+      _guard(() => _api.setPictureInPicture(playerId, autoEnter));
+
+  @override
+  Future<bool> startPictureInPicture() => _guard(_api.startPictureInPicture);
+
+  @override
+  Future<void> stopPictureInPicture() => _guard(_api.stopPictureInPicture);
+
+  @override
+  Future<bool> isPictureInPictureSupported() =>
+      _guard(_api.isPictureInPictureSupported);
+
+  @override
+  Stream<PlayStackSystemEvent> get systemEvents =>
+      (_rawSystemEvents ?? pigeon.systemEvents()).map(
+        (event) => PlayStackSystemEvent(
+          switch (event.type) {
+            PlatformSystemEventType.play => PlayStackSystemEventType.play,
+            PlatformSystemEventType.pause => PlayStackSystemEventType.pause,
+            PlatformSystemEventType.seek => PlayStackSystemEventType.seek,
+            PlatformSystemEventType.next => PlayStackSystemEventType.next,
+            PlatformSystemEventType.previous =>
+              PlayStackSystemEventType.previous,
+            PlatformSystemEventType.pictureInPictureStarted =>
+              PlayStackSystemEventType.pictureInPictureStarted,
+            PlatformSystemEventType.pictureInPictureStopped =>
+              PlayStackSystemEventType.pictureInPictureStopped,
+          },
+          position: event.positionMs == null
+              ? null
+              : Duration(milliseconds: event.positionMs!),
+        ),
+      );
 
   @override
   Stream<DeviceOrientation> get deviceOrientationChanges =>

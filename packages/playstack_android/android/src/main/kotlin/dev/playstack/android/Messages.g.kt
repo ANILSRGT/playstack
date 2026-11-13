@@ -330,6 +330,32 @@ enum class PlatformInterruptionType(val raw: Int) {
   }
 }
 
+/** What a system media control, Picture-in-Picture or the app asked for. */
+enum class PlatformSystemEventType(val raw: Int) {
+  /** Play from the lock screen, notification, headphones or car. */
+  PLAY(0),
+  /** Pause from the same places. */
+  PAUSE(1),
+  /** Move to [PlatformSystemEvent.positionMs]. */
+  SEEK(2),
+  /** Skip to the next item. */
+  NEXT(3),
+  /** Skip to the previous item. */
+  PREVIOUS(4),
+  /** Picture-in-Picture started (or is starting). */
+  PICTURE_IN_PICTURE_STARTED(5),
+  /** Picture-in-Picture ended. */
+  PICTURE_IN_PICTURE_STOPPED(6);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformSystemEventType? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
 /**
  * Engine-wide settings, applied by the first `initialize` call.
  *
@@ -443,6 +469,109 @@ data class PlatformCacheInfo (
   }
   override fun toString(): String {
     return "PlatformCacheInfo(enabled=$enabled, usedBytes=$usedBytes, maxBytes=$maxBytes)"
+  }
+}
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class PlatformSystemEvent (
+  val type: PlatformSystemEventType,
+  /** For [PlatformSystemEventType.seek]. */
+  val positionMs: Long? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformSystemEvent {
+      val type = pigeonVar_list[0] as PlatformSystemEventType
+      val positionMs = pigeonVar_list[1] as Long?
+      return PlatformSystemEvent(type, positionMs)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      type,
+      positionMs,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformSystemEvent
+    return MessagesPigeonUtils.deepEquals(this.type, other.type) && MessagesPigeonUtils.deepEquals(this.positionMs, other.positionMs)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.type)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.positionMs)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformSystemEvent(type=$type, positionMs=$positionMs)"
+  }
+}
+
+/**
+ * What the system's media controls show about the playing video.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformMediaInfo (
+  val title: String? = null,
+  val artist: String? = null,
+  val album: String? = null,
+  val artworkUrl: String? = null,
+  val canSkipNext: Boolean,
+  val canSkipPrevious: Boolean
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformMediaInfo {
+      val title = pigeonVar_list[0] as String?
+      val artist = pigeonVar_list[1] as String?
+      val album = pigeonVar_list[2] as String?
+      val artworkUrl = pigeonVar_list[3] as String?
+      val canSkipNext = pigeonVar_list[4] as Boolean
+      val canSkipPrevious = pigeonVar_list[5] as Boolean
+      return PlatformMediaInfo(title, artist, album, artworkUrl, canSkipNext, canSkipPrevious)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      title,
+      artist,
+      album,
+      artworkUrl,
+      canSkipNext,
+      canSkipPrevious,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformMediaInfo
+    return MessagesPigeonUtils.deepEquals(this.title, other.title) && MessagesPigeonUtils.deepEquals(this.artist, other.artist) && MessagesPigeonUtils.deepEquals(this.album, other.album) && MessagesPigeonUtils.deepEquals(this.artworkUrl, other.artworkUrl) && MessagesPigeonUtils.deepEquals(this.canSkipNext, other.canSkipNext) && MessagesPigeonUtils.deepEquals(this.canSkipPrevious, other.canSkipPrevious)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.title)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.artist)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.album)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.artworkUrl)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.canSkipNext)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.canSkipPrevious)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformMediaInfo(title=$title, artist=$artist, album=$album, artworkUrl=$artworkUrl, canSkipNext=$canSkipNext, canSkipPrevious=$canSkipPrevious)"
   }
 }
 
@@ -1471,96 +1600,111 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         }
       }
       137.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformEngineConfig.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformSystemEventType.ofRaw(it.toInt())
         }
       }
       138.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCacheInfo.fromList(it)
+          PlatformEngineConfig.fromList(it)
         }
       }
       139.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformDeviceOrientationEvent.fromList(it)
+          PlatformCacheInfo.fromList(it)
         }
       }
       140.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformNetworkStatus.fromList(it)
+          PlatformSystemEvent.fromList(it)
         }
       }
       141.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTrack.fromList(it)
+          PlatformMediaInfo.fromList(it)
         }
       }
       142.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSource.fromList(it)
+          PlatformDeviceOrientationEvent.fromList(it)
         }
       }
       143.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerOptions.fromList(it)
+          PlatformNetworkStatus.fromList(it)
         }
       }
       144.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerCreation.fromList(it)
+          PlatformTrack.fromList(it)
         }
       }
       145.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCapabilities.fromList(it)
+          PlatformSource.fromList(it)
         }
       }
       146.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPosition.fromList(it)
+          PlatformPlayerOptions.fromList(it)
         }
       }
       147.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformInitializedEvent.fromList(it)
+          PlatformPlayerCreation.fromList(it)
         }
       }
       148.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformStateEvent.fromList(it)
+          PlatformCapabilities.fromList(it)
         }
       }
       149.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformIsPlayingEvent.fromList(it)
+          PlatformPosition.fromList(it)
         }
       }
       150.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformVideoSizeEvent.fromList(it)
+          PlatformInitializedEvent.fromList(it)
         }
       }
       151.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformFirstFrameEvent.fromList(it)
+          PlatformStateEvent.fromList(it)
         }
       }
       152.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformErrorEvent.fromList(it)
+          PlatformIsPlayingEvent.fromList(it)
         }
       }
       153.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTracksChangedEvent.fromList(it)
+          PlatformVideoSizeEvent.fromList(it)
         }
       }
       154.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCuesEvent.fromList(it)
+          PlatformFirstFrameEvent.fromList(it)
         }
       }
       155.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformErrorEvent.fromList(it)
+        }
+      }
+      156.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformTracksChangedEvent.fromList(it)
+        }
+      }
+      157.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformCuesEvent.fromList(it)
+        }
+      }
+      158.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
           PlatformInterruptionEvent.fromList(it)
         }
@@ -1602,80 +1746,92 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(136)
         writeValue(stream, value.raw.toLong())
       }
-      is PlatformEngineConfig -> {
+      is PlatformSystemEventType -> {
         stream.write(137)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformCacheInfo -> {
+      is PlatformEngineConfig -> {
         stream.write(138)
         writeValue(stream, value.toList())
       }
-      is PlatformDeviceOrientationEvent -> {
+      is PlatformCacheInfo -> {
         stream.write(139)
         writeValue(stream, value.toList())
       }
-      is PlatformNetworkStatus -> {
+      is PlatformSystemEvent -> {
         stream.write(140)
         writeValue(stream, value.toList())
       }
-      is PlatformTrack -> {
+      is PlatformMediaInfo -> {
         stream.write(141)
         writeValue(stream, value.toList())
       }
-      is PlatformSource -> {
+      is PlatformDeviceOrientationEvent -> {
         stream.write(142)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerOptions -> {
+      is PlatformNetworkStatus -> {
         stream.write(143)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerCreation -> {
+      is PlatformTrack -> {
         stream.write(144)
         writeValue(stream, value.toList())
       }
-      is PlatformCapabilities -> {
+      is PlatformSource -> {
         stream.write(145)
         writeValue(stream, value.toList())
       }
-      is PlatformPosition -> {
+      is PlatformPlayerOptions -> {
         stream.write(146)
         writeValue(stream, value.toList())
       }
-      is PlatformInitializedEvent -> {
+      is PlatformPlayerCreation -> {
         stream.write(147)
         writeValue(stream, value.toList())
       }
-      is PlatformStateEvent -> {
+      is PlatformCapabilities -> {
         stream.write(148)
         writeValue(stream, value.toList())
       }
-      is PlatformIsPlayingEvent -> {
+      is PlatformPosition -> {
         stream.write(149)
         writeValue(stream, value.toList())
       }
-      is PlatformVideoSizeEvent -> {
+      is PlatformInitializedEvent -> {
         stream.write(150)
         writeValue(stream, value.toList())
       }
-      is PlatformFirstFrameEvent -> {
+      is PlatformStateEvent -> {
         stream.write(151)
         writeValue(stream, value.toList())
       }
-      is PlatformErrorEvent -> {
+      is PlatformIsPlayingEvent -> {
         stream.write(152)
         writeValue(stream, value.toList())
       }
-      is PlatformTracksChangedEvent -> {
+      is PlatformVideoSizeEvent -> {
         stream.write(153)
         writeValue(stream, value.toList())
       }
-      is PlatformCuesEvent -> {
+      is PlatformFirstFrameEvent -> {
         stream.write(154)
         writeValue(stream, value.toList())
       }
-      is PlatformInterruptionEvent -> {
+      is PlatformErrorEvent -> {
         stream.write(155)
+        writeValue(stream, value.toList())
+      }
+      is PlatformTracksChangedEvent -> {
+        stream.write(156)
+        writeValue(stream, value.toList())
+      }
+      is PlatformCuesEvent -> {
+        stream.write(157)
+        writeValue(stream, value.toList())
+      }
+      is PlatformInterruptionEvent -> {
+        stream.write(158)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1726,6 +1882,27 @@ interface PlayStackHostApi {
    */
   fun setPreloadBufferLimit(playerId: Long, maxBufferMs: Long?)
   fun getNetworkStatus(): PlatformNetworkStatus
+  /**
+   * Shows [playerId] in the system's media controls (lock screen,
+   * notification, headphones, car) with [info]; null removes them. The
+   * controls send [PlatformSystemEvent]s; they do not act on the player.
+   */
+  fun setMediaSession(playerId: Long?, info: PlatformMediaInfo?)
+  /**
+   * Prepares Picture-in-Picture for [playerId]; null turns it off. With
+   * [autoEnter] the video moves to a small window when the user leaves the
+   * app while it plays.
+   */
+  fun setPictureInPicture(playerId: Long?, autoEnter: Boolean)
+  /**
+   * Starts Picture-in-Picture for the player prepared with
+   * [setPictureInPicture]. False when it could not start.
+   */
+  fun startPictureInPicture(): Boolean
+  /** Ends Picture-in-Picture (iOS; Android leaves it when the user does). */
+  fun stopPictureInPicture()
+  /** Whether the device and the app support Picture-in-Picture. */
+  fun isPictureInPictureSupported(): Boolean
   /**
    * The orientations the app allows right now (what it last passed to
    * `SystemChrome.setPreferredOrientations`). Empty when it allows every
@@ -2065,6 +2242,90 @@ interface PlayStackHostApi {
         }
       }
       run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.setMediaSession$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long?
+            val infoArg = args[1] as PlatformMediaInfo?
+            val wrapped: List<Any?> = try {
+              api.setMediaSession(playerIdArg, infoArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.setPictureInPicture$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val playerIdArg = args[0] as Long?
+            val autoEnterArg = args[1] as Boolean
+            val wrapped: List<Any?> = try {
+              api.setPictureInPicture(playerIdArg, autoEnterArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.startPictureInPicture$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.startPictureInPicture())
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.stopPictureInPicture$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              api.stopPictureInPicture()
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.isPictureInPictureSupported$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.isPictureInPictureSupported())
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.getAppOrientations$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
@@ -2324,6 +2585,51 @@ abstract class DeviceOrientationEventsStreamHandler : MessagesPigeonEventChannel
 
   // Implement methods from MessagesPigeonEventChannelWrapper
   override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformDeviceOrientationEvent>) {}
+
+  override fun onCancel(p0: Any?) {}
+}
+      
+/** A typed channel for communicating with the Flutter application using asynchronous event streams. */
+class SystemEventsEventChannel(messenger: BinaryMessenger, instanceName: String = "") {
+  private val channel: EventChannel
+
+  init {
+    var channelName = "dev.flutter.pigeon.playstack_android.PlayStackEventApi.systemEvents"
+    if (instanceName.isNotEmpty()) {
+      channelName += ".$instanceName"
+    }
+    channel = EventChannel(messenger, channelName, MessagesPigeonMethodCodec)
+  }
+
+  /**
+   * Sets the stream handler for this channel, replacing any previous handler.
+   *
+   * Pass `null` to remove the event channel registration.
+   */
+  fun setStreamHandler(streamHandler: SystemEventsStreamHandler?) {
+    val internalHandler = streamHandler?.let { MessagesPigeonStreamHandler<PlatformSystemEvent>(it) }
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+abstract class SystemEventsStreamHandler : MessagesPigeonEventChannelWrapper<PlatformSystemEvent> {
+  companion object {
+    /**
+     * Creates and returns a new event channel that calls the provided stream handler.
+     *
+     * The returned channel can be stored to allow changing or removing the stream handler.
+     * If the handler will not be changed for the lifetime of the engine associated with the messenger,
+     * the return value can be ignored.
+     */
+    fun register(messenger: BinaryMessenger, streamHandler: SystemEventsStreamHandler, instanceName: String = ""): SystemEventsEventChannel {
+      val channel = SystemEventsEventChannel(messenger, instanceName)
+      channel.setStreamHandler(streamHandler)
+      return channel
+    }
+  }
+
+  // Implement methods from MessagesPigeonEventChannelWrapper
+  override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformSystemEvent>) {}
 
   override fun onCancel(p0: Any?) {}
 }

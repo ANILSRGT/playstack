@@ -33,7 +33,8 @@ internal class NativePlayer(
 ) : Player.Listener {
   private val loadControl = PreloadLoadControl()
   private val videoLimit = VideoQualityLimit()
-  private val exoPlayer: ExoPlayer =
+  /** The player, for the media controls and Picture-in-Picture. */
+  val exoPlayer: ExoPlayer =
       ExoPlayer.Builder(context)
           .setLoadControl(loadControl)
           .setTrackSelector(

@@ -209,13 +209,16 @@ page with a `PlayStackFeedPage`, which gives you:
 - `controller`: the video's `PlayStackPlayerController`: play, pause, seek, state
 - `isActive`: whether this item is the one in view
 - `isFullscreen`: whether the view is in fullscreen
+- `isCinemaMode`, `isScreenLocked`: whether the controls should hide (see
+  [Cinema mode and screen lock](#cinema-mode-and-screen-lock))
 - `index`: the item's position
 - `view`: a `PlayStackFeedViewController`: next page, fullscreen, sound
 
 By default the builder is `PlayStackDefaultControls`:
 
 - tap to pause and resume
-- a settings button with playback speed (0.5x to 2x) and subtitle tracks
+- a settings button with playback speed (0.5x to 2x), picture quality
+  (Auto or one rendition of an HLS or DASH stream) and subtitle tracks
   (`showSettingsButton`, `playbackSpeeds`); the sheet is
   `PlayStackSettingsSheet.show(context, controller: ...)` for your own
   controls
@@ -226,10 +229,15 @@ By default the builder is `PlayStackDefaultControls`:
   off)
 - a sound switch that mutes the whole feed
 - a fullscreen button on landscape videos
+- a cinema mode button and a lock button (`showCinemaModeButton`,
+  `showLockButton`)
 - a thin progress bar; drag along it or tap it to move in the video
   (`seekable: false` turns this off)
 - a buffering indicator that appears only when a wait gets long
 - a retry button on errors
+
+Pass `bufferingIndicator:` (any widget, for example a Lottie animation of
+your app) to replace the spinner.
 
 The buffering indicator waits 2 s while a frame or poster is on screen.
 Until then the picture just holds, like a brief freeze. Over a black
@@ -279,6 +287,74 @@ Pass `controlsBuilder: null` for no controls at all.
 By default portrait videos fill the page and landscape videos are shown
 whole. Pass `fit:` to use one fit for every video, or `videoBuilder:` to
 replace the video layer.
+
+## Cinema mode and screen lock
+
+In cinema mode the controls fade out and only the video stays. The next tap
+anywhere brings them back; that tap does nothing else.
+
+```dart
+PlayStackFeedView<Episode>(
+  items: episodes,
+  source: (episode) => episode.source,
+  cinemaMode: PlayStackCinemaMode.always, // also hide by itself in the feed
+  cinemaModeDelay: const Duration(seconds: 3),
+)
+```
+
+| `PlayStackCinemaMode` | Enters cinema mode by itself |
+| --- | --- |
+| `manual` | Never: only from a button or `view.enterCinemaMode()` |
+| `fullscreen` (default) | In fullscreen, after `cinemaModeDelay` without a touch while a video plays |
+| `always` | Everywhere, after `cinemaModeDelay` without a touch while a video plays |
+
+Every touch restarts the countdown, and nothing hides while the video is
+paused. From code: `view.enterCinemaMode()`, `exitCinemaMode()`,
+`toggleCinemaMode()` and `view.isCinemaMode`.
+
+The screen lock is for watching without accidental touches, for example in
+bed. It is never turned on automatically: the user turns it on with a
+button. While locked the controls are hidden, swipes and the back button do
+nothing, and the screen does not rotate. The default controls show a lock
+button; your own controls call `page.view.lockScreen()`:
+
+```dart
+IconButton(
+  icon: const Icon(Icons.lock_outline),
+  onPressed: page.view.lockScreen,
+)
+```
+
+`screenLockBuilder` draws what the locked screen shows and receives every
+touch. By default it is `PlayStackScreenLockOverlay`: a tap shows a small
+Unlock button at the bottom for a few seconds. Your own calls `page.view.unlockScreen()`.
+
+Your `controlsBuilder` decides what hides: `PlayStackDefaultControls` hides
+itself when `page.isCinemaMode` or `page.isScreenLocked` is true, and keeps
+subtitles on screen. Custom controls read the same two flags.
+
+## Picture quality
+
+When a video is an HLS or DASH stream with several renditions, the default
+settings sheet lists them (Auto, 1080p, 720p, ...). For your own controls:
+
+```dart
+final qualities = page.controller.videoQualities; // highest first
+await page.controller.setVideoQuality(qualities.first);
+await page.controller.setVideoQuality(null);      // automatic
+page.controller.videoQuality;                     // a ValueListenable
+```
+
+A chosen quality replaces the feed's own screen-sized cap for that video,
+until it gets a new source. See [Tracks and subtitles](subtitles.md#video-quality).
+
+## Media controls and Picture-in-Picture
+
+`mediaInfo` shows the video in view on the lock screen and in the
+notification, and keeps its sound playing in the background.
+`pictureInPicture: true` moves it to a small window when the user leaves
+the app. Both need platform setup; see
+[Media controls and Picture-in-Picture](background-playback.md).
 
 ## Direction and transitions
 
@@ -338,6 +414,9 @@ await view.toggleFullscreen();
 view.setMuted(true);
 view.pause();               // until resume(), for example under a sheet
 view.resume();
+view.toggleCinemaMode();    // hide the controls until the next tap
+view.lockScreen();          // ignore touches until unlockScreen()
+await view.startPictureInPicture();
 view.manager;               // stats, cache, network status
 ```
 

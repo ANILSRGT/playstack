@@ -246,6 +246,24 @@ enum PlatformInterruptionType: Int, CaseIterable {
   case audioRouteLost = 1
 }
 
+/// What a system media control, Picture-in-Picture or the app asked for.
+enum PlatformSystemEventType: Int, CaseIterable {
+  /// Play from the lock screen, notification, headphones or car.
+  case play = 0
+  /// Pause from the same places.
+  case pause = 1
+  /// Move to [PlatformSystemEvent.positionMs].
+  case seek = 2
+  /// Skip to the next item.
+  case next = 3
+  /// Skip to the previous item.
+  case previous = 4
+  /// Picture-in-Picture started (or is starting).
+  case pictureInPictureStarted = 5
+  /// Picture-in-Picture ended.
+  case pictureInPictureStopped = 6
+}
+
 /// Engine-wide settings, applied by the first `initialize` call.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
@@ -359,6 +377,109 @@ struct PlatformCacheInfo: Hashable, CustomStringConvertible {
 
   public var description: String {
     return "PlatformCacheInfo(enabled: \(String(describing: enabled)), usedBytes: \(String(describing: usedBytes)), maxBytes: \(String(describing: maxBytes)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformSystemEvent: Hashable, CustomStringConvertible {
+  var type: PlatformSystemEventType
+  /// For [PlatformSystemEventType.seek].
+  var positionMs: Int64? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformSystemEvent? {
+    let type = pigeonVar_list[0] as! PlatformSystemEventType
+    let positionMs: Int64? = nilOrValue(pigeonVar_list[1])
+
+    return PlatformSystemEvent(
+      type: type,
+      positionMs: positionMs
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      type,
+      positionMs,
+    ]
+  }
+  static func == (lhs: PlatformSystemEvent, rhs: PlatformSystemEvent) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.positionMs, rhs.positionMs)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformSystemEvent")
+    MessagesPigeonInternal.deepHash(value: type, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: positionMs, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformSystemEvent(type: \(String(describing: type)), positionMs: \(String(describing: positionMs)))"
+  }
+}
+
+/// What the system's media controls show about the playing video.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformMediaInfo: Hashable, CustomStringConvertible {
+  var title: String? = nil
+  var artist: String? = nil
+  var album: String? = nil
+  var artworkUrl: String? = nil
+  var canSkipNext: Bool
+  var canSkipPrevious: Bool
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformMediaInfo? {
+    let title: String? = nilOrValue(pigeonVar_list[0])
+    let artist: String? = nilOrValue(pigeonVar_list[1])
+    let album: String? = nilOrValue(pigeonVar_list[2])
+    let artworkUrl: String? = nilOrValue(pigeonVar_list[3])
+    let canSkipNext = pigeonVar_list[4] as! Bool
+    let canSkipPrevious = pigeonVar_list[5] as! Bool
+
+    return PlatformMediaInfo(
+      title: title,
+      artist: artist,
+      album: album,
+      artworkUrl: artworkUrl,
+      canSkipNext: canSkipNext,
+      canSkipPrevious: canSkipPrevious
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      title,
+      artist,
+      album,
+      artworkUrl,
+      canSkipNext,
+      canSkipPrevious,
+    ]
+  }
+  static func == (lhs: PlatformMediaInfo, rhs: PlatformMediaInfo) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.title, rhs.title) && MessagesPigeonInternal.deepEquals(lhs.artist, rhs.artist) && MessagesPigeonInternal.deepEquals(lhs.album, rhs.album) && MessagesPigeonInternal.deepEquals(lhs.artworkUrl, rhs.artworkUrl) && MessagesPigeonInternal.deepEquals(lhs.canSkipNext, rhs.canSkipNext) && MessagesPigeonInternal.deepEquals(lhs.canSkipPrevious, rhs.canSkipPrevious)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformMediaInfo")
+    MessagesPigeonInternal.deepHash(value: title, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: artist, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: album, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: artworkUrl, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: canSkipNext, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: canSkipPrevious, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformMediaInfo(title: \(String(describing: title)), artist: \(String(describing: artist)), album: \(String(describing: album)), artworkUrl: \(String(describing: artworkUrl)), canSkipNext: \(String(describing: canSkipNext)), canSkipPrevious: \(String(describing: canSkipPrevious)))"
   }
 }
 
@@ -1415,42 +1536,52 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 137:
-      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformSystemEventType(rawValue: enumResultAsInt)
+      }
+      return nil
     case 138:
-      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
+      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
     case 139:
-      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
+      return PlatformSystemEvent.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      return PlatformMediaInfo.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 148:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 149:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 150:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 151:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 152:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 153:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
     case 154:
-      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
     case 155:
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+    case 156:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 157:
+      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+    case 158:
       return PlatformInterruptionEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1484,62 +1615,71 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformInterruptionType {
       super.writeByte(136)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformEngineConfig {
+    } else if let value = value as? PlatformSystemEventType {
       super.writeByte(137)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformCacheInfo {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformEngineConfig {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformDeviceOrientationEvent {
+    } else if let value = value as? PlatformCacheInfo {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformNetworkStatus {
+    } else if let value = value as? PlatformSystemEvent {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTrack {
+    } else if let value = value as? PlatformMediaInfo {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+    } else if let value = value as? PlatformDeviceOrientationEvent {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformSource {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(153)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformFirstFrameEvent {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInterruptionEvent {
+    } else if let value = value as? PlatformErrorEvent {
       super.writeByte(155)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformTracksChangedEvent {
+      super.writeByte(156)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(157)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformInterruptionEvent {
+      super.writeByte(158)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1596,6 +1736,21 @@ protocol PlayStackHostApi {
   /// time so they do not download whole videos the user may never watch.
   func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws
   func getNetworkStatus() throws -> PlatformNetworkStatus
+  /// Shows [playerId] in the system's media controls (lock screen,
+  /// notification, headphones, car) with [info]; null removes them. The
+  /// controls send [PlatformSystemEvent]s; they do not act on the player.
+  func setMediaSession(playerId: Int64?, info: PlatformMediaInfo?) throws
+  /// Prepares Picture-in-Picture for [playerId]; null turns it off. With
+  /// [autoEnter] the video moves to a small window when the user leaves the
+  /// app while it plays.
+  func setPictureInPicture(playerId: Int64?, autoEnter: Bool) throws
+  /// Starts Picture-in-Picture for the player prepared with
+  /// [setPictureInPicture]. False when it could not start.
+  func startPictureInPicture() throws -> Bool
+  /// Ends Picture-in-Picture (iOS; Android leaves it when the user does).
+  func stopPictureInPicture() throws
+  /// Whether the device and the app support Picture-in-Picture.
+  func isPictureInPictureSupported() throws -> Bool
   /// The orientations the app allows right now (what it last passed to
   /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
   /// orientation it declares, or when the platform cannot tell.
@@ -1897,6 +2052,87 @@ class PlayStackHostApiSetup {
     } else {
       getNetworkStatusChannel.setMessageHandler(nil)
     }
+    /// Shows [playerId] in the system's media controls (lock screen,
+    /// notification, headphones, car) with [info]; null removes them. The
+    /// controls send [PlatformSystemEvent]s; they do not act on the player.
+    let setMediaSessionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setMediaSession\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setMediaSessionChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg: Int64? = nilOrValue(args[0])
+        let infoArg: PlatformMediaInfo? = nilOrValue(args[1])
+        do {
+          try api.setMediaSession(playerId: playerIdArg, info: infoArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setMediaSessionChannel.setMessageHandler(nil)
+    }
+    /// Prepares Picture-in-Picture for [playerId]; null turns it off. With
+    /// [autoEnter] the video moves to a small window when the user leaves the
+    /// app while it plays.
+    let setPictureInPictureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setPictureInPicture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setPictureInPictureChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg: Int64? = nilOrValue(args[0])
+        let autoEnterArg = args[1] as! Bool
+        do {
+          try api.setPictureInPicture(playerId: playerIdArg, autoEnter: autoEnterArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setPictureInPictureChannel.setMessageHandler(nil)
+    }
+    /// Starts Picture-in-Picture for the player prepared with
+    /// [setPictureInPicture]. False when it could not start.
+    let startPictureInPictureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.startPictureInPicture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      startPictureInPictureChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.startPictureInPicture()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      startPictureInPictureChannel.setMessageHandler(nil)
+    }
+    /// Ends Picture-in-Picture (iOS; Android leaves it when the user does).
+    let stopPictureInPictureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.stopPictureInPicture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      stopPictureInPictureChannel.setMessageHandler { _, reply in
+        do {
+          try api.stopPictureInPicture()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      stopPictureInPictureChannel.setMessageHandler(nil)
+    }
+    /// Whether the device and the app support Picture-in-Picture.
+    let isPictureInPictureSupportedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.isPictureInPictureSupported\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      isPictureInPictureSupportedChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.isPictureInPictureSupported()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      isPictureInPictureSupportedChannel.setMessageHandler(nil)
+    }
     /// The orientations the app allows right now (what it last passed to
     /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
     /// orientation it declares, or when the platform cannot tell.
@@ -2141,6 +2377,44 @@ class DeviceOrientationEventsStreamHandler: PigeonEventChannelWrapper<PlatformDe
     streamHandler: DeviceOrientationEventsStreamHandler
   ) -> DeviceOrientationEventsEventChannel {
     let channel = DeviceOrientationEventsEventChannel(messenger: messenger, instanceName: instanceName)
+    channel.setStreamHandler(streamHandler)
+    return channel
+  }
+}
+      
+/// A typed channel for communicating with the Flutter application using asynchronous event streams.
+class SystemEventsEventChannel {
+  private let channel: FlutterEventChannel
+
+  init(messenger: FlutterBinaryMessenger, instanceName: String = "") {
+    var channelName = "dev.flutter.pigeon.playstack_ios.PlayStackEventApi.systemEvents"
+    if !instanceName.isEmpty {
+      channelName += ".\(instanceName)"
+    }
+    channel = FlutterEventChannel(name: channelName, binaryMessenger: messenger, codec: messagesPigeonMethodCodec)
+  }
+
+  /// Sets the stream handler for this channel, replacing any previous handler.
+  /// 
+  /// Pass `nil` to remove the event channel registration.
+  func setStreamHandler(_ streamHandler: SystemEventsStreamHandler?) {
+    let internalHandler = streamHandler.map({ PigeonStreamHandler<PlatformSystemEvent>(wrapper: $0) })
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+class SystemEventsStreamHandler: PigeonEventChannelWrapper<PlatformSystemEvent> {
+  /// Creates and returns a new event channel that calls the provided stream handler.
+  /// 
+  /// The returned channel can be stored to allow changing or removing the stream handler.
+  /// If the handler will not be changed for the lifetime of the engine associated with the messenger,
+  /// the return value can be ignored.
+  @discardableResult static func register(
+    with messenger: FlutterBinaryMessenger,
+    instanceName: String = "",
+    streamHandler: SystemEventsStreamHandler
+  ) -> SystemEventsEventChannel {
+    let channel = SystemEventsEventChannel(messenger: messenger, instanceName: instanceName)
     channel.setStreamHandler(streamHandler)
     return channel
   }

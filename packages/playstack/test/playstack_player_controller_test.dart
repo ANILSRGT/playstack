@@ -813,6 +813,78 @@ void main() {
       );
     });
 
+    test(
+      'a chosen quality replaces the app limits until a new source',
+      () async {
+        await managerWithLimitSupport();
+        platform.trackList = const [
+          PlayStackTrack(
+            id: 'v1',
+            type: PlayStackTrackType.video,
+            isSelected: false,
+            width: 1920,
+            height: 1080,
+            bitrate: 5000000,
+          ),
+          PlayStackTrack(
+            id: 'v2',
+            type: PlayStackTrackType.video,
+            isSelected: false,
+            width: 1280,
+            height: 720,
+            bitrate: 2500000,
+          ),
+          PlayStackTrack(
+            id: 'v3',
+            type: PlayStackTrackType.video,
+            isSelected: false,
+            width: 1280,
+            height: 720,
+            bitrate: 1800000,
+          ),
+          PlayStackTrack(
+            id: 'a',
+            type: PlayStackTrackType.audio,
+            isSelected: true,
+          ),
+        ];
+        final controller = manager.createController(
+          source,
+          config: const PlayStackPlayerConfig(
+            videoQualityLimit: PlayStackVideoQualityLimit(maxHeight: 480),
+          ),
+        );
+        await controller.play();
+        await flush();
+        final id = platform.livePlayers.single;
+        final qualities = controller.videoQualities;
+        expect(qualities.map((q) => q.label), ['1080p', '720p']);
+        expect(qualities.last.bitrate, 2500000, reason: 'the best 720p');
+
+        await controller.setVideoQuality(qualities.first);
+        expect(controller.videoQuality.value, qualities.first);
+        // The cap, then a seek in place so the buffer reloads at once
+        // (engines without rendition selection).
+        expect(platform.calls.reversed.take(2).toList().reversed, [
+          'setVideoQualityLimit($id, 1080, 5000000)',
+          'seekTo($id, 0)',
+        ]);
+
+        await controller.setVideoQuality(null);
+        expect(
+          platform.calls,
+          contains('setVideoQualityLimit($id, 480, null)'),
+        );
+        expect(platform.calls.last, 'seekTo($id, 0)');
+
+        await controller.setVideoQuality(qualities.last);
+        await controller.setSource(
+          PlayStackSource.network('https://example.com/other.m3u8'),
+        );
+        expect(controller.videoQuality.value, isNull);
+      },
+    );
+
     test('the configured limit applies from the first preparation', () async {
       await managerWithLimitSupport();
       final controller = manager.createController(

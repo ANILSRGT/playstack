@@ -26,6 +26,9 @@
 | Network status | `ConnectivityManager` (adds `ACCESS_NETWORK_STATE`) | `NWPathMonitor`, including Low Data Mode | `navigator.onLine`; metering and data saver only where `navigator.connection` exists (Chromium) |
 | Audio focus / session | Audio focus for audible players, pause when headphones are unplugged | Optional `AVAudioSession` category; interruptions and route loss reported; resume after interruption | Managed by the browser |
 | Fullscreen | `SystemChrome` immersive mode, optional orientation lock, rotate back and restore policy | Same; iPad multitasking ignores orientation locks | Fullscreen API (user gesture); orientation lock where supported |
+| Media controls, background sound | Media3 `MediaSession` and `PlayStackMediaService` | `MPNowPlayingInfoCenter`, `audio` background mode | No |
+| Picture-in-Picture | Activity mode, API 26+ | `AVPictureInPictureController` | No |
+| Device orientation sensors | `OrientationEventListener` | `UIDevice` orientation notifications | No |
 | Decoder-shortage detection | `ERROR_CODE_DECODER_INIT_FAILED` | `AVError.decoderTemporarilyUnavailable` | Not distinguishable |
 | Same controller in two views | Yes | Yes | No: one `<video>` element, one view at a time |
 

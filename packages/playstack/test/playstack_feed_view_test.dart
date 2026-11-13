@@ -404,6 +404,61 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('autoAdvance waits for the app before a locked item', (
+    tester,
+  ) async {
+    await start(tester, player: const PlayStackPlayerConfig());
+    final feed = manager.createFeed(
+      [
+        ..._items(1),
+        PlayStackFeedItem(
+          PlayStackSource.network('https://example.com/locked.mp4'),
+          id: 'locked',
+          data: 'locked',
+          locked: true,
+        ),
+      ],
+      config: const PlayStackFeedConfig(activeHeadStart: Duration.zero),
+    );
+    await tester.pumpWidget(
+      host(
+        PlayStackFeedView<Object?>.feed(
+          feed: feed,
+          autoAdvance: true,
+          controlsBuilder: null,
+          mediaInfo: (data) => PlayStackMediaInfo(title: '$data'),
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(
+      platform.mediaSessions.last.$3,
+      isFalse,
+      reason: 'no skip button to a locked item',
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    final id = platform.livePlayers.firstWhere(
+      (id) => platform.calls.contains('play($id)'),
+    );
+    platform.emit(
+      PlayStackNativeStateEvent(
+        playerId: id,
+        generation: platform.generations[id]!,
+        state: PlayStackNativePlaybackState.ended,
+      ),
+    );
+    await settle(tester);
+    expect(feed.activeIndex.value, 0, reason: 'away: stays on the video');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(feed.activeIndex.value, 1, reason: 'back: the paywall shows');
+    await finish(tester);
+  });
+
   testWidgets('the buffering indicator waits before showing', (tester) async {
     final feed = await start(tester);
     final controller = feed.controllerAt(0);
@@ -1441,6 +1496,150 @@ void main() {
       view.dispose();
     });
 
+    testWidgets('cinema mode hides the controls until the next tap', (
+      tester,
+    ) async {
+      final view = PlayStackFeedViewController();
+      var taps = 0;
+      final seen = <PlayStackFeedPage<Object?>>[];
+      Widget app(PlayStackCinemaMode mode) => host(
+        PlayStackFeedView(
+          items: const [
+            'https://example.com/a.m3u8',
+            'https://example.com/b.m3u8',
+          ],
+          controller: view,
+          cinemaMode: mode,
+          cinemaModeDelay: const Duration(seconds: 2),
+          controlsBuilder: (context, page) {
+            seen.add(page);
+            return Center(
+              child: GestureDetector(
+                onTap: () => taps++,
+                child: const SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: Text('button'),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpWidget(app(PlayStackCinemaMode.manual));
+      await run(tester);
+      bool cinema() => seen.lastWhere((p) => p.isActive).isCinemaMode;
+
+      // A cinema button.
+      view.enterCinemaMode();
+      await tester.pump();
+      expect(view.isCinemaMode, isTrue);
+      expect(cinema(), isTrue);
+      // The first tap only brings the controls back.
+      await tester.tap(find.text('button'), warnIfMissed: false);
+      await tester.pump();
+      expect(taps, 0);
+      expect(view.isCinemaMode, isFalse);
+      expect(cinema(), isFalse);
+      await tester.tap(find.text('button'));
+      expect(taps, 1);
+      // Manual: never by itself.
+      await tester.pump(const Duration(seconds: 5));
+      expect(view.isCinemaMode, isFalse);
+
+      // Automatic, after the delay without a touch while playing.
+      await tester.pumpWidget(app(PlayStackCinemaMode.always));
+      await run(tester);
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.tap(find.text('button')); // a touch restarts the countdown
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(view.isCinemaMode, isFalse);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(view.isCinemaMode, isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('a locked screen ignores touches, swipes and back', (
+      tester,
+    ) async {
+      final view = PlayStackFeedViewController();
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PlayStackFeedView(
+                      items: const [
+                        'https://example.com/a.m3u8',
+                        'https://example.com/b.m3u8',
+                      ],
+                      controller: view,
+                      controlsBuilder: (context, page) => Center(
+                        child: GestureDetector(
+                          onTap: () => taps++,
+                          child: const SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: Text('button'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await run(tester);
+
+      await tester.runAsync(view.lockScreen);
+      await run(tester);
+      expect(view.isScreenLocked, isTrue);
+      expect(
+        engine.preferredOrientations.last,
+        isNotEmpty,
+        reason: 'the screen keeps its orientation',
+      );
+      await tester.tap(find.text('button'), warnIfMissed: false);
+      await tester.pump();
+      expect(taps, 0);
+      await tester.fling(find.byType(PageView), const Offset(0, -400), 1500);
+      await tester.pumpAndSettle();
+      expect(view.index, 0);
+      await tester.runAsync(() => tester.binding.handlePopRoute());
+      await tester.pumpAndSettle();
+      expect(find.byType(PageView), findsOneWidget, reason: 'back is ignored');
+
+      // A tap shows the unlock button.
+      await tester.tapAt(const Offset(100, 100));
+      await tester.pump();
+      await tester.tap(find.text('Unlock'));
+      await run(tester);
+      expect(view.isScreenLocked, isFalse);
+      expect(engine.preferredOrientations.last, isEmpty);
+      await tester.tap(find.text('button'));
+      expect(taps, 1);
+
+      await tester.runAsync(() => tester.binding.handlePopRoute());
+      await tester.pumpAndSettle();
+      expect(find.byType(PageView), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      await run(tester);
+      view.dispose();
+    });
+
     testWidgets('the motion sensors open fullscreen in a portrait app', (
       tester,
     ) async {
@@ -1534,6 +1733,107 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('mediaInfo puts the video in view in the media controls', (
+      tester,
+    ) async {
+      final feed = await start(tester);
+      await tester.pumpWidget(
+        host(
+          PlayStackFeedView<Object?>.feed(
+            feed: feed,
+            controlsBuilder: null,
+            mediaInfo: (data) => PlayStackMediaInfo(title: '$data'),
+            pictureInPicture: true,
+          ),
+        ),
+      );
+      await settle(tester);
+      var shown = platform.mediaSessions.last;
+      expect(shown.$1, isNotNull);
+      expect(shown.$2?.title, 'post 0');
+      expect((shown.$3, shown.$4), (true, false), reason: 'skip buttons');
+      expect(platform.pictureInPictures.last, (shown.$1, true));
+
+      // The skip button of the lock screen moves the feed.
+      platform.systemEventController.add(
+        const PlayStackSystemEvent(PlayStackSystemEventType.next),
+      );
+      await settle(tester);
+      await tester.pumpAndSettle();
+      expect(feed.activeIndex.value, 1);
+      shown = platform.mediaSessions.last;
+      expect(shown.$2?.title, 'post 1');
+      expect((shown.$3, shown.$4), (true, true));
+
+      // Pause and play act on the video in view.
+      final controller = feed.activeController!;
+      expect(controller.value.isPlaying, isTrue);
+      platform.systemEventController.add(
+        const PlayStackSystemEvent(PlayStackSystemEventType.pause),
+      );
+      await settle(tester);
+      expect(controller.value.isPlaying, isFalse);
+      platform.systemEventController.add(
+        const PlayStackSystemEvent(PlayStackSystemEventType.play),
+      );
+      await settle(tester);
+      expect(controller.value.isPlaying, isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+      await settle(tester);
+      expect(platform.mediaSessions.last, (null, null, false, false));
+      expect(platform.pictureInPictures.last, (null, false));
+      await finish(tester);
+    });
+
+    testWidgets('startPictureInPicture starts it for the video in view', (
+      tester,
+    ) async {
+      final feed = await start(tester);
+      final view = PlayStackFeedViewController();
+      await tester.pumpWidget(
+        host(
+          PlayStackFeedView<Object?>.feed(
+            feed: feed,
+            controller: view,
+            controlsBuilder: null,
+          ),
+        ),
+      );
+      await settle(tester);
+      expect(platform.pictureInPictures, isEmpty, reason: 'off by default');
+
+      late bool started;
+      await tester.runAsync(() async {
+        started = await view.startPictureInPicture();
+      });
+      expect(started, isTrue);
+      expect(platform.pictureInPictureStarts, 1);
+      expect(platform.pictureInPictures.last.$1, isNotNull);
+      expect(
+        platform.pictureInPictures.last.$2,
+        isFalse,
+        reason: 'no automatic start without pictureInPicture',
+      );
+
+      platform.systemEventController.add(
+        const PlayStackSystemEvent(
+          PlayStackSystemEventType.pictureInPictureStarted,
+        ),
+      );
+      await settle(tester);
+      expect(view.isPictureInPicture, isTrue);
+      platform.systemEventController.add(
+        const PlayStackSystemEvent(
+          PlayStackSystemEventType.pictureInPictureStopped,
+        ),
+      );
+      await settle(tester);
+      expect(view.isPictureInPicture, isFalse);
+      await finish(tester);
       view.dispose();
     });
 

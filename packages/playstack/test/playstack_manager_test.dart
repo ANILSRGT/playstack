@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playstack/playstack.dart';
+import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
 import 'support/fake_playstack_platform.dart';
 
@@ -180,6 +181,84 @@ void main() {
       reason: 'only controllers paused by the lifecycle resume',
     );
     await tester.runAsync(manager.dispose);
+  });
+
+  testWidgets('media controls keep their video playing in the background', (
+    tester,
+  ) async {
+    final platform = FakePlayStackPlatform();
+    late final PlayStackManager manager;
+    late final PlayStackPlayerController listened;
+    late final PlayStackPlayerController other;
+    await tester.runAsync(() async {
+      manager = PlayStackManager(
+        config: const PlayStackConfig(exclusivePlayback: false),
+        platform: platform,
+      );
+      await manager.initialize();
+      listened = manager.createController(const PlayStackSource.file('/a'));
+      other = manager.createController(const PlayStackSource.file('/b'));
+      await listened.play();
+      await other.play();
+      await manager.mediaSession.show(
+        listened,
+        const PlayStackMediaInfo(title: 'Episode 1'),
+      );
+      await flush();
+    });
+    await lifecycle(tester, [AppLifecycleState.hidden]);
+    expect(listened.value.isPlaying, isTrue);
+    expect(other.value.isPlaying, isFalse);
+
+    // A pause from the lock screen stays paused when the app comes back.
+    platform.systemEventController.add(
+      const PlayStackSystemEvent(PlayStackSystemEventType.pause),
+    );
+    await tester.runAsync(flush);
+    expect(listened.value.isPlaying, isFalse);
+    await lifecycle(tester, [AppLifecycleState.resumed]);
+    expect(listened.value.isPlaying, isFalse);
+    expect(other.value.isPlaying, isTrue);
+
+    await tester.runAsync(manager.mediaSession.clear);
+    expect(platform.mediaSessions.last, (null, null, false, false));
+    await tester.runAsync(manager.dispose);
+  });
+
+  testWidgets('Picture-in-Picture keeps its video playing only while open', (
+    tester,
+  ) async {
+    final platform = FakePlayStackPlatform();
+    late final PlayStackManager manager;
+    late final PlayStackPlayerController controller;
+    await tester.runAsync(() async {
+      manager = PlayStackManager(platform: platform);
+      await manager.initialize();
+      controller = manager.createController(const PlayStackSource.file('/a'));
+      await controller.play();
+      await manager.pictureInPicture.enable(controller);
+      await flush();
+    });
+    expect(platform.pictureInPictures.last.$2, isTrue);
+    await lifecycle(tester, [AppLifecycleState.hidden]);
+    expect(
+      controller.value.isPlaying,
+      isFalse,
+      reason: 'the window did not open',
+    );
+    await lifecycle(tester, [AppLifecycleState.resumed]);
+    expect(controller.value.isPlaying, isTrue);
+
+    platform.systemEventController.add(
+      const PlayStackSystemEvent(
+        PlayStackSystemEventType.pictureInPictureStarted,
+      ),
+    );
+    expect(manager.pictureInPicture.isActive.value, isTrue);
+    await lifecycle(tester, [AppLifecycleState.hidden]);
+    expect(controller.value.isPlaying, isTrue);
+    await tester.runAsync(manager.dispose);
+    expect(platform.pictureInPictures.last, (null, false));
   });
 
   testWidgets('lifecycle handling can be disabled', (tester) async {

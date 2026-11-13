@@ -84,6 +84,58 @@ class PlatformCacheInfo {
   int maxBytes;
 }
 
+/// What a system media control, Picture-in-Picture or the app asked for.
+enum PlatformSystemEventType {
+  /// Play from the lock screen, notification, headphones or car.
+  play,
+
+  /// Pause from the same places.
+  pause,
+
+  /// Move to [PlatformSystemEvent.positionMs].
+  seek,
+
+  /// Skip to the next item.
+  next,
+
+  /// Skip to the previous item.
+  previous,
+
+  /// Picture-in-Picture started (or is starting).
+  pictureInPictureStarted,
+
+  /// Picture-in-Picture ended.
+  pictureInPictureStopped,
+}
+
+class PlatformSystemEvent {
+  PlatformSystemEvent({required this.type, this.positionMs});
+
+  PlatformSystemEventType type;
+
+  /// For [PlatformSystemEventType.seek].
+  int? positionMs;
+}
+
+/// What the system's media controls show about the playing video.
+class PlatformMediaInfo {
+  PlatformMediaInfo({
+    this.title,
+    this.artist,
+    this.album,
+    this.artworkUrl,
+    required this.canSkipNext,
+    required this.canSkipPrevious,
+  });
+
+  String? title;
+  String? artist;
+  String? album;
+  String? artworkUrl;
+  bool canSkipNext;
+  bool canSkipPrevious;
+}
+
 /// How the user holds the device, from its motion sensors, whatever the
 /// orientations the app allows.
 class PlatformDeviceOrientationEvent {
@@ -306,6 +358,26 @@ abstract class PlayStackHostApi {
 
   PlatformNetworkStatus getNetworkStatus();
 
+  /// Shows [playerId] in the system's media controls (lock screen,
+  /// notification, headphones, car) with [info]; null removes them. The
+  /// controls send [PlatformSystemEvent]s; they do not act on the player.
+  void setMediaSession(int? playerId, PlatformMediaInfo? info);
+
+  /// Prepares Picture-in-Picture for [playerId]; null turns it off. With
+  /// [autoEnter] the video moves to a small window when the user leaves the
+  /// app while it plays.
+  void setPictureInPicture(int? playerId, bool autoEnter);
+
+  /// Starts Picture-in-Picture for the player prepared with
+  /// [setPictureInPicture]. False when it could not start.
+  bool startPictureInPicture();
+
+  /// Ends Picture-in-Picture (iOS; Android leaves it when the user does).
+  void stopPictureInPicture();
+
+  /// Whether the device and the app support Picture-in-Picture.
+  bool isPictureInPictureSupported();
+
   /// The orientations the app allows right now (what it last passed to
   /// `SystemChrome.setPreferredOrientations`). Empty when it allows every
   /// orientation it declares, or when the platform cannot tell.
@@ -497,4 +569,7 @@ abstract class PlayStackEventApi {
   /// the sensors only while this stream has a listener, and sends nothing
   /// while the user locked rotation in the system settings.
   PlatformDeviceOrientationEvent deviceOrientationEvents();
+
+  /// Media control commands and Picture-in-Picture changes.
+  PlatformSystemEvent systemEvents();
 }

@@ -127,6 +127,9 @@ class PlayStackFullscreenManager {
   bool _changedOrientations = false;
   final AsyncLock _lock = AsyncLock();
   List<DeviceOrientation>? _appOrientationsBefore;
+  List<DeviceOrientation>? _fullscreenOrientations;
+  bool _orientationLocked = false;
+  List<DeviceOrientation>? _appOrientationsBeforeLock;
 
   // Device orientation from the sensors, read only while listened to and
   // while the app is in the foreground.
@@ -225,7 +228,49 @@ class PlayStackFullscreenManager {
       ),
     );
     if (orientations != null) _changedOrientations = true;
+    _fullscreenOrientations = orientations;
     _isFullscreen.value = true;
+  });
+
+  /// Whether [lockOrientation] holds the screen in its orientation.
+  bool get isOrientationLocked => _orientationLocked;
+
+  /// Keeps the screen in the orientation it has now, whatever the device
+  /// does, until [unlockOrientation] (or [exit], which restores the app
+  /// policy). Used by the screen lock of `PlayStackFeedView`.
+  Future<void> lockOrientation() => _serial(() async {
+    if (_orientationLocked) return;
+    final current = _currentOrientations();
+    if (current == null) return;
+    if (!_isFullscreen.value) {
+      try {
+        _appOrientationsBeforeLock = await _platform.getAppOrientations();
+      } on Object {
+        _appOrientationsBeforeLock = null;
+      }
+    }
+    await _platform.setPreferredOrientations(current);
+    _orientationLocked = true;
+    // Leaving fullscreen must restore the policy, even if fullscreen itself
+    // did not change it.
+    if (_isFullscreen.value) _changedOrientations = true;
+  });
+
+  /// Lets the screen turn again after [lockOrientation]: back to what
+  /// fullscreen allows while fullscreen, otherwise to the app policy.
+  Future<void> unlockOrientation() => _serial(() async {
+    if (!_orientationLocked) return;
+    _orientationLocked = false;
+    final policy = _policy.appOrientations;
+    final app = policy.isNotEmpty
+        ? policy
+        : (_isFullscreen.value
+                  ? _appOrientationsBefore
+                  : _appOrientationsBeforeLock) ??
+              const <DeviceOrientation>[];
+    _appOrientationsBeforeLock = null;
+    final restore = _isFullscreen.value ? _fullscreenOrientations ?? app : app;
+    await _platform.setPreferredOrientations(restore);
   });
 
   /// Leaves fullscreen and restores the app policy. Does nothing when not
@@ -247,6 +292,10 @@ class PlayStackFullscreenManager {
     _changedOrientations = false;
     _previousOrientations = null;
     _appOrientationsBefore = null;
+    _fullscreenOrientations = null;
+    // The policy above replaced any lock.
+    _orientationLocked = false;
+    _appOrientationsBeforeLock = null;
     _isFullscreen.value = false;
   });
 

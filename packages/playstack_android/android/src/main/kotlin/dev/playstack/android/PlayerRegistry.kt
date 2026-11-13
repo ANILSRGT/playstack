@@ -17,6 +17,8 @@ internal class PlayerRegistry(
     private val events: PlayerEventDispatcher,
     private val network: NetworkMonitor,
     private val orientation: DeviceOrientationMonitor,
+    private val mediaSession: MediaSessionCoordinator,
+    private val pictureInPicture: PictureInPictureCoordinator,
 ) : PlayStackHostApi {
   private val players = HashMap<Long, NativePlayer>()
   private var engineConfig: PlatformEngineConfig? = null
@@ -46,7 +48,10 @@ internal class PlayerRegistry(
   }
 
   override suspend fun disposePlayer(playerId: Long) {
-    players.remove(playerId)?.release()
+    val player = players.remove(playerId) ?: return
+    mediaSession.playerReleased(player)
+    pictureInPicture.playerReleased(player)
+    player.release()
   }
 
   override fun setSource(playerId: Long, source: PlatformSource, generation: Long) {
@@ -101,6 +106,19 @@ internal class PlayerRegistry(
 
   override fun getAppOrientations(): List<PlatformOrientation> = orientation.appOrientations()
 
+  override fun setMediaSession(playerId: Long?, info: PlatformMediaInfo?) =
+      mediaSession.show(playerId?.let { players[it] }, info)
+
+  override fun setPictureInPicture(playerId: Long?, autoEnter: Boolean) =
+      pictureInPicture.setPlayer(playerId?.let { players[it] }, autoEnter)
+
+  override fun startPictureInPicture(): Boolean = pictureInPicture.start()
+
+  // The user leaves Picture-in-Picture; apps cannot end it.
+  override fun stopPictureInPicture() {}
+
+  override fun isPictureInPictureSupported(): Boolean = pictureInPicture.isSupported()
+
   override suspend fun getCacheInfo(): PlatformCacheInfo =
       withContext(Dispatchers.IO) {
         val config = engineConfig
@@ -127,6 +145,8 @@ internal class PlayerRegistry(
           ?: throw FlutterError("notInitialized", "Call initialize() before createPlayer().", null)
 
   fun releaseAll() {
+    mediaSession.clear()
+    pictureInPicture.setPlayer(null, false)
     players.values.forEach { it.release() }
     players.clear()
   }
