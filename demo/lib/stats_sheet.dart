@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:reelkit/reelkit.dart';
 
+import 'demo_state.dart';
+
 /// Live view of what ReelKit is doing: pool, preloading, start latency,
-/// network and cache.
+/// network, cache, and what the user watched (`onItemViewed`).
 class StatsSheet extends StatefulWidget {
   const StatsSheet({super.key, required this.manager, required this.feed});
 
@@ -63,6 +65,7 @@ class _StatsSheetState extends State<StatsSheet> {
     final metrics = active?.metrics;
     final info = active?.value.videoInfo;
     final cache = _cache;
+    final views = demoState.views;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -74,6 +77,15 @@ class _StatsSheetState extends State<StatsSheet> {
               caps.engineName,
               'recommended players: ${caps.recommendedMaxPlayers}'
                   '${caps.isLowRamDevice ? ' (low-RAM device)' : ''}',
+            ]),
+            _Section('Watching (onItemViewed)', [
+              '${views.length} videos watched, ${demoState.completedCount} '
+                  'to the end',
+              'total watch time ${(demoState.totalWatchTime.inMilliseconds / 1000).toStringAsFixed(1)} s',
+              for (final view in views.reversed.take(3))
+                '· ${view.data.title}: '
+                    '${(view.watchTime.inMilliseconds / 1000).toStringAsFixed(1)} s'
+                    '${view.watchedFraction == null ? '' : ' (${(view.watchedFraction! * 100).round()}%)'}',
             ]),
             _Section('Native player pool', [
               '${pool.leased} leased, ${pool.idle} idle, limit ${pool.maxPlayers}',

@@ -22,7 +22,28 @@ class DemoVideo {
 
   /// A still of the first frame, shown until the video renders one.
   final String? poster;
+
+  /// Like count of the post. Made up from the title, as the demo has no
+  /// backend.
+  int get likes => 120 + title.hashCode.abs() % 48000;
+
+  /// Comments of the post, made up like [likes].
+  List<String> get comments => [
+    for (var i = 0; i < 3 + title.length % 6; i++)
+      _sampleComments[(title.hashCode.abs() + i) % _sampleComments.length],
+  ];
 }
+
+const _sampleComments = [
+  'This is so smooth 🔥',
+  'Watched it three times already',
+  'Where was this filmed?',
+  'The colors are amazing',
+  'Instant start, nice',
+  'Sound on for this one 🎧',
+  'Saving this',
+  'How is this not trending',
+];
 
 /// Every item is an HLS stream from a public test or demo service.
 ///
@@ -34,6 +55,9 @@ class DemoVideo {
 /// Cloudinary and Mux items have a poster: a still of the first frame from
 /// the same service, shown at once while the video prepares.
 final List<DemoVideo> demoCatalog = _interleave(_vertical, _landscape);
+
+/// The vertical 9:16 clips only; the drama demo uses them as episodes.
+List<DemoVideo> get verticalVideos => List.unmodifiable(_vertical);
 
 const _cloudinary = 'https://res.cloudinary.com/demo/video/upload';
 
