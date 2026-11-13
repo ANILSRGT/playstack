@@ -33,6 +33,10 @@ enum PlayStackHoldAction {
 /// * a sound switch at the bottom right that mutes the whole feed;
 /// * a fullscreen button next to it on landscape videos (an exit button in
 ///   fullscreen);
+/// * a settings button that opens [PlayStackSettingsSheet]: playback speed
+///   and subtitles;
+/// * the subtitle text, when a subtitle track is on (see
+///   [PlayStackSubtitles]);
 /// * hold to pause (or to play faster, see [holdAction]);
 /// * a thin progress bar along the bottom edge; drag along it to move in
 ///   the video;
@@ -68,6 +72,9 @@ class PlayStackDefaultControls extends StatefulWidget {
     this.showMuteButton = true,
     this.showFullscreenButton = true,
     this.showProgress = true,
+    this.showSettingsButton = true,
+    this.showSubtitles = true,
+    this.playbackSpeeds = PlayStackSettingsSheet.defaultSpeeds,
     this.seekable = true,
     this.showBufferingIndicator = true,
     this.bufferingIndicatorDelay = const Duration(seconds: 2),
@@ -127,6 +134,20 @@ class PlayStackDefaultControls extends StatefulWidget {
 
   /// Whether a thin progress bar runs along the bottom edge. True by default.
   final bool showProgress;
+
+  /// Whether a settings button next to the sound switch opens
+  /// [PlayStackSettingsSheet] (speed and subtitles). True by default; turn it
+  /// off for short clips where nobody changes the speed.
+  final bool showSettingsButton;
+
+  /// Whether the subtitle text is shown above the progress bar while a
+  /// subtitle track is on. True by default. Subtitles are off until the user
+  /// picks a track in the settings sheet, unless the stream turns one on.
+  final bool showSubtitles;
+
+  /// The speeds offered in the settings sheet.
+  /// [PlayStackSettingsSheet.defaultSpeeds] (0.5x to 2x) by default.
+  final List<double> playbackSpeeds;
 
   /// Whether the user can drag along the progress bar to move in the video.
   /// True by default. See [PlayStackProgressBar.seekable].
@@ -340,6 +361,19 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
                           page.view.toggleFullscreen().catchError(_ignore),
                         ),
                       ),
+                    if (widget.showSettingsButton)
+                      _IconButton(
+                        icon: Icons.tune_rounded,
+                        label: 'Playback settings',
+                        color: widget.color,
+                        onTap: () => unawaited(
+                          PlayStackSettingsSheet.show(
+                            context,
+                            controller: _controller,
+                            speeds: widget.playbackSpeeds,
+                          ),
+                        ),
+                      ),
                     if (widget.showMuteButton)
                       PlayStackMuteButton(
                         controller: _controller,
@@ -350,6 +384,15 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
                 ),
               ),
             ),
+            if (widget.showSubtitles)
+              Positioned(
+                left: 24,
+                right: 24,
+                bottom: page.isFullscreen ? 32 : 120,
+                child: IgnorePointer(
+                  child: PlayStackSubtitles(controller: _controller),
+                ),
+              ),
             if (widget.showProgress)
               Positioned(
                 left: 0,
@@ -659,6 +702,209 @@ class _DelayedState extends State<_Delayed> {
       builder: (context, opacity, child) =>
           Opacity(opacity: opacity, child: child),
       child: widget.child,
+    );
+  }
+}
+
+/// The subtitle text of a video, centered on a translucent background.
+///
+/// Shows `controller.subtitles`, which is empty while subtitles are off, so
+/// nothing is drawn until the user turns a subtitle track on (for example in
+/// [PlayStackSettingsSheet]).
+///
+/// ```dart
+/// Positioned(
+///   left: 24,
+///   right: 24,
+///   bottom: 120,
+///   child: PlayStackSubtitles(controller: page.controller),
+/// )
+/// ```
+class PlayStackSubtitles extends StatelessWidget {
+  /// Creates the subtitle text of [controller].
+  const PlayStackSubtitles({
+    super.key,
+    required this.controller,
+    this.style = const TextStyle(
+      color: Color(0xFFFFFFFF),
+      fontSize: 16,
+      height: 1.3,
+    ),
+    this.backgroundColor = const Color(0x99000000),
+  });
+
+  /// The video whose subtitles are shown, usually `page.controller`.
+  final PlayStackPlayerController controller;
+
+  /// Style of the text: white, 16 logical pixels by default.
+  final TextStyle style;
+
+  /// Color behind each line, translucent black by default.
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<String>>(
+      valueListenable: controller.subtitles,
+      builder: (context, lines, _) {
+        final text = lines.where((line) => line.trim().isNotEmpty).join('\n');
+        if (text.isEmpty) return const SizedBox.shrink();
+        return Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Text(text, textAlign: TextAlign.center, style: style),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A bottom sheet to change a video's playback speed and subtitles, opened
+/// by the settings button of [PlayStackDefaultControls].
+///
+/// Open it from your own controls with [show]:
+///
+/// ```dart
+/// IconButton(
+///   icon: const Icon(Icons.tune),
+///   onPressed: () => PlayStackSettingsSheet.show(
+///     context,
+///     controller: page.controller,
+///   ),
+/// )
+/// ```
+///
+/// The subtitle section lists the text tracks of the video and appears only
+/// when it has some. The sheet uses the app's Material theme.
+class PlayStackSettingsSheet extends StatelessWidget {
+  /// Creates the sheet's content for [controller]. Usually opened with
+  /// [show] instead.
+  const PlayStackSettingsSheet({
+    super.key,
+    required this.controller,
+    this.speeds = defaultSpeeds,
+  });
+
+  /// 0.5x, 0.75x, 1x, 1.25x, 1.5x and 2x.
+  static const List<double> defaultSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  /// Opens the sheet for [controller] as a modal bottom sheet. Completes
+  /// when it closes.
+  static Future<void> show(
+    BuildContext context, {
+    required PlayStackPlayerController controller,
+    List<double> speeds = defaultSpeeds,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) =>
+          PlayStackSettingsSheet(controller: controller, speeds: speeds),
+    );
+  }
+
+  /// The video to change, usually `page.controller`.
+  final PlayStackPlayerController controller;
+
+  /// The speeds offered, [defaultSpeeds] by default.
+  final List<double> speeds;
+
+  static String _speedLabel(double speed) {
+    final text = speed == speed.roundToDouble()
+        ? speed.toStringAsFixed(0)
+        : speed.toString();
+    return speed == 1 ? 'Normal' : '${text}x';
+  }
+
+  static String _trackLabel(PlayStackTrack track, int index) =>
+      track.label ?? track.language ?? 'Subtitles ${index + 1}';
+
+  static void _ignore(Object _) {}
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: ValueListenableBuilder<PlayStackPlaybackState>(
+          valueListenable: controller,
+          builder: (context, state, _) =>
+              ValueListenableBuilder<List<PlayStackTrack>>(
+                valueListenable: controller.tracks,
+                builder: (context, tracks, _) {
+                  final subtitles = [
+                    for (final track in tracks)
+                      if (track.type == PlayStackTrackType.text) track,
+                  ];
+                  final subtitlesOff = !subtitles.any(
+                    (track) => track.isSelected,
+                  );
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Playback speed', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final speed in speeds)
+                            ChoiceChip(
+                              label: Text(_speedLabel(speed)),
+                              selected: state.playbackSpeed == speed,
+                              onSelected: (_) => unawaited(
+                                controller
+                                    .setPlaybackSpeed(speed)
+                                    .catchError(_ignore),
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (subtitles.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text('Subtitles', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Off'),
+                              selected: subtitlesOff,
+                              onSelected: (_) => unawaited(
+                                controller.disableSubtitles().catchError(
+                                  _ignore,
+                                ),
+                              ),
+                            ),
+                            for (final (i, track) in subtitles.indexed)
+                              ChoiceChip(
+                                label: Text(_trackLabel(track, i)),
+                                selected: track.isSelected,
+                                onSelected: (_) => unawaited(
+                                  controller
+                                      .selectTrack(track)
+                                      .catchError(_ignore),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+        ),
+      ),
     );
   }
 }

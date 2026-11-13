@@ -509,4 +509,60 @@ void main() {
     expect(feed.isDisposed, isTrue);
     expect(platform.livePlayers, isEmpty);
   });
+
+  group('pages without video and locked items', () {
+    test('a page takes no player and is skipped by preloading', () async {
+      await start(maxPlayers: 5);
+      final feed = manager.createFeed([
+        PlayStackFeedItem(_source(0), id: 'v0'),
+        PlayStackFeedItem.page(id: 'ad', data: 'ad'),
+        PlayStackFeedItem(_source(2), id: 'v2'),
+      ], config: const PlayStackFeedConfig(activeHeadStart: Duration.zero));
+      expect(feed.itemAt(1).isVideo, isFalse);
+      expect(() => feed.controllerAt(1), throwsStateError);
+      expect(feed.controllerOf('ad'), isNull);
+
+      feed.setActiveIndex(0);
+      await settle();
+      expect(feed.controllerAt(2).value.isInitialized, isTrue);
+
+      feed.setActiveIndex(1);
+      await settle();
+      expect(feed.activeController, isNull);
+      expect(feed.controllerAt(0).value.isPlaying, isFalse);
+      expect(feed.controllerAt(2).value.isInitialized, isTrue);
+
+      feed.setActiveIndex(2);
+      await settle();
+      expect(feed.controllerAt(2).value.isPlaying, isTrue);
+      feed.dispose();
+    });
+
+    test('a locked item is not prepared until unlocked', () async {
+      await start(maxPlayers: 5);
+      final feed = manager.createFeed([
+        PlayStackFeedItem(_source(0), id: 'e1'),
+        PlayStackFeedItem(_source(1), id: 'e2', locked: true),
+      ], config: const PlayStackFeedConfig(activeHeadStart: Duration.zero));
+      feed.setActiveIndex(0);
+      await settle();
+      expect(feed.itemAt(1).isPlayable, isFalse);
+      expect(feed.controllerOf('e2'), isNull);
+      expect(platform.calls.where((c) => c.contains('1.mp4')), isEmpty);
+
+      feed.setActiveIndex(1);
+      await settle();
+      expect(feed.activeController, isNull);
+
+      feed.setLocked('e2', false);
+      await settle();
+      expect(feed.activeController?.value.isPlaying, isTrue);
+
+      feed.setLocked('e2', true);
+      await settle();
+      expect(feed.activeController, isNull);
+      expect(() => feed.setLocked('nope', true), throwsArgumentError);
+      feed.dispose();
+    });
+  });
 }

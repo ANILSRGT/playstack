@@ -28,9 +28,11 @@ Library: `package:playstack/playstack.dart` (re-exports the types of
 | `PlayStackVideoView` | Renders frames with `fit`, `alignment`, poster, placeholder and error builders | [Rendering](rendering.md) |
 | `PlayStackFeedManager`, `PlayStackFeedItem`, `PlayStackFeedConfig`, `PlayStackNetworkPreloadPolicy` | Feeds and preloading | [Feeds](feed.md), [Preloading](preloading.md) |
 | `PlayStackFeedView`, `PlayStackFeedPage`, `PlayStackFeedViewController`, `PlayStackFeedTransition` | Complete feed screen from a list of items: players, paging, loading more, pull to refresh, pausing when hidden, direction, transitions, fullscreen, builders | [Feeds](feed.md) |
+| `PlayStackFeedPreload` | A feed prepared before its screen opens, shown with `PlayStackFeedView.preloaded` | [Feeds](feed.md#preparing-before-the-screen-opens) |
+| `PlayStackFeedItemBuilder` | Builds pages without video and locked items (`pageBuilder`, `lockedBuilder`) | [Feeds](feed.md#pages-without-video) |
 | `PlayStackItemView` | Watch time and position of one visit, from `PlayStackFeedView.onItemViewed` | [Feeds](feed.md#watch-time) |
 | `PlayStackConfig.reels`, `PlayStackFeedConfig.reels` | Presets tuned for fast swiping | [Feeds](feed.md) |
-| `PlayStackDefaultControls`, `PlayStackHoldAction`, `PlayStackProgressBar`, `PlayStackBufferingIndicator`, `PlayStackMuteButton` | Default feed controls and their parts | [Feeds](feed.md) |
+| `PlayStackDefaultControls`, `PlayStackHoldAction`, `PlayStackProgressBar`, `PlayStackBufferingIndicator`, `PlayStackMuteButton`, `PlayStackSubtitles`, `PlayStackSettingsSheet` | Default feed controls and their parts | [Feeds](feed.md) |
 | `PlayStackPreloadWindow`, `PlayStackFeedStats` | Applied window and feed counters | [Preloading](preloading.md) |
 | `PlayStackPoolConfig`, `PlayStackPoolStats`, `PlayStackPlayerPriority` | Native player pool | [Manager](manager.md) |
 | `PlayStackCacheConfig`, `PlayStackCacheManager`, `PlayStackCacheInfo` | Disk cache | [Caching](caching.md) |

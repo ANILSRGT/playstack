@@ -1121,6 +1121,251 @@ void main() {
       view.dispose();
     });
 
+    testWidgets('items without video are built by pageBuilder', (tester) async {
+      final view = PlayStackFeedViewController();
+      await tester.pumpWidget(
+        host(
+          PlayStackFeedView<String>(
+            items: const [
+              'https://example.com/a.m3u8',
+              'ad',
+              'https://example.com/b.m3u8',
+            ],
+            videoUrl: (item) => item == 'ad' ? null : item,
+            controller: view,
+            controlsBuilder: (context, page) => Text('video ${page.index}'),
+            pageBuilder: (context, item, isActive) =>
+                Text('page $item ${isActive ? 'active' : 'idle'}'),
+          ),
+        ),
+      );
+      await run(tester);
+      expect(view.feed!.itemAt(1).isVideo, isFalse);
+      view.jumpTo(1);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(find.text('page ad active'), findsOneWidget);
+      expect(view.feed!.activeController, isNull);
+      expect(
+        view.feed!.controllerAt(2).value.isInitialized,
+        isTrue,
+        reason: 'the video after the ad is prepared',
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets(
+      'a list on a page scrolls first, then hands the swipe to the feed',
+      (tester) async {
+        final view = PlayStackFeedViewController();
+        final list = ScrollController();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 300,
+                height: 600,
+                child: PlayStackFeedView<String>(
+                  items: const [
+                    'https://example.com/a.m3u8',
+                    'card',
+                    'https://example.com/b.m3u8',
+                  ],
+                  videoUrl: (item) => item == 'card' ? null : item,
+                  controller: view,
+                  initialIndex: 1,
+                  controlsBuilder: null,
+                  pageBuilder: (context, item, isActive) => ListView(
+                    controller: list,
+                    children: [
+                      for (var i = 0; i < 30; i++)
+                        SizedBox(height: 50, child: Text('row $i')),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await run(tester);
+        expect(view.index, 1);
+
+        // Inside the list: the list scrolls, the feed stays.
+        await tester.drag(find.text('row 2'), const Offset(0, -300));
+        await tester.pumpAndSettle();
+        expect(list.offset, greaterThan(0));
+        expect(view.index, 1);
+
+        // At the end of the list, pulling on moves to the next page.
+        list.jumpTo(list.position.maxScrollExtent);
+        await tester.pump();
+        await tester.timedDrag(
+          find.byType(ListView),
+          const Offset(0, -200),
+          const Duration(milliseconds: 300),
+        );
+        await tester.pumpAndSettle();
+        await run(tester);
+        expect(view.index, 2);
+
+        // Back on the card, at the top, pulling down goes to the previous page.
+        view.jumpTo(1);
+        await tester.pumpAndSettle();
+        list.jumpTo(0);
+        await tester.pump();
+        await tester.timedDrag(
+          find.byType(ListView),
+          const Offset(0, 200),
+          const Duration(milliseconds: 300),
+        );
+        await tester.pumpAndSettle();
+        await run(tester);
+        expect(view.index, 0);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+        await run(tester);
+        view.dispose();
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
+    );
+
+    testWidgets('locked items show lockedBuilder until unlocked', (
+      tester,
+    ) async {
+      final view = PlayStackFeedViewController();
+      final unlocked = <String>{};
+      Widget build() => host(
+        PlayStackFeedView<String>(
+          items: const [
+            'https://example.com/1.m3u8',
+            'https://example.com/2.m3u8',
+          ],
+          controller: view,
+          isLocked: (url) => url.contains('2') && !unlocked.contains(url),
+          lockedBuilder: (context, url, isActive) => const Text('paywall'),
+          controlsBuilder: (context, page) => Text('playing ${page.index}'),
+        ),
+      );
+      await tester.pumpWidget(build());
+      await run(tester);
+      view.jumpTo(1);
+      await tester.pumpAndSettle();
+      await run(tester);
+      expect(find.text('paywall'), findsOneWidget);
+      expect(view.feed!.activeController, isNull);
+
+      unlocked.add('https://example.com/2.m3u8');
+      await tester.pumpWidget(build());
+      await run(tester);
+      expect(find.text('paywall'), findsNothing);
+      expect(view.feed!.activeController!.value.isPlaying, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('a preload prepares videos before the view opens', (
+      tester,
+    ) async {
+      late PlayStackFeedPreload<String> preload;
+      await tester.runAsync(() async {
+        preload = PlayStackFeedPreload<String>(
+          items: const [
+            'https://example.com/p0.m3u8',
+            'https://example.com/p1.m3u8',
+            'https://example.com/p2.m3u8',
+          ],
+        );
+        await preload.ready;
+      });
+      final prepared = engine.calls.where((c) => c.startsWith('setSource('));
+      expect(prepared, hasLength(2), reason: 'count: 2 by default');
+      expect(engine.calls.where((c) => c.startsWith('play(')), isEmpty);
+
+      final view = PlayStackFeedViewController();
+      await tester.pumpWidget(
+        host(PlayStackFeedView<String>.preloaded(preload, controller: view)),
+      );
+      await run(tester);
+      expect(view.index, 0);
+      expect(view.feed!.activeController!.value.isPlaying, isTrue);
+      expect(
+        engine.calls.where((c) => c.startsWith('setSource(')),
+        hasLength(greaterThanOrEqualTo(2)),
+      );
+      // Shown by a view: dispose is a no-op, the view owns the players.
+      preload.dispose();
+      expect(view.feed!.isDisposed, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
+    testWidgets('settings sheet changes speed and subtitles', (tester) async {
+      final view = PlayStackFeedViewController();
+      await tester.pumpWidget(
+        host(
+          PlayStackFeedView(
+            items: const ['https://example.com/s.m3u8'],
+            controller: view,
+          ),
+        ),
+      );
+      await run(tester);
+      engine.trackList = const [
+        PlayStackTrack(
+          id: 'en',
+          type: PlayStackTrackType.text,
+          isSelected: false,
+          label: 'English',
+        ),
+      ];
+      final controller = view.feed!.activeController!;
+      await tester.runAsync(
+        () => controller.selectAutomaticTrack(PlayStackTrackType.audio),
+      );
+      await run(tester);
+
+      await tester.tap(find.bySemanticsLabel('Playback settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Playback speed'), findsOneWidget);
+      await tester.tap(find.text('1.5x'));
+      await run(tester);
+      expect(controller.value.playbackSpeed, 1.5);
+      await tester.tap(find.text('English'));
+      await run(tester);
+      expect(
+        engine.calls.any((c) => c.contains('text') && c.contains('en')),
+        isTrue,
+      );
+
+      // Cues are drawn on the video.
+      final id = engine.livePlayers.firstWhere(
+        (id) => engine.calls.contains('play($id)'),
+      );
+      engine.emit(
+        PlayStackCuesEvent(
+          playerId: id,
+          generation: engine.generations[id]!,
+          texts: const ['Hello there'],
+        ),
+      );
+      await run(tester);
+      expect(find.text('Hello there'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+      view.dispose();
+    });
+
     testWidgets('fullscreen locks swiping and lifts the quality cap', (
       tester,
     ) async {

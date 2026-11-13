@@ -123,8 +123,10 @@ class PlayStackFeedManager extends ChangeNotifier {
   /// feed is empty.
   ValueListenable<int?> get activeIndex => _activeIndex;
 
-  /// The controller of the item in view, or null before [setActiveIndex] and
-  /// when the feed is empty. Use it to pause, seek or read the playing video.
+  /// The controller of the item in view, or null before [setActiveIndex],
+  /// when the feed is empty, and when the item in view has no playable video
+  /// (a page without video, or a locked item). Use it to pause, seek or read
+  /// the playing video.
   PlayStackPlayerController? get activeController {
     final id = _activeId;
     return id == null ? null : _controllers[id];
@@ -156,18 +158,29 @@ class PlayStackFeedManager extends ChangeNotifier {
   /// outside the window are disposed (see
   /// [PlayStackFeedConfig.controllerRetention]); call this from `build` rather
   /// than caching the result for long.
+  ///
+  /// Throws a [StateError] for an item without playable video (see
+  /// [PlayStackFeedItem.isPlayable]).
   PlayStackPlayerController controllerAt(int index) {
     _throwIfDisposed();
     RangeError.checkValidIndex(index, _items);
-    return _controllerFor(_items[index]);
+    final item = _items[index];
+    if (!item.isPlayable) {
+      throw StateError(
+        'The feed item ${item.id} has no playable video '
+        '(${item.isVideo ? 'it is locked' : 'it is a page without video'}).',
+      );
+    }
+    return _controllerFor(item);
   }
 
   /// The controller of the item with [id], or null when there is no such
-  /// item.
+  /// item or it has no playable video.
   PlayStackPlayerController? controllerOf(String id) {
     _throwIfDisposed();
     final index = indexOf(id);
-    return index < 0 ? null : _controllerFor(_items[index]);
+    if (index < 0 || !_items[index].isPlayable) return null;
+    return _controllerFor(_items[index]);
   }
 
   /// Index of the item with [id], or -1 when there is none.
@@ -180,12 +193,21 @@ class PlayStackFeedManager extends ChangeNotifier {
   void setActiveIndex(int index) {
     _throwIfDisposed();
     RangeError.checkValidIndex(index, _items);
-    final id = _items[index].id;
+    final item = _items[index];
+    final id = item.id;
     if (id == _activeId) return;
     final previous = activeController;
     _activeId = id;
     _activeIndex.value = index;
-    final controller = _controllerFor(_items[index]);
+    if (!item.isPlayable) {
+      // Nothing plays on a page without video or a locked item.
+      _cancelStartMeasurement?.call();
+      _cancelStartMeasurement = null;
+      if (previous != null) unawaited(previous.pause().catchError(_ignore));
+      _schedule(activate: true);
+      return;
+    }
+    final controller = _controllerFor(item);
     _stats = _stats.copyWith(
       transitions: _stats.transitions + 1,
       preparedOnArrival:
@@ -259,7 +281,9 @@ class PlayStackFeedManager extends ChangeNotifier {
       if (_items.isNotEmpty) {
         final next = index < _items.length ? index : _items.length - 1;
         _activeId = _items[next].id;
-        _measureStart(_controllerFor(_items[next]));
+        if (_items[next].isPlayable) {
+          _measureStart(_controllerFor(_items[next]));
+        }
       }
       _itemsChanged(activate: true);
       return removed;
@@ -284,9 +308,13 @@ class PlayStackFeedManager extends ChangeNotifier {
     _throwIfDisposed();
     final next = items.toList();
     _checkUniqueIds(next, existing: const []);
+    final playableIds = {
+      for (final item in next)
+        if (item.isPlayable) item.id,
+    };
     final nextIds = {for (final item in next) item.id};
     for (final id in List<String>.of(_controllers.keys)) {
-      if (!nextIds.contains(id)) _dropController(id);
+      if (!playableIds.contains(id)) _dropController(id);
     }
     final previousSources = {for (final item in _items) item.id: item.source};
     _items
@@ -296,8 +324,12 @@ class PlayStackFeedManager extends ChangeNotifier {
       final controller = _controllers[item.id];
       controller?.startPosition = item.startPosition;
       final previous = previousSources[item.id];
-      if (controller != null && previous != null && previous != item.source) {
-        unawaited(controller.setSource(item.source).catchError(_ignore));
+      final source = item.source;
+      if (controller != null &&
+          source != null &&
+          previous != null &&
+          previous != source) {
+        unawaited(controller.setSource(source).catchError(_ignore));
       }
     }
     final hadActive = _activeId != null;
@@ -305,7 +337,7 @@ class PlayStackFeedManager extends ChangeNotifier {
     if (_activeId != null && !nextIds.contains(_activeId)) _activeId = null;
     if (_activeId == null && hadActive && _items.isNotEmpty) {
       _activeId = _items.first.id;
-      _measureStart(_controllerFor(_items.first));
+      if (_items.first.isPlayable) _measureStart(_controllerFor(_items.first));
       activate = true;
     }
     _itemsChanged(activate: activate);
@@ -326,6 +358,27 @@ class PlayStackFeedManager extends ChangeNotifier {
       unawaited(controller.setSource(source).catchError(_ignore));
     }
     notifyListeners();
+  }
+
+  /// Locks or unlocks the item with [id], for example when the user buys an
+  /// episode. A locked item is not prepared or played and gives back its
+  /// player; when the item in view is unlocked, it starts playing. Throws an
+  /// [ArgumentError] when there is no such item.
+  void setLocked(String id, bool locked) {
+    _throwIfDisposed();
+    final index = indexOf(id);
+    if (index < 0) {
+      throw ArgumentError.value(id, 'id', 'No feed item with this id');
+    }
+    final item = _items[index];
+    if (item.locked == locked) return;
+    _items[index] = item.copyWith(locked: locked);
+    if (locked) _dropController(id);
+    final isActive = id == _activeId;
+    if (isActive && !locked && _items[index].isPlayable) {
+      _measureStart(_controllerFor(_items[index]));
+    }
+    _itemsChanged(activate: isActive);
   }
 
   /// Disposes every controller of this feed. The manager stays usable.
@@ -365,7 +418,11 @@ class PlayStackFeedManager extends ChangeNotifier {
   PlayStackPlayerController _controllerFor(PlayStackFeedItem item) {
     final existing = _controllers[item.id];
     if (existing != null) return existing;
-    final controller = _host.createFeedController(item.source, config.player)
+    final source = item.source;
+    if (source == null || item.locked) {
+      throw StateError('The feed item ${item.id} has no playable video.');
+    }
+    final controller = _host.createFeedController(source, config.player)
       ..priority = PlayStackPlayerPriority.background
       ..startPosition = item.startPosition;
     final muted = _muted;
@@ -430,7 +487,10 @@ class PlayStackFeedManager extends ChangeNotifier {
     _window.value = window;
     final targets = active < 0 || _paused
         ? const <int>[]
-        : window.order(active, _items.length);
+        : [
+            for (final index in window.order(active, _items.length))
+              if (_items[index].isPlayable) index,
+          ];
     final targetIds = <String, PlayStackPlayerPriority>{
       for (final index in targets)
         _items[index].id: index > active
@@ -466,7 +526,7 @@ class PlayStackFeedManager extends ChangeNotifier {
     }
 
     PlayStackPlayerController? activeController;
-    if (active >= 0) {
+    if (active >= 0 && _items[active].isPlayable) {
       activeController = _controllerFor(_items[active]);
       if (!_paused && activate) {
         if (config.autoplay) {
@@ -482,7 +542,7 @@ class PlayStackFeedManager extends ChangeNotifier {
     }
 
     _trimControllers(active, window);
-    if (activeController != null && targets.isNotEmpty) {
+    if (targets.isNotEmpty) {
       unawaited(
         _runPreloads(plan, activeController, targets, waitForIdle: activate),
       );
@@ -491,16 +551,20 @@ class PlayStackFeedManager extends ChangeNotifier {
 
   Future<void> _runPreloads(
     int plan,
-    PlayStackPlayerController active,
+    PlayStackPlayerController? active,
     List<int> targets, {
     required bool waitForIdle,
   }) async {
     // The active item gets the network and a decoder first, for at most
-    // the head start.
-    await Future.any([
-      _settled(active, plan, waitForIdle: waitForIdle),
-      Future<void>.delayed(config.activeHeadStart),
-    ]);
+    // the head start. A page without video needs neither.
+    if (active != null) {
+      await Future.any([
+        _settled(active, plan, waitForIdle: waitForIdle),
+        Future<void>.delayed(config.activeHeadStart),
+      ]);
+    } else {
+      await Future<void>.value();
+    }
     if (plan != _plan.value || _disposed) return;
     final queue = [for (final index in targets) _items[index]];
     Future<void> worker() async {

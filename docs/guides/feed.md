@@ -108,6 +108,71 @@ onItemViewed: (view) {
 Only playing time counts: paused, loading and background time do not.
 Items skipped before they started are reported with zero watch time.
 
+### Pages without video
+
+Mix ads, photo posts or "people to follow" cards into the feed. Return
+null from `videoUrl` (or `source`) for those items, and build them with
+`pageBuilder`:
+
+```dart
+PlayStackFeedView<FeedEntry>(
+  items: entries,
+  videoUrl: (entry) => entry is VideoPost ? entry.url : null,
+  pageBuilder: (context, entry, isActive) => AdCard(ad: entry as Ad),
+  controlsBuilder: (context, page) => VideoControls(page: page.cast<VideoPost>()),
+)
+```
+
+These pages take no player and are never preloaded; the videos after them
+are prepared while the card is in view. A page can scroll on its own (a
+`ListView` taller than the screen): the list scrolls first, and once it
+is at its end, pulling on moves the feed to the next or previous page. `isActive` tells whether the page
+is the one in view, for example to count an ad impression. `page.cast<R>()`
+types `page.data` for the video controls of a mixed feed.
+
+### Locked items
+
+Lock videos the user has not unlocked yet, such as paid episodes:
+
+```dart
+PlayStackFeedView<Episode>(
+  items: episodes,
+  videoUrl: (episode) => episode.url,
+  isLocked: (episode) => !purchases.contains(episode.id),
+  lockedBuilder: (context, episode, isActive) => Paywall(episode: episode),
+)
+```
+
+A locked item is never prepared or played. Its page shows its poster
+with `lockedBuilder` on top (a lock icon without one). `isLocked` is asked
+again on every rebuild: after a purchase, call `setState` and the episode
+starts playing. `autoAdvance` stops at a locked episode. With
+`PlayStackFeedView.feed`, use `PlayStackFeedItem(locked: true)` and
+`feed.setLocked(id, false)`.
+
+### Preparing before the screen opens
+
+Start preparing a feed on the splash screen, so the first video plays
+the moment the feed appears:
+
+```dart
+// Splash screen, while the app loads:
+final reels = PlayStackFeedPreload<Post>(
+  items: posts,
+  videoUrl: (post) => post.videoUrl,
+  posterUrl: (post) => post.thumbnailUrl,
+);
+await reels.ready;   // optional: hold the splash until the first video is ready
+
+// Reels screen:
+PlayStackFeedView<Post>.preloaded(reels, onLoadMore: api.fetchMorePosts)
+```
+
+The preload starts the engine, prepares the first `count` videos (2 by
+default) without playing them and downloads their posters. A preload is
+shown by one view, once; that view takes over its players. If the feed is
+never opened, call `reels.dispose()`.
+
 ### Series and episodes
 
 For a series, continue each episode where the user stopped and let them
@@ -150,6 +215,12 @@ page with a `PlayStackFeedPage`, which gives you:
 By default the builder is `PlayStackDefaultControls`:
 
 - tap to pause and resume
+- a settings button with playback speed (0.5x to 2x) and subtitle tracks
+  (`showSettingsButton`, `playbackSpeeds`); the sheet is
+  `PlayStackSettingsSheet.show(context, controller: ...)` for your own
+  controls
+- subtitle text while a subtitle track is on (`showSubtitles`;
+  `PlayStackSubtitles` on its own)
 - hold to pause until the finger lifts (`holdAction:
   PlayStackHoldAction.speedUp` plays 2x instead, `PlayStackHoldAction.none` turns it
   off)
@@ -183,7 +254,8 @@ Buttons in your `child` react at once, even with `onDoubleTap` set. Taps on
 empty parts of it fall through to tap to pause, double tap and hold.
 
 Or replace the defaults completely. The parts are public: `PlayStackProgressBar`,
-`PlayStackBufferingIndicator` and `PlayStackMuteButton`.
+`PlayStackBufferingIndicator`, `PlayStackMuteButton`, `PlayStackSubtitles` and
+`PlayStackSettingsSheet`.
 
 ```dart
 PlayStackFeedView<Post>(

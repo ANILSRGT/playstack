@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart'
-    show DefaultMaterialLocalizations, MaterialLocalizations, RefreshIndicator;
+    show
+        DefaultMaterialLocalizations,
+        Icons,
+        MaterialLocalizations,
+        RefreshIndicator;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
@@ -15,6 +19,7 @@ import '../feed/playstack_feed_item.dart';
 import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../manager/playstack_manager.dart';
+import '../pool/playstack_player_pool.dart';
 import '../view/playstack_video_view.dart';
 import 'playstack_default_controls.dart';
 import 'playstack_feed_transition.dart';
@@ -27,6 +32,16 @@ import 'playstack_feed_transition.dart';
 typedef PlayStackFeedPageBuilder<T> = Widget Function(
   BuildContext context,
   PlayStackFeedPage<T> page,
+);
+
+/// Signature of [PlayStackFeedView.pageBuilder] and
+/// [PlayStackFeedView.lockedBuilder]: builds the page of [item], your object.
+/// [isActive] tells whether the page is the one in view, for example to
+/// count an ad impression only when it is seen.
+typedef PlayStackFeedItemBuilder<T> = Widget Function(
+  BuildContext context,
+  T item,
+  bool isActive,
 );
 
 /// One page of a [PlayStackFeedView], as passed to its builders.
@@ -66,6 +81,23 @@ class PlayStackFeedPage<T> {
   ///
   /// With [PlayStackFeedView.feed] it is the [PlayStackFeedItem.data] you attached.
   T get data => item.data as T;
+
+  /// This page with [data] typed as [R], for a feed that mixes item types:
+  /// in a `PlayStackFeedView<Object>` of videos and ads, the controls of a
+  /// video can take a `PlayStackFeedPage<Video>`.
+  ///
+  /// ```dart
+  /// controlsBuilder: (context, page) => VideoControls(page: page.cast<Video>()),
+  /// ```
+  PlayStackFeedPage<R> cast<R>() => PlayStackFeedPage<R>(
+    feed: feed,
+    view: view,
+    item: item,
+    index: index,
+    controller: controller,
+    isActive: isActive,
+    isFullscreen: isFullscreen,
+  );
 
   /// The video player of this page.
   ///
@@ -414,6 +446,233 @@ class PlayStackFeedViewController extends ChangeNotifier {
   }
 }
 
+/// Turns one of the app's items into a feed item.
+PlayStackFeedItem _mapFeedItem<T>(
+  T item, {
+  required String Function() nextId,
+  required PlayStackSource? Function(T item)? source,
+  required String? Function(T item)? videoUrl,
+  required String? Function(T item)? posterUrl,
+  required ImageProvider? Function(T item)? poster,
+  required String Function(T item)? itemId,
+  required Duration? Function(T item)? startPosition,
+  required bool Function(T item)? isLocked,
+}) {
+  final PlayStackSource? video;
+  if (source != null) {
+    video = source(item);
+  } else if (videoUrl != null) {
+    final url = videoUrl(item);
+    video = url == null ? null : PlayStackSource.network(url);
+  } else if (item is String) {
+    video = PlayStackSource.network(item);
+  } else if (item is PlayStackSource) {
+    video = item;
+  } else {
+    throw ArgumentError(
+      'PlayStackFeedView does not know where the video of a '
+      '${item.runtimeType} is. Pass videoUrl: (item) => item.yourVideoUrl.',
+    );
+  }
+  final url = posterUrl?.call(item);
+  final id = itemId?.call(item) ?? nextId();
+  final image = poster?.call(item) ?? (url == null ? null : NetworkImage(url));
+  if (video == null) {
+    return PlayStackFeedItem.page(id: id, poster: image, data: item);
+  }
+  return PlayStackFeedItem(
+    video,
+    id: id,
+    poster: image,
+    data: item,
+    startPosition: startPosition?.call(item),
+    locked: isLocked?.call(item) ?? false,
+  );
+}
+
+/// Starts preparing a feed before its screen opens, for example on the
+/// splash screen, so the first video plays the moment the feed appears.
+///
+/// Create it with the same arguments you would give
+/// `PlayStackFeedView(items: ...)`, and show it later with
+/// [PlayStackFeedView.preloaded]:
+///
+/// ```dart
+/// // Splash screen, while the app loads:
+/// final reels = PlayStackFeedPreload<Post>(
+///   items: posts,
+///   videoUrl: (post) => post.videoUrl,
+///   posterUrl: (post) => post.thumbnailUrl,
+/// );
+///
+/// // Reels screen:
+/// PlayStackFeedView<Post>.preloaded(reels, onLoadMore: api.fetchMorePosts)
+/// ```
+///
+/// It starts the engine at once, prepares the first [count] videos from
+/// [initialIndex] (without playing them) and downloads their posters.
+/// Await [ready] to hold the splash screen until the first video is
+/// prepared; it is optional.
+///
+/// A preload is shown by one view, once. That view takes over its players
+/// and releases them when it is removed. If no view ever shows it, call
+/// [dispose].
+class PlayStackFeedPreload<T> {
+  /// Starts preparing [items]. The arguments mean the same as in
+  /// `PlayStackFeedView(items: ...)`; [count] is how many videos to prepare,
+  /// 2 by default (the first one and the next).
+  ///
+  /// Pass `looping: false` when the view will use
+  /// [PlayStackFeedView.autoAdvance].
+  PlayStackFeedPreload({
+    required this.items,
+    this.videoUrl,
+    this.source,
+    this.posterUrl,
+    this.poster,
+    this.itemId,
+    this.startPosition,
+    this.isLocked,
+    this.manager,
+    this.feedConfig = PlayStackFeedConfig.reels,
+    this.initialIndex = 0,
+    this.count = 2,
+    bool looping = true,
+  }) : assert(count >= 0) {
+    // Fail right away when the items have no known video.
+    final mapped = [
+      for (final item in items)
+        _mapFeedItem(
+          item,
+          nextId: () => 'item-${_nextId++}',
+          source: source,
+          videoUrl: videoUrl,
+          posterUrl: posterUrl,
+          poster: poster,
+          itemId: itemId,
+          startPosition: startPosition,
+          isLocked: isLocked,
+        ),
+    ];
+    _started = _start(mapped, looping);
+    _started.ignore();
+    ready = _started.then((_) => _prepared).catchError((Object _) {});
+  }
+
+  /// Your items, as in `PlayStackFeedView.items`.
+  final List<T> items;
+
+  /// See `PlayStackFeedView.videoUrl`.
+  final String? Function(T item)? videoUrl;
+
+  /// See `PlayStackFeedView.source`.
+  final PlayStackSource? Function(T item)? source;
+
+  /// See `PlayStackFeedView.posterUrl`.
+  final String? Function(T item)? posterUrl;
+
+  /// See `PlayStackFeedView.poster`.
+  final ImageProvider? Function(T item)? poster;
+
+  /// See `PlayStackFeedView.itemId`.
+  final String Function(T item)? itemId;
+
+  /// See `PlayStackFeedView.startPosition`.
+  final Duration? Function(T item)? startPosition;
+
+  /// See `PlayStackFeedView.isLocked`.
+  final bool Function(T item)? isLocked;
+
+  /// The manager to play with; null creates one with
+  /// [PlayStackConfig.reels]. A manager you pass stays yours to dispose.
+  final PlayStackManager? manager;
+
+  /// See `PlayStackFeedView.feedConfig`.
+  final PlayStackFeedConfig feedConfig;
+
+  /// The item the feed opens at, 0 by default. Preparing starts there.
+  final int initialIndex;
+
+  /// How many videos are prepared from [initialIndex], 2 by default.
+  final int count;
+
+  /// Completes when the first video is prepared, or when preparing it
+  /// failed (the feed shows the error and its retry button). Never
+  /// completes with an error.
+  late final Future<void> ready;
+
+  late final Future<PlayStackFeedManager> _started;
+  Future<void> _prepared = Future<void>.value();
+  PlayStackManager? _ownedManager;
+  PlayStackFeedManager? _feed;
+  int _nextId = 0;
+  bool _claimed = false;
+  bool _disposed = false;
+
+  Future<PlayStackFeedManager> _start(
+    List<PlayStackFeedItem> mapped,
+    bool looping,
+  ) async {
+    final manager =
+        this.manager ??
+        (_ownedManager = PlayStackManager(
+          config: PlayStackConfig.reels(looping: looping),
+        ));
+    if (!manager.isInitialized) await manager.initialize();
+    if (_disposed) throw StateError('PlayStackFeedPreload was disposed.');
+    final feed = _feed = manager.createFeed(mapped, config: feedConfig);
+    final preparing = <Future<void>>[];
+    final end = math.min(feed.length, initialIndex + count);
+    for (var i = initialIndex; i < end; i++) {
+      final item = feed.itemAt(i);
+      final image = item.poster;
+      if (image != null) _precachePoster(image);
+      if (!item.isPlayable) continue;
+      final controller = feed.controllerAt(i)
+        ..priority = i == initialIndex
+            ? PlayStackPlayerPriority.visible
+            : PlayStackPlayerPriority.preload;
+      preparing.add(controller.initialize().catchError((Object _) {}));
+    }
+    if (preparing.isNotEmpty) _prepared = preparing.first;
+    return feed;
+  }
+
+  static void _precachePoster(ImageProvider image) {
+    final stream = image.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, _) => stream.removeListener(listener),
+      onError: (_, _) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
+  }
+
+  /// Hands the feed to a view; a preload is shown once.
+  Future<PlayStackFeedManager> _claim() {
+    if (_claimed) {
+      throw StateError(
+        'This PlayStackFeedPreload is already shown by a view. Create a new '
+        'one for each screen.',
+      );
+    }
+    if (_disposed) throw StateError('This PlayStackFeedPreload was disposed.');
+    _claimed = true;
+    return _started;
+  }
+
+  /// Releases the prepared players when no view showed this preload, for
+  /// example when the user never opened the feed. Does nothing once a view
+  /// took it over.
+  void dispose() {
+    if (_claimed || _disposed) return;
+    _disposed = true;
+    _feed?.dispose();
+    final manager = _ownedManager;
+    if (manager != null) unawaited(manager.dispose());
+  }
+}
+
 /// A complete short-video feed screen, like Reels, Shorts or TikTok.
 ///
 /// Give it your items and say where each item's video is:
@@ -486,6 +745,9 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.videoBuilder,
     this.controlsBuilder = PlayStackDefaultControls.builder,
     this.emptyBuilder,
+    this.pageBuilder,
+    this.isLocked,
+    this.lockedBuilder,
     this.onPageChanged,
     this.onItemViewed,
     this.onRefresh,
@@ -494,6 +756,57 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
   }) : feed = null,
+       preload = null,
+       onEndReached = null,
+       assert(loadMoreThreshold >= 0),
+       assert(precachePosters >= 0);
+
+  /// Shows a feed prepared ahead with [PlayStackFeedPreload], for example on
+  /// the splash screen. The first video plays as soon as the view appears.
+  ///
+  /// The items and how to read them come from [preload]; everything else
+  /// works as in the main constructor.
+  ///
+  /// ```dart
+  /// PlayStackFeedView<Post>.preloaded(reels, onLoadMore: api.fetchMorePosts)
+  /// ```
+  PlayStackFeedView.preloaded(
+    PlayStackFeedPreload<T> this.preload, {
+    super.key,
+    this.onLoadMore,
+    this.controller,
+    this.scrollDirection = Axis.vertical,
+    this.reverse = false,
+    this.transition = PlayStackFeedTransition.slide,
+    this.transitionDuration = const Duration(milliseconds: 350),
+    this.transitionCurve = Curves.easeOutCubic,
+    this.physics,
+    this.fit,
+    this.backgroundColor = const Color(0xFF000000),
+    this.videoBuilder,
+    this.controlsBuilder = PlayStackDefaultControls.builder,
+    this.emptyBuilder,
+    this.pageBuilder,
+    this.lockedBuilder,
+    this.onPageChanged,
+    this.onItemViewed,
+    this.onRefresh,
+    this.loadMoreThreshold = 3,
+    this.precachePosters = 3,
+    this.autoAdvance = false,
+    this.pauseWhenHidden = true,
+  }) : items = preload.items,
+       videoUrl = preload.videoUrl,
+       source = preload.source,
+       posterUrl = preload.posterUrl,
+       poster = preload.poster,
+       itemId = preload.itemId,
+       startPosition = preload.startPosition,
+       isLocked = preload.isLocked,
+       manager = preload.manager,
+       feedConfig = preload.feedConfig,
+       initialIndex = preload.initialIndex,
+       feed = null,
        onEndReached = null,
        assert(loadMoreThreshold >= 0),
        assert(precachePosters >= 0);
@@ -530,6 +843,8 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.videoBuilder,
     this.controlsBuilder = PlayStackDefaultControls.builder,
     this.emptyBuilder,
+    this.pageBuilder,
+    this.lockedBuilder,
     this.onPageChanged,
     this.onItemViewed,
     this.loadMoreThreshold = 3,
@@ -537,12 +852,14 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.autoAdvance = false,
     this.pauseWhenHidden = true,
   }) : items = null,
+       preload = null,
        videoUrl = null,
        source = null,
        posterUrl = null,
        poster = null,
        itemId = null,
        startPosition = null,
+       isLocked = null,
        onLoadMore = null,
        onRefresh = null,
        manager = null,
@@ -572,7 +889,10 @@ class PlayStackFeedView<T> extends StatefulWidget {
   ///
   /// Not needed when the items are URL strings. Use [source] instead for
   /// assets, local files or HTTP headers.
-  final String Function(T item)? videoUrl;
+  ///
+  /// Return null for an item without video, such as an ad: the view builds
+  /// its page with [pageBuilder].
+  final String? Function(T item)? videoUrl;
 
   /// Returns an item's video as a [PlayStackSource], when a URL is not enough:
   ///
@@ -582,8 +902,9 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// ```
   ///
   /// Takes precedence over [videoUrl]. Not needed when the items are
-  /// [PlayStackSource]s.
-  final PlayStackSource Function(T item)? source;
+  /// [PlayStackSource]s. Return null for an item without video (see
+  /// [pageBuilder]).
+  final PlayStackSource? Function(T item)? source;
 
   /// Returns the URL of an image shown until the video's first frame appears,
   /// usually a thumbnail of that frame. Return null for items without one.
@@ -657,6 +978,10 @@ class PlayStackFeedView<T> extends StatefulWidget {
 
   /// The feed shown by [PlayStackFeedView.feed]; null with the main constructor.
   final PlayStackFeedManager? feed;
+
+  /// The preload shown by [PlayStackFeedView.preloaded]; null with the other
+  /// constructors.
+  final PlayStackFeedPreload<T>? preload;
 
   /// [PlayStackFeedView.feed] only: called when the user is [loadMoreThreshold]
   /// items from the end, once per feed length. Append the next items to your
@@ -753,6 +1078,46 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// Shown when there are no items, for example "No videos yet". Defaults to
   /// an empty screen in [backgroundColor].
   final WidgetBuilder? emptyBuilder;
+
+  /// Builds the pages of items without video: ads, photo posts, "people to
+  /// follow" cards. An item has no video when [videoUrl] (or [source])
+  /// returns null for it.
+  ///
+  /// ```dart
+  /// PlayStackFeedView<FeedEntry>(
+  ///   items: entries,
+  ///   videoUrl: (entry) => entry is VideoPost ? entry.url : null,
+  ///   pageBuilder: (context, entry, isActive) => AdCard(ad: entry as Ad),
+  /// )
+  /// ```
+  ///
+  /// These pages take no player and are never preloaded; the videos around
+  /// them still are. Swiping works across them like any page. Without a
+  /// builder they show [backgroundColor].
+  ///
+  /// A page may scroll on its own, for example a `ListView` taller than the
+  /// screen. The list scrolls first; once it is at its end and the user
+  /// keeps dragging, the feed moves to the next (or previous) page.
+  final PlayStackFeedItemBuilder<T>? pageBuilder;
+
+  /// Returns whether an item's video is locked, for example an episode the
+  /// user has not unlocked yet.
+  ///
+  /// ```dart
+  /// isLocked: (episode) => episode.number > 9 && !purchases.has(episode),
+  /// lockedBuilder: (context, episode, isActive) => Paywall(episode: episode),
+  /// ```
+  ///
+  /// A locked item is never prepared or played, and its page shows its
+  /// poster with [lockedBuilder] on top. It is asked again on every rebuild:
+  /// after the user unlocks an episode, call `setState` and the video plays.
+  /// [autoAdvance] stops at a locked episode.
+  final bool Function(T item)? isLocked;
+
+  /// Builds what a locked item shows over its poster: a paywall, a "watch an
+  /// ad to unlock" button. Without one, a lock icon is shown. See
+  /// [isLocked].
+  final PlayStackFeedItemBuilder<T>? lockedBuilder;
 
   /// Called with the new index when the page in view changes, by a swipe or
   /// from code. Use it for analytics or to sync other UI.
@@ -875,6 +1240,8 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     final feed = widget.feed;
     if (feed != null) {
       _attach(feed);
+    } else if (widget.preload != null) {
+      unawaited(_startPreloaded(widget.preload!));
     } else {
       // Fail right away, not after the engine started, when the view
       // cannot know where the videos are.
@@ -884,6 +1251,28 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       _nextId = 0;
       unawaited(_start());
     }
+  }
+
+  Future<void> _startPreloaded(PlayStackFeedPreload<T> preload) async {
+    final PlayStackFeedManager feed;
+    try {
+      feed = await preload._claim();
+    } on Object catch (error, stack) {
+      _report(error, stack, 'while starting a preloaded feed');
+      return;
+    }
+    // The view owns what the preload created.
+    _ownedManager = preload._ownedManager;
+    _nextId = preload._nextId;
+    if (!mounted) {
+      feed.dispose();
+      final manager = _ownedManager;
+      if (manager != null) unawaited(manager.dispose());
+      return;
+    }
+    _ownedFeed = feed;
+    setState(() => _attach(feed));
+    _controller._changed();
   }
 
   Future<void> _start() async {
@@ -944,31 +1333,29 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     }
   }
 
-  PlayStackFeedItem _toFeedItem(T item) {
-    final PlayStackSource source;
-    if (widget.source case final toSource?) {
-      source = toSource(item);
-    } else if (widget.videoUrl case final toUrl?) {
-      source = PlayStackSource.network(toUrl(item));
-    } else if (item is String) {
-      source = PlayStackSource.network(item);
-    } else if (item is PlayStackSource) {
-      source = item;
-    } else {
-      throw ArgumentError(
-        'PlayStackFeedView does not know where the video of a ${item.runtimeType} '
-        'is. Pass videoUrl: (item) => item.yourVideoUrl.',
-      );
+  PlayStackFeedItem _toFeedItem(T item) => _mapFeedItem(
+    item,
+    nextId: () => 'item-${_nextId++}',
+    source: widget.source,
+    videoUrl: widget.videoUrl,
+    posterUrl: widget.posterUrl,
+    poster: widget.poster,
+    itemId: widget.itemId,
+    startPosition: widget.startPosition,
+    isLocked: widget.isLocked,
+  );
+
+  /// Asks [PlayStackFeedView.isLocked] again for every video, after a
+  /// rebuild of the app (an episode was unlocked).
+  void _syncLocks(PlayStackFeedManager feed) {
+    final isLocked = widget.isLocked;
+    if (isLocked == null) return;
+    for (var i = 0; i < feed.length; i++) {
+      final item = feed.itemAt(i);
+      if (!item.isVideo) continue;
+      final locked = isLocked(item.data as T);
+      if (locked != item.locked) feed.setLocked(item.id, locked);
     }
-    final url = widget.posterUrl?.call(item);
-    return PlayStackFeedItem(
-      source,
-      id: widget.itemId?.call(item) ?? 'item-${_nextId++}',
-      poster:
-          widget.poster?.call(item) ?? (url == null ? null : NetworkImage(url)),
-      data: item,
-      startPosition: widget.startPosition?.call(item),
-    );
   }
 
   void _attach(PlayStackFeedManager feed) {
@@ -1038,6 +1425,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (owned != null && items != null && !identical(items, oldWidget.items)) {
       _syncItems(owned, oldWidget.items ?? const [], items);
     }
+    if (owned != null && !owned.isDisposed) _syncLocks(owned);
   }
 
   /// Applies a new [PlayStackFeedView.items] list: appends when it extends the
@@ -1127,6 +1515,16 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     });
   }
 
+  /// A list inside a page reached its end and the user keeps dragging:
+  /// move the feed on, so the page does not trap the swipe.
+  void _onInnerEdge(bool forward) {
+    if (_isFullscreen || widget.physics is NeverScrollableScrollPhysics) {
+      return;
+    }
+    final move = forward ? _controller.nextPage() : _controller.previousPage();
+    unawaited(move.catchError((Object _) {}));
+  }
+
   void _onPageChanged(int index) {
     final feed = _feed;
     if (feed == null || feed.isDisposed || index >= feed.length) return;
@@ -1208,7 +1606,9 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
       return;
     }
     _reportViewed();
-    if (item == null || widget.onItemViewed == null) return;
+    if (item == null || widget.onItemViewed == null || !item.isPlayable) {
+      return;
+    }
     _viewed = item;
     _viewedIndex = index!;
     final controller = (feed!.activeController ?? feed.controllerAt(index))
@@ -1439,7 +1839,15 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
                   isFullscreen: _isFullscreen,
                   videoBuilder: widget.videoBuilder,
                   controlsBuilder: widget.controlsBuilder,
+                  pageBuilder: widget.pageBuilder,
+                  lockedBuilder: widget.lockedBuilder,
                   fit: widget.fit,
+                );
+                page = _ScrollHandoff(
+                  axis: widget.scrollDirection,
+                  reverse: widget.reverse,
+                  onEdge: _onInnerEdge,
+                  child: page,
                 );
                 if (!widget.transition.isIdentity) {
                   page = _TransitionedPage(
@@ -1516,6 +1924,8 @@ class _PageContent<T> extends StatelessWidget {
     required this.isFullscreen,
     required this.videoBuilder,
     required this.controlsBuilder,
+    required this.pageBuilder,
+    required this.lockedBuilder,
     required this.fit,
   });
 
@@ -1526,10 +1936,40 @@ class _PageContent<T> extends StatelessWidget {
   final bool isFullscreen;
   final PlayStackFeedPageBuilder<T>? videoBuilder;
   final PlayStackFeedPageBuilder<T>? controlsBuilder;
+  final PlayStackFeedItemBuilder<T>? pageBuilder;
+  final PlayStackFeedItemBuilder<T>? lockedBuilder;
   final BoxFit? fit;
 
   @override
   Widget build(BuildContext context) {
+    if (!item.isPlayable) {
+      return ValueListenableBuilder<int?>(
+        valueListenable: feed.activeIndex,
+        builder: (context, active, _) {
+          final data = item.data as T;
+          final isActive = active == index;
+          if (!item.isVideo) {
+            return pageBuilder?.call(context, data, isActive) ??
+                const SizedBox.expand();
+          }
+          final poster = item.poster;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (poster != null)
+                Image(
+                  image: poster,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              lockedBuilder?.call(context, data, isActive) ??
+                  const _DefaultLocked(),
+            ],
+          );
+        },
+      );
+    }
     final controller = feed.controllerAt(index);
     return ValueListenableBuilder<int?>(
       valueListenable: feed.activeIndex,
@@ -1574,6 +2014,101 @@ class _PageContent<T> extends StatelessWidget {
           poster: item.poster,
         );
       },
+    );
+  }
+}
+
+/// Hands a drag over to the feed when a scrollable inside the page (a list
+/// on a page without video, a long caption) is at its end along the feed's
+/// axis and the user keeps dragging past it.
+class _ScrollHandoff extends StatefulWidget {
+  const _ScrollHandoff({
+    required this.axis,
+    required this.reverse,
+    required this.onEdge,
+    required this.child,
+  });
+
+  final Axis axis;
+  final bool reverse;
+
+  /// Called once per drag; true moves to the next page.
+  final ValueChanged<bool> onEdge;
+  final Widget child;
+
+  @override
+  State<_ScrollHandoff> createState() => _ScrollHandoffState();
+}
+
+class _ScrollHandoffState extends State<_ScrollHandoff> {
+  /// How far past its end a list is pulled before the feed moves.
+  static const double _threshold = 48;
+
+  double _overscroll = 0;
+  bool _handedOff = false;
+
+  static bool _isPositive(AxisDirection direction) =>
+      direction == AxisDirection.down || direction == AxisDirection.right;
+
+  bool _onNotification(ScrollNotification notification) {
+    final metrics = notification.metrics;
+    if (metrics.axis != widget.axis) return false;
+    if (notification is ScrollStartNotification) {
+      _overscroll = 0;
+      _handedOff = false;
+      return false;
+    }
+    if (_handedOff) return false;
+    double? past;
+    if (notification is OverscrollNotification &&
+        notification.dragDetails != null) {
+      // Clamping lists (Android) report the overscroll as deltas.
+      _overscroll += notification.overscroll;
+      past = _overscroll;
+    } else if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null &&
+        metrics.outOfRange) {
+      // Bouncing lists (iOS) move past their end instead.
+      past = metrics.pixels > metrics.maxScrollExtent
+          ? metrics.pixels - metrics.maxScrollExtent
+          : metrics.pixels - metrics.minScrollExtent;
+    }
+    if (past == null || past.abs() < _threshold) return false;
+    _handedOff = true;
+    // The same finger movement scrolls the list and the feed forward when
+    // both grow in the same screen direction.
+    // A feed grows down (or right) unless reversed.
+    final feedPositive = !widget.reverse;
+    final listPositive = _isPositive(metrics.axisDirection);
+    widget.onEdge((past > 0) == (listPositive == feedPositive));
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onNotification,
+      child: widget.child,
+    );
+  }
+}
+
+/// A locked video without a `lockedBuilder`: a dimmed poster and a lock.
+class _DefaultLocked extends StatelessWidget {
+  const _DefaultLocked();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0x99000000),
+      child: Center(
+        child: Icon(
+          Icons.lock_rounded,
+          size: 56,
+          color: Color(0xFFFFFFFF),
+          semanticLabel: 'Locked',
+        ),
+      ),
     );
   }
 }

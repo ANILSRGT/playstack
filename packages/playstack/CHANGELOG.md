@@ -34,6 +34,19 @@
 * `PlayStackDefaultControls`: hold to pause or to play faster (`holdAction`,
   `PlayStackHoldAction`, `holdSpeed`), and a progress bar you can drag or tap
   to seek (`seekable`, `PlayStackProgressBar.seekable`, `touchHeight`).
+* Pages without video: `videoUrl` or `source` may return null, and
+  `PlayStackFeedView.pageBuilder` builds those pages (ads, cards). They take
+  no player and are never preloaded. A list inside a page scrolls first and
+  hands the swipe to the feed at its end. `PlayStackFeedItem.page`,
+  `PlayStackFeedItem.isVideo`, `PlayStackFeedPage.cast`.
+* Locked items: `PlayStackFeedView.isLocked` and `lockedBuilder`,
+  `PlayStackFeedItem.locked`, `PlayStackFeedManager.setLocked`. Locked
+  videos are never prepared or played.
+* `PlayStackFeedPreload` and `PlayStackFeedView.preloaded` prepare a feed
+  before its screen opens, for example on the splash screen.
+* `PlayStackDefaultControls` shows subtitles and a settings button with
+  playback speed and subtitle tracks; `PlayStackSubtitles` and
+  `PlayStackSettingsSheet` are public.
 * `PlayStackDefaultControls.child` sits above the gesture layer, so its buttons
   react at once instead of waiting for a possible double tap.
 * `PlayStackConfig.reels(looping: false)`. With `autoAdvance` the view's own

@@ -18,8 +18,10 @@ Engines: AndroidX Media3 ExoPlayer (Android), AVFoundation (iOS) and
   decoder limits, and stale preparations are cancelled when the user
   swipes fast.
 - **Replaceable controls.** Default controls (tap or hold to pause, sound,
-  fullscreen, a seekable progress bar, buffering, retry), your own layer
-  on top, or your own controls from reusable parts.
+  fullscreen, speed and subtitles, a seekable progress bar, buffering,
+  retry), your own layer on top, or your own controls from reusable parts.
+- **Mixed feeds.** Ads and cards between videos, locked (paid) episodes,
+  and feeds prepared on the splash screen.
 - **Transitions and direction.** Slide, parallax, stack, fade, zoom, cube
   or your own; vertical or horizontal, normal or reversed.
 - **App-aware.** Pauses under pushed routes, in hidden tabs and in the
@@ -92,6 +94,22 @@ PlayStackFeedView<Post>(
   ),
   controller: viewController,                   // nextPage, jumpToItem, fullscreen, mute, pause
 )
+```
+
+### Ads, locked episodes and splash preloading
+
+```dart
+PlayStackFeedView<Entry>(
+  items: entries,
+  videoUrl: (e) => e is Video ? e.url : null,        // null: a page without video
+  pageBuilder: (context, e, isActive) => AdCard(e as Ad),
+  isLocked: (e) => e is Video && !e.unlocked,        // never prepared or played
+  lockedBuilder: (context, e, isActive) => Paywall(e as Video),
+)
+
+// On the splash screen: the first videos are ready before the feed opens.
+final reels = PlayStackFeedPreload<Post>(items: posts, videoUrl: (p) => p.url);
+PlayStackFeedView<Post>.preloaded(reels);
 ```
 
 ### Series
