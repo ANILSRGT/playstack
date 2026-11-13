@@ -7,6 +7,7 @@ import 'author_page.dart';
 import 'catalog.dart';
 import 'comments_sheet.dart';
 import 'demo_state.dart';
+import 'loading_animation.dart';
 
 /// The controls of one reel: PlayStack's default controls (tap and hold to
 /// pause, sound, fullscreen, progress, retry) plus the app's own layer:
@@ -44,6 +45,7 @@ class _PostControlsState extends State<PostControls>
     return PlayStackDefaultControls(
       page: page,
       onDoubleTap: _onDoubleTap,
+      bufferingIndicator: const LoadingAnimation(),
       child: Stack(
         fit: StackFit.expand,
         children: [

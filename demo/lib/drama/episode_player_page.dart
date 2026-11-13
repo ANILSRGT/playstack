@@ -5,6 +5,7 @@ import 'package:playstack/playstack.dart';
 
 import 'drama_data.dart';
 import 'series_page.dart';
+import '../loading_animation.dart';
 
 /// Plays a series as a vertical feed of episodes.
 ///
@@ -12,7 +13,13 @@ import 'series_page.dart';
 ///   (`initialIndex`, `startPosition`);
 /// * moves to the next episode when one ends (`autoAdvance`);
 /// * saves where the user stopped (`onItemViewed`);
-/// * jumps to any episode from the episode list (`jumpToItem`).
+/// * jumps to any episode from the episode list (`jumpToItem`);
+/// * hides the controls in fullscreen until the screen is tapped
+///   (`cinemaMode`);
+/// * keeps playing on the lock screen and in the notification, with skip
+///   buttons between episodes (`mediaInfo`);
+/// * keeps playing in a small window when the user leaves the app
+///   (`pictureInPicture`).
 class EpisodePlayerPage extends StatefulWidget {
   const EpisodePlayerPage({
     super.key,
@@ -68,16 +75,26 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
               _Paywall(series: series, episode: episode),
           autoAdvance: true,
           onItemViewed: watchProgress.record,
+          cinemaMode: PlayStackCinemaMode.fullscreen,
+          mediaInfo: (episode) => PlayStackMediaInfo(
+            title: 'Episode ${episode.number}: ${episode.title}',
+            artist: series.title,
+            artworkUrl: episode.poster,
+          ),
+          pictureInPicture: true,
           controlsBuilder: (context, page) => PlayStackDefaultControls(
             page: page,
             // Hold to watch at 2x, as drama apps do.
             holdAction: PlayStackHoldAction.speedUp,
+            bufferingIndicator: const LoadingAnimation(),
             child: page.isFullscreen
                 ? null
                 : _EpisodeOverlay(
                     series: series,
                     episode: page.data,
                     onEpisodes: () => unawaited(_showEpisodes(page.data)),
+                    onPictureInPicture: () =>
+                        unawaited(_view.startPictureInPicture()),
                   ),
           ),
         ),
@@ -148,11 +165,13 @@ class _EpisodeOverlay extends StatelessWidget {
     required this.series,
     required this.episode,
     required this.onEpisodes,
+    required this.onPictureInPicture,
   });
 
   final Series series;
   final Episode episode;
   final VoidCallback onEpisodes;
+  final VoidCallback onPictureInPicture;
 
   @override
   Widget build(BuildContext context) {
@@ -161,22 +180,32 @@ class _EpisodeOverlay extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Align(
-          alignment: Alignment.topLeft,
+          alignment: Alignment.topCenter,
           child: SafeArea(
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back_rounded, shadows: shadow),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
-                Text(
-                  series.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    series.title,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      shadows: shadow,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Picture-in-Picture',
+                  icon: const Icon(
+                    Icons.picture_in_picture_alt_rounded,
                     shadows: shadow,
                   ),
+                  onPressed: onPictureInPicture,
                 ),
               ],
             ),

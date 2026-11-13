@@ -16,6 +16,15 @@ PlayStackSource? _videoOf(Object entry) =>
 
 String? _posterOf(Object entry) => entry is DemoVideo ? entry.poster : null;
 
+/// What the lock screen and the notification show while a post plays.
+PlayStackMediaInfo? _mediaInfoOf(Object entry) => entry is DemoVideo
+    ? PlayStackMediaInfo(
+        title: entry.title,
+        artist: entry.author,
+        artworkUrl: entry.poster,
+      )
+    : null;
+
 /// Starts preparing the home feed before it is opened. The launcher calls
 /// it at start, like a splash screen would.
 PlayStackFeedPreload<Object> preloadHomeFeed() => PlayStackFeedPreload<Object>(
@@ -111,6 +120,9 @@ class _ReelsPageState extends State<ReelsPage> {
               onItemViewed: demoState.recordView,
               controlsBuilder: _controls,
               pageBuilder: _suggestion,
+              // Lock screen controls, and a small window on leaving the app.
+              mediaInfo: _mediaInfoOf,
+              pictureInPicture: true,
             )
           else
             PlayStackFeedView<Object>(
@@ -125,6 +137,9 @@ class _ReelsPageState extends State<ReelsPage> {
               onItemViewed: demoState.recordView,
               controlsBuilder: _controls,
               pageBuilder: _suggestion,
+              // Lock screen controls, and a small window on leaving the app.
+              mediaInfo: _mediaInfoOf,
+              pictureInPicture: true,
             ),
           _TopBar(view: _view, title: widget.title, onStats: _showStats),
         ],
