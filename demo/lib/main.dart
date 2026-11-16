@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'drama/offline.dart';
 import 'launcher_page.dart';
 
 Future<void> main() async {
@@ -9,6 +10,9 @@ Future<void> main() async {
   // still opens it fullscreen (PlayStackFeedView.fullscreenOnRotate reads the
   // motion sensors), and the portrait lock comes back afterwards.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // Downloads are off until the user is premium (the switch on the
+  // downloads page of the drama app).
+  await offline.initialize();
   runApp(const DemoApp());
 }
 

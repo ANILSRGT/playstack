@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'drama_data.dart';
 import 'episode_player_page.dart';
+import 'offline.dart';
 
 /// The page of a series: continue watching, or pick any episode.
 class SeriesPage extends StatelessWidget {
@@ -23,7 +24,10 @@ class SeriesPage extends StatelessWidget {
     final poster = series.poster;
     return Scaffold(
       body: ListenableBuilder(
-        listenable: watchProgress,
+        listenable: Listenable.merge([
+          watchProgress,
+          offline.downloads.downloads,
+        ]),
         builder: (context, _) {
           final next = watchProgress.continueWith(series);
           final start = next ?? series.episodes.first;
@@ -33,6 +37,17 @@ class SeriesPage extends StatelessWidget {
               SliverAppBar(
                 pinned: true,
                 expandedHeight: 420,
+                actions: [
+                  IconButton(
+                    tooltip: 'Downloads',
+                    icon: const Icon(Icons.download_for_offline_outlined),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const DownloadsPage(),
+                      ),
+                    ),
+                  ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(series.title),
                   background: Stack(
@@ -155,6 +170,16 @@ class EpisodeTile extends StatelessWidget {
                 top: 4,
                 right: 4,
                 child: Icon(Icons.check_circle, size: 14, color: Colors.green),
+              ),
+            if (offline.downloadOf(episode)?.isCompleted ?? false)
+              Positioned(
+                left: 4,
+                top: 4,
+                child: Icon(
+                  Icons.download_done_rounded,
+                  size: 13,
+                  color: isCurrent ? scheme.onPrimary : Colors.greenAccent,
+                ),
               ),
             if (started && !finished)
               Positioned(

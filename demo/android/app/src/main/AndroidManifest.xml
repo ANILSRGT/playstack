@@ -2,6 +2,8 @@
     <!-- PlayStack media controls: keep playing in the background. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- PlayStack downloads: keep downloading in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <application
         android:label="playstack_demo"
         android:name="${applicationName}"
@@ -32,6 +34,17 @@
         </activity>
         <!-- PlayStack media controls: the lock screen and notification
              controls, and playback in the background. -->
+        <!-- PlayStack downloads: download in the background, with a
+             progress notification. -->
+        <service
+            android:name="dev.playstack.android.PlayStackDownloadService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="androidx.media3.exoplayer.downloadService.action.RESTART" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
         <service
             android:name="dev.playstack.android.PlayStackMediaService"
             android:foregroundServiceType="mediaPlayback"

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:playstack/playstack.dart';
 
 import 'drama_data.dart';
+import 'offline.dart';
 import 'series_page.dart';
 import '../loading_animation.dart';
 
@@ -82,6 +83,14 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
             artworkUrl: episode.poster,
           ),
           pictureInPicture: true,
+          // The app's own error screen: a message for the user and a way
+          // back to the episode list.
+          errorBuilder: (context, page, error) => _EpisodeError(
+            episode: page.data,
+            error: error,
+            onRetry: page.controller.retry,
+            onEpisodes: () => unawaited(_showEpisodes(page.data)),
+          ),
           controlsBuilder: (context, page) => PlayStackDefaultControls(
             page: page,
             // Hold to watch at 2x, as drama apps do.
@@ -97,6 +106,88 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
                         unawaited(_view.startPictureInPicture()),
                   ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What an episode shows when it cannot play.
+class _EpisodeError extends StatelessWidget {
+  const _EpisodeError({
+    required this.episode,
+    required this.error,
+    required this.onRetry,
+    required this.onEpisodes,
+  });
+
+  final Episode episode;
+  final PlayStackException error;
+  final VoidCallback onRetry;
+  final VoidCallback onEpisodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final offlineError =
+        error.code == PlayStackErrorCode.network ||
+        error.code == PlayStackErrorCode.timeout;
+    return ColoredBox(
+      color: const Color(0xCC000000),
+      child: SafeArea(
+        child: Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      offlineError
+                          ? Icons.cloud_off_rounded
+                          : Icons.sentiment_dissatisfied_rounded,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      offlineError
+                          ? 'You are offline'
+                          : 'Episode ${episode.number} cannot play',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      offlineError
+                          ? 'Connect to the internet, or watch an episode '
+                                'you downloaded.'
+                          : 'Please try again in a moment.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 12,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: onRetry,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Try again'),
+                        ),
+                        OutlinedButton(
+                          onPressed: onEpisodes,
+                          child: const Text('Episodes'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -242,6 +333,7 @@ class _EpisodeOverlay extends StatelessWidget {
                   ],
                 ),
               ),
+              DownloadButton(series: series, episode: episode, shadows: shadow),
               FilledButton.tonalIcon(
                 onPressed: onEpisodes,
                 icon: const Icon(Icons.video_library_outlined),
