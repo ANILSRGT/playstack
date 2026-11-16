@@ -49,8 +49,15 @@ internal class MediaSourceBuilder(
             .setCustomCacheKey(source.cacheKey)
             .build()
     val direct = DefaultDataSource.Factory(context, http)
-    return DefaultMediaSourceFactory(cachingFactory(source, direct) ?: direct)
-        .createMediaSource(item)
+    val streaming = cachingFactory(source, direct) ?: direct
+    // A downloaded source plays from the download, also without a network;
+    // its request names the renditions that were saved.
+    val download = DownloadStore.completed(context, source.cacheKey ?: uri)
+    if (download != null) {
+      return DefaultMediaSourceFactory(DownloadStore.readingFactory(context, streaming))
+          .createMediaSource(download.request.toMediaItem())
+    }
+    return DefaultMediaSourceFactory(streaming).createMediaSource(item)
   }
 
   /** A data source factory that uses the disk cache, or null when off. */

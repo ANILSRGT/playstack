@@ -439,6 +439,77 @@ class FakePlayStackPlatform extends PlayStackPlatform {
   @override
   Stream<PlayStackSystemEvent> get systemEvents => systemEventController.stream;
 
+  /// Whether downloads exist on this fake engine.
+  bool supportsDownloads = true;
+
+  /// The last value passed to setDownloadsEnabled.
+  bool downloadsEnabled = false;
+
+  /// Every download, as the engine keeps them.
+  final Map<String, PlayStackDownload> savedDownloads =
+      <String, PlayStackDownload>{};
+
+  /// Every startDownload request.
+  final List<PlayStackDownloadRequest> downloadRequests =
+      <PlayStackDownloadRequest>[];
+
+  // Closed with the test process.
+  // ignore: close_sinks
+  final StreamController<PlayStackDownloadChange> downloadController =
+      StreamController<PlayStackDownloadChange>.broadcast(sync: true);
+
+  /// Reports [download] as the engine would.
+  void updateDownload(PlayStackDownload download) {
+    savedDownloads[download.id] = download;
+    downloadController.add(PlayStackDownloadChange.updated(download));
+  }
+
+  @override
+  Future<bool> isDownloadSupported() async => supportsDownloads;
+
+  @override
+  Future<void> setDownloadsEnabled(bool enabled) async {
+    calls.add('setDownloadsEnabled($enabled)');
+    downloadsEnabled = enabled;
+  }
+
+  @override
+  Future<void> startDownload(PlayStackDownloadRequest request) async {
+    downloadRequests.add(request);
+    updateDownload(
+      PlayStackDownload(
+        id: request.id,
+        key: request.source.effectiveCacheKey,
+        state: PlayStackDownloadState.queued,
+        title: request.title,
+        metadata: request.metadata,
+      ),
+    );
+  }
+
+  @override
+  Future<void> pauseDownload(String id) async =>
+      calls.add('pauseDownload($id)');
+
+  @override
+  Future<void> resumeDownload(String id) async =>
+      calls.add('resumeDownload($id)');
+
+  @override
+  Future<void> removeDownload(String id) async {
+    calls.add('removeDownload($id)');
+    savedDownloads.remove(id);
+    downloadController.add(PlayStackDownloadChange.removed(id));
+  }
+
+  @override
+  Future<List<PlayStackDownload>> getDownloads() async =>
+      savedDownloads.values.toList();
+
+  @override
+  Stream<PlayStackDownloadChange> get downloadChanges =>
+      downloadController.stream;
+
   @override
   Stream<PlayStackNetworkStatus> get networkStatusChanges => _network.stream;
 

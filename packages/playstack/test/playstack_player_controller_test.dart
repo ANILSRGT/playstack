@@ -151,6 +151,29 @@ void main() {
     expect(platform.generations.values.single, isNot(firstGeneration));
   });
 
+  test('network errors while offline fail at once', () async {
+    final source = PlayStackSource.network('https://example.com/a.m3u8');
+    platform.failingSources[source] = const PlayStackException(
+      PlayStackErrorCode.network,
+      'no route',
+    );
+    platform.setNetwork(
+      const PlayStackNetworkStatus(
+        isConnected: false,
+        type: PlayStackNetworkType.none,
+      ),
+    );
+    await flush();
+    final controller = manager.createController(source);
+    final watch = Stopwatch()..start();
+    await expectLater(
+      controller.initialize(),
+      throwsA(isA<PlayStackException>()),
+    );
+    expect(watch.elapsed, lessThan(const Duration(milliseconds: 500)));
+    expect(platform.callCount('setSource'), 1, reason: 'no timed retries');
+  });
+
   test('engine errors thrown by commands surface in state', () async {
     platform.throwOn['setSource'] = const PlayStackException(
       PlayStackErrorCode.notImplemented,

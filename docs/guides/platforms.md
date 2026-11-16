@@ -27,6 +27,7 @@
 | Audio focus / session | Audio focus for audible players, pause when headphones are unplugged | Optional `AVAudioSession` category; interruptions and route loss reported; resume after interruption | Managed by the browser |
 | Fullscreen | `SystemChrome` immersive mode, optional orientation lock, rotate back and restore policy | Same; iPad multitasking ignores orientation locks | Fullscreen API (user gesture); orientation lock where supported |
 | Media controls, background sound | Media3 `MediaSession` and `PlayStackMediaService` | `MPNowPlayingInfoCenter`, `audio` background mode | No |
+| Offline downloads | Media3 `DownloadManager`: progressive, HLS, DASH; background with `PlayStackDownloadService` | Background `URLSession` (progressive), `AVAssetDownloadURLSession` (HLS, devices only) | No |
 | Picture-in-Picture | Activity mode, API 26+ | `AVPictureInPictureController` | No |
 | Device orientation sensors | `OrientationEventListener` | `UIDevice` orientation notifications | No |
 | Decoder-shortage detection | `ERROR_CODE_DECODER_INIT_FAILED` | `AVError.decoderTemporarilyUnavailable` | Not distinguishable |

@@ -19,6 +19,7 @@ internal class PlayerRegistry(
     private val orientation: DeviceOrientationMonitor,
     private val mediaSession: MediaSessionCoordinator,
     private val pictureInPicture: PictureInPictureCoordinator,
+    private val downloads: DownloadCoordinator,
 ) : PlayStackHostApi {
   private val players = HashMap<Long, NativePlayer>()
   private var engineConfig: PlatformEngineConfig? = null
@@ -139,6 +140,20 @@ internal class PlayerRegistry(
 
   override suspend fun getCachedBytes(cacheKey: String): Long =
       withContext(Dispatchers.IO) { MediaCache.cachedBytes(cacheKey) }
+
+  override fun isDownloadSupported(): Boolean = true
+
+  override fun setDownloadsEnabled(enabled: Boolean) = downloads.setEnabled(enabled)
+
+  override fun startDownload(request: PlatformDownloadRequest) = downloads.start(request)
+
+  override fun pauseDownload(id: String) = downloads.pause(id)
+
+  override fun resumeDownload(id: String) = downloads.resume(id)
+
+  override fun removeDownload(id: String) = downloads.remove(id)
+
+  override fun getDownloads(): List<PlatformDownload> = downloads.all()
 
   private fun requireConfig(): PlatformEngineConfig =
       engineConfig

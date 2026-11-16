@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Name of the notification channel of offline downloads. -->
+    <string name="playstack_download_channel">Downloads</string>
+</resources>

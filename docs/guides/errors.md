@@ -75,6 +75,13 @@ await controller.retry();        // after an error: prepare, seek back, resume
 await controller.reinitialize(); // start over from the beginning
 ```
 
+## Showing errors to the user
+
+`PlayStackFeedView.errorBuilder` builds your own screen for a failed video;
+`PlayStackVideoView.errorBuilder` does the same for a single player.
+`PlayStackErrorView` is the default: a message for each code and a retry
+button, with texts you can replace. See [Feeds](feed.md#errors).
+
 ## Errors outside a call
 
 Failures during playback (a network drop mid-video) are not thrown; they

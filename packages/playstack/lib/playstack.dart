@@ -16,6 +16,8 @@ export 'package:playstack_platform_interface/playstack_platform_interface.dart'
         PlayStackAudioSessionCategory,
         PlayStackCacheInfo,
         PlayStackCachePolicy,
+        PlayStackDownload,
+        PlayStackDownloadState,
         PlayStackFileSource,
         PlayStackInterruptionType,
         PlayStackErrorCode,
@@ -36,6 +38,7 @@ export 'package:playstack_platform_interface/playstack_platform_interface.dart'
 
 export 'src/cache/playstack_cache_manager.dart';
 export 'src/config/playstack_config.dart';
+export 'src/download/playstack_downloads.dart';
 export 'src/controller/playstack_playback_state.dart';
 export 'src/controller/playstack_player_controller.dart'
     show PlayStackInterruption, PlayStackPlayerController;

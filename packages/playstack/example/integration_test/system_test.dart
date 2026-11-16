@@ -115,4 +115,36 @@ void main() {
     await controller.setVideoQuality(null);
     expect(controller.videoQuality.value, isNull);
   });
+
+  testWidgets('downloads an HLS stream at a chosen quality', (tester) async {
+    if (kIsWeb) return;
+    final downloads = manager.downloads;
+    await downloads.setEnabled(true);
+    const source = PlayStackSource.network(
+      'https://devstreaming-cdn.apple.com/videos/streaming/examples/'
+      'img_bipbop_adv_example_fmp4/master.m3u8',
+    );
+    // A short clip of the stream would be better; the test stops as soon as
+    // the download makes progress.
+    await downloads.download(
+      'hls-quality',
+      source,
+      quality: PlayStackDownloadQuality.low,
+    );
+    await waitUntil(
+      () {
+        final download = downloads['hls-quality'];
+        return download != null &&
+            (download.isCompleted || (download.percent ?? 0) > 0);
+      },
+      timeout: const Duration(seconds: 60),
+      reason: 'download progress: ${downloads['hls-quality']}',
+    );
+    expect(
+      downloads['hls-quality']?.state,
+      isNot(PlayStackDownloadState.failed),
+    );
+    await downloads.remove('hls-quality');
+    await downloads.setEnabled(false);
+  });
 }

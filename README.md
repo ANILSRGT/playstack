@@ -219,6 +219,11 @@ PlayStackFeedView<Post>(
 - **Picture quality.** `controller.videoQualities` and `setVideoQuality`
   let the user pick a rendition of an HLS or DASH stream; the default
   settings sheet lists them.
+- **Offline viewing.** `manager.downloads` saves videos (MP4, HLS, and
+  DASH on Android) for watching without a network, in the background.
+  It is off until the app turns it on for a user, for example premium
+  subscribers (`setEnabled`); playing the same source then uses the saved
+  copy ([guide](docs/guides/downloads.md)).
 - **Media controls and Picture-in-Picture.** `PlayStackFeedView.mediaInfo`
   (or `manager.mediaSession`) shows the video on the lock screen and in the
   notification and keeps its sound playing in the background;

@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
 import 'messages.g.dart';
-import 'messages.g.dart' as pigeon show systemEvents;
+import 'messages.g.dart' as pigeon show downloadEvents, systemEvents;
 
 /// iOS implementation of [PlayStackPlatform].
 ///
@@ -21,7 +21,9 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
     @visibleForTesting
     Stream<PlatformDeviceOrientationEvent>? deviceOrientationStream,
     @visibleForTesting Stream<PlatformSystemEvent>? systemStream,
+    @visibleForTesting Stream<PlatformDownload>? downloadStream,
   }) : _rawSystemEvents = systemStream,
+       _rawDownloadEvents = downloadStream,
        _api = api ?? PlayStackHostApi(),
        _rawEvents = eventStream,
        _rawNetworkEvents = networkStream,
@@ -37,6 +39,7 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
   final Stream<PlatformNetworkStatus>? _rawNetworkEvents;
   final Stream<PlatformDeviceOrientationEvent>? _rawDeviceOrientations;
   final Stream<PlatformSystemEvent>? _rawSystemEvents;
+  final Stream<PlatformDownload>? _rawDownloadEvents;
   final Map<int, int> _textureIds = <int, int>{};
   Stream<PlayStackPlatformEvent>? _events;
 
@@ -283,6 +286,72 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
               ? null
               : Duration(milliseconds: event.positionMs!),
         ),
+      );
+
+  @override
+  Future<bool> isDownloadSupported() => _guard(_api.isDownloadSupported);
+
+  @override
+  Future<void> setDownloadsEnabled(bool enabled) =>
+      _guard(() => _api.setDownloadsEnabled(enabled));
+
+  @override
+  Future<void> startDownload(PlayStackDownloadRequest request) => _guard(
+    () => _api.startDownload(
+      PlatformDownloadRequest(
+        id: request.id,
+        source: _toPlatformSource(request.source),
+        title: request.title,
+        maxVideoHeight: request.maxVideoHeight,
+        metadata: request.metadata,
+      ),
+    ),
+  );
+
+  @override
+  Future<void> pauseDownload(String id) => _guard(() => _api.pauseDownload(id));
+
+  @override
+  Future<void> resumeDownload(String id) =>
+      _guard(() => _api.resumeDownload(id));
+
+  @override
+  Future<void> removeDownload(String id) =>
+      _guard(() => _api.removeDownload(id));
+
+  @override
+  Future<List<PlayStackDownload>> getDownloads() async => [
+    for (final download in await _guard(_api.getDownloads))
+      _toDownload(download),
+  ];
+
+  @override
+  Stream<PlayStackDownloadChange> get downloadChanges =>
+      (_rawDownloadEvents ?? pigeon.downloadEvents()).map(
+        (event) => event.state == PlatformDownloadState.removed
+            ? PlayStackDownloadChange.removed(event.id)
+            : PlayStackDownloadChange.updated(_toDownload(event)),
+      );
+
+  static PlayStackDownload _toDownload(PlatformDownload download) =>
+      PlayStackDownload(
+        id: download.id,
+        key: download.key,
+        state: switch (download.state) {
+          PlatformDownloadState.queued => PlayStackDownloadState.queued,
+          PlatformDownloadState.downloading =>
+            PlayStackDownloadState.downloading,
+          PlatformDownloadState.paused => PlayStackDownloadState.paused,
+          PlatformDownloadState.completed => PlayStackDownloadState.completed,
+          PlatformDownloadState.failed ||
+          PlatformDownloadState.removed => PlayStackDownloadState.failed,
+        },
+        bytesDownloaded: download.bytesDownloaded,
+        totalBytes: download.totalBytes,
+        percent: download.percent,
+        title: download.title,
+        metadata: download.metadata,
+        error: download.error,
       );
 
   @override

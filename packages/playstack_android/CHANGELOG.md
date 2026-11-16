@@ -1,3 +1,13 @@
+## Unreleased
+
+* Offline downloads with a Media3 `DownloadManager` in a separate,
+  never-evicted cache: progressive files, and HLS and DASH up to a maximum
+  height. Downloaded sources play from that cache while downloads are
+  enabled. `PlayStackDownloadService` (declared by the app) keeps them
+  running in the background with a progress notification. HLS and DASH
+  downloads keep the source's cache key in their data (Media3 does not
+  allow one on adaptive requests).
+
 ## 0.1.0-dev.8
 
 * Media controls through a Media3 `MediaSession` whose commands go to Dart;

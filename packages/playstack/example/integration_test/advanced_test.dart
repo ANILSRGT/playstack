@@ -119,6 +119,45 @@ void main() {
     expect(await manager.cache.cachedBytes(source), 0);
   }, skip: kIsWeb);
 
+  testWidgets('a downloaded video plays without a network', (tester) async {
+    if (kIsWeb) return;
+    final manager = await createManager(retry: PlayStackRetryConfig.none);
+    final downloads = manager.downloads;
+    expect(await downloads.isSupported(), isTrue);
+    await downloads.setEnabled(true);
+    // Off the disk cache, so only the download can serve it offline.
+    final source = PlayStackSource.network(
+      server
+          .url('download-${DateTime.now().microsecondsSinceEpoch}.mp4')
+          .toString(),
+      cachePolicy: PlayStackCachePolicy.bypass,
+    );
+    const id = 'integration-download';
+    await downloads.download(id, source, title: 'Integration test');
+    await waitUntil(
+      () => downloads[id]?.isCompleted ?? false,
+      timeout: const Duration(seconds: 30),
+      reason: 'download completed: ${downloads[id]}',
+    );
+    expect(downloads.isAvailableOffline(source), isTrue);
+
+    server.offline = true;
+    final offline = manager.createController(source);
+    await offline.initialize();
+    expect(offline.value.status, PlayStackPlaybackStatus.ready);
+    await offline.dispose();
+
+    // Without permission the download is not used: offline it fails.
+    await downloads.setEnabled(false);
+    final gated = manager.createController(source);
+    await expectLater(gated.initialize(), throwsA(isA<PlayStackException>()));
+    await gated.dispose();
+
+    await downloads.setEnabled(true);
+    await downloads.remove(id);
+    expect(downloads[id], isNull);
+  });
+
   testWidgets('retries a failed preparation automatically', (tester) async {
     final manager = await createManager(
       retry: const PlayStackRetryConfig(

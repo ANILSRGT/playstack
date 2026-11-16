@@ -3,6 +3,7 @@
 /// Application code should depend on `package:playstack` instead.
 library;
 
+export 'src/playstack_download.dart';
 export 'src/playstack_engine_config.dart';
 export 'src/playstack_fullscreen.dart';
 export 'src/playstack_exception.dart';

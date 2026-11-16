@@ -300,6 +300,75 @@ class PlatformCapabilities {
   bool supportsNetworkStatus;
 }
 
+/// Where an offline download stands. `removed` is only sent on
+/// `downloadEvents`, when a download was deleted.
+enum PlatformDownloadState {
+  queued,
+  downloading,
+  paused,
+  completed,
+  failed,
+  removed,
+}
+
+/// A video to save for offline viewing.
+class PlatformDownloadRequest {
+  PlatformDownloadRequest({
+    required this.id,
+    required this.source,
+    required this.metadata,
+  });
+
+  /// The app's id for the download, for example the episode id.
+  String id;
+
+  /// A network source. Playing the same URL (or cache key) later uses the
+  /// download.
+  PlatformSource source;
+
+  /// Shown in the download notification (Android).
+  String? title;
+
+  /// For adaptive streams (HLS, DASH): the tallest rendition to save, in
+  /// lines. Null saves the best one.
+  int? maxVideoHeight;
+
+  /// The app's own values, stored with the download.
+  Map<String, String> metadata;
+}
+
+/// One offline download.
+class PlatformDownload {
+  PlatformDownload({
+    required this.id,
+    required this.key,
+    required this.state,
+    required this.bytesDownloaded,
+    required this.metadata,
+  });
+
+  String id;
+
+  /// The cache key, or the URL when the source has none: playing a source
+  /// with this key uses the download.
+  String key;
+
+  PlatformDownloadState state;
+  int bytesDownloaded;
+
+  /// Null while unknown, for example for adaptive streams.
+  int? totalBytes;
+
+  /// 0 to 100, null while unknown.
+  double? percent;
+
+  String? title;
+  Map<String, String> metadata;
+
+  /// Why the download failed.
+  String? error;
+}
+
 class PlatformPosition {
   PlatformPosition({required this.positionMs, required this.bufferedMs});
 
@@ -402,6 +471,26 @@ abstract class PlayStackHostApi {
   /// Bytes of one source available in the cache.
   @async
   int getCachedBytes(String cacheKey);
+
+  /// Whether this engine can save videos for offline viewing.
+  bool isDownloadSupported();
+
+  /// Turns offline viewing on or off. Off (the default): no download runs,
+  /// and players stream even what was downloaded. Files are kept.
+  void setDownloadsEnabled(bool enabled);
+
+  /// Starts (or restarts) a download. Progress is sent on `downloadEvents`.
+  void startDownload(PlatformDownloadRequest request);
+
+  void pauseDownload(String id);
+
+  void resumeDownload(String id);
+
+  /// Deletes a download and its files.
+  void removeDownload(String id);
+
+  /// Every download this app saved, in any state.
+  List<PlatformDownload> getDownloads();
 }
 
 sealed class PlatformPlayerEvent {}
@@ -577,4 +666,8 @@ abstract class PlayStackEventApi {
 
   /// Media control commands and Picture-in-Picture changes.
   PlatformSystemEvent systemEvents();
+
+  /// A download changed: its state or progress (about once a second while
+  /// it runs), or it was removed (state `removed`).
+  PlatformDownload downloadEvents();
 }

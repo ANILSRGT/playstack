@@ -28,6 +28,10 @@ struct SourceResolver {
       guard let string = source.uri, let url = URL(string: string), url.scheme != nil else {
         throw invalid("Invalid network URL: \(source.uri ?? "nil").")
       }
+      // A downloaded source plays from its file, also without a network.
+      if let saved = DownloadStore.shared.completedURL(forKey: source.cacheKey ?? string) {
+        return Resolved(asset: AVURLAsset(url: saved), temporaryFile: nil)
+      }
       if cacheEnabled, source.useCache, Self.isCacheable(source, url: url) {
         let loader = CachingResourceLoader(
           url: url, cacheKey: source.cacheKey ?? string, headers: source.httpHeaders,

@@ -1,3 +1,13 @@
+## Unreleased
+
+* Downloads: `PlayStackDownloadRequest`, `PlayStackDownload`,
+  `PlayStackDownloadState`, `PlayStackDownloadChange`;
+  `isDownloadSupported`, `setDownloadsEnabled`, `startDownload`,
+  `pauseDownload`, `resumeDownload`, `removeDownload`, `getDownloads` and
+  `downloadChanges`, with defaults for engines without downloads.
+* Fixed the `PlayStackSource.network` documentation, which named a
+  `PlayStackCachePolicy.noCache` that does not exist (it is `bypass`).
+
 ## 0.1.0-dev.8
 
 * `PlayStackMediaInfo`, `PlayStackSystemEvent` and

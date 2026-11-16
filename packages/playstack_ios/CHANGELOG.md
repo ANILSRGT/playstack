@@ -1,3 +1,10 @@
+## Unreleased
+
+* Offline downloads: progressive files with a background `URLSession`,
+  HLS with `AVAssetDownloadURLSession` up to a maximum height (iOS 16+). Downloaded
+  sources play from their file while downloads are enabled; background
+  session events are handled by the plugin.
+
 ## 0.1.0-dev.8
 
 * A seek after playing and pausing no longer leaves `seekTo` waiting

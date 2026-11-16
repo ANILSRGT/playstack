@@ -20,6 +20,9 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
   private var orientationChannel: DeviceOrientationEventsEventChannel? = null
   private var systemEvents: SystemEvents? = null
   private var systemChannel: SystemEventsEventChannel? = null
+  private var downloadEvents: DownloadEvents? = null
+  private var downloadChannel: DownloadEventsEventChannel? = null
+  private var downloads: DownloadCoordinator? = null
   private var mediaSession: MediaSessionCoordinator? = null
   private var pictureInPicture: PictureInPictureCoordinator? = null
   private var activityBinding: ActivityPluginBinding? = null
@@ -34,6 +37,8 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
     val system = SystemEvents()
     val session = MediaSessionCoordinator(binding.applicationContext, system)
     val pip = PictureInPictureCoordinator(system)
+    val downloadEventsHandler = DownloadEvents()
+    val downloadCoordinator = DownloadCoordinator(binding.applicationContext, downloadEventsHandler)
     val playerRegistry =
         PlayerRegistry(
             context = binding.applicationContext,
@@ -44,6 +49,7 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
             orientation = orientationMonitor,
             mediaSession = session,
             pictureInPicture = pip,
+            downloads = downloadCoordinator,
         )
     PlayStackHostApi.setUp(binding.binaryMessenger, playerRegistry)
     eventChannel = PlayerEventsStreamHandler.register(binding.binaryMessenger, dispatcher)
@@ -53,6 +59,10 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
     orientation = orientationMonitor
     systemChannel = SystemEventsStreamHandler.register(binding.binaryMessenger, system)
     systemEvents = system
+    downloadChannel =
+        DownloadEventsStreamHandler.register(binding.binaryMessenger, downloadEventsHandler)
+    downloadEvents = downloadEventsHandler
+    downloads = downloadCoordinator
     mediaSession = session
     pictureInPicture = pip
     registry = playerRegistry
@@ -67,6 +77,9 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
     orientationChannel?.setStreamHandler(null)
     systemChannel?.setStreamHandler(null)
     systemEvents?.detach()
+    downloadChannel?.setStreamHandler(null)
+    downloadEvents?.detach()
+    downloads?.detach()
     orientation?.stop()
     network?.stop()
     registry?.releaseAll()
@@ -77,6 +90,9 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
     orientation = null
     systemChannel = null
     systemEvents = null
+    downloadChannel = null
+    downloadEvents = null
+    downloads = null
     mediaSession = null
     pictureInPicture = null
     network = null

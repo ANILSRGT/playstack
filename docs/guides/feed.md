@@ -234,7 +234,8 @@ By default the builder is `PlayStackDefaultControls`:
 - a thin progress bar; drag along it or tap it to move in the video
   (`seekable: false` turns this off)
 - a buffering indicator that appears only when a wait gets long
-- a retry button on errors
+- a message for the user and a retry button when a video fails
+  (`PlayStackErrorView`; see [Errors](#errors))
 
 Pass `bufferingIndicator:` (any widget, for example a Lottie animation of
 your app) to replace the spinner.
@@ -347,6 +348,44 @@ page.controller.videoQuality;                     // a ValueListenable
 
 A chosen quality replaces the feed's own screen-sized cap for that video,
 until it gets a new source. See [Tracks and subtitles](subtitles.md#video-quality).
+
+## Errors
+
+When a video cannot play, the default controls show a `PlayStackErrorView`:
+an icon, a short message for the user ("Check your connection and try
+again.", "This video is not available.") and a Try again button. To show
+your own screen instead, whatever the controls, pass `errorBuilder`:
+
+```dart
+PlayStackFeedView<Episode>(
+  items: episodes,
+  source: (episode) => episode.source,
+  errorBuilder: (context, page, error) => MyErrorScreen(
+    offline: error.code == PlayStackErrorCode.network,
+    episode: page.data,
+    onRetry: page.controller.retry,
+  ),
+)
+```
+
+It replaces the controls of the failed page only; the poster or last frame
+stays behind it. `error.code` tells what went wrong (see
+[Errors and retry](errors.md#codes)). To keep the default look with your
+own words, for example in another language:
+
+```dart
+errorBuilder: (context, page, error) => PlayStackErrorView(
+  error: error,
+  onRetry: page.controller.retry,
+  messageOf: (error) => error.code == PlayStackErrorCode.network
+      ? 'İnternet bağlantını kontrol et.'
+      : 'Video oynatılamadı.',
+  retryLabel: 'Tekrar dene',
+),
+```
+
+Network errors are retried automatically first (`PlayStackRetryConfig`),
+so the screen appears only once the retries are used up.
 
 ## Media controls and Picture-in-Picture
 

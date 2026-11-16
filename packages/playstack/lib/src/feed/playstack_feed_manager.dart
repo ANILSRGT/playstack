@@ -21,6 +21,9 @@ abstract interface class PlayStackFeedHost {
     PlayStackPlayerConfig? config,
   );
   ValueListenable<PlayStackNetworkStatus> get networkStatus;
+
+  /// Whether [source] is downloaded and plays without a network.
+  bool isAvailableOffline(PlayStackSource source);
   PlayStackPlatformCapabilities get capabilities;
   int get maxPlayers;
   bool get exclusivePlayback;
@@ -589,8 +592,10 @@ class PlayStackFeedManager extends ChangeNotifier {
     final state = controller.value;
     if (state.isInitialized && state.isAttached) return false;
     if (state.status == PlayStackPlaybackStatus.initializing) return false;
-    if (item.source is PlayStackNetworkSource &&
-        !_host.networkStatus.value.isConnected) {
+    final source = item.source;
+    if (source is PlayStackNetworkSource &&
+        !_host.networkStatus.value.isConnected &&
+        !_host.isAvailableOffline(source)) {
       return false;
     }
     if (state.status == PlayStackPlaybackStatus.error) {

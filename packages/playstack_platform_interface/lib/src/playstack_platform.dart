@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'playstack_download.dart';
 import 'playstack_engine_config.dart';
 import 'playstack_fullscreen.dart';
 import 'playstack_exception.dart';
@@ -248,6 +249,35 @@ abstract class PlayStackPlatform extends PlatformInterface {
   /// Commands from the system's media controls and Picture-in-Picture
   /// changes. Empty for engines without them.
   Stream<PlayStackSystemEvent> get systemEvents => const Stream.empty();
+
+  /// Whether this engine can save videos for offline viewing.
+  Future<bool> isDownloadSupported() async => false;
+
+  /// Turns offline viewing on or off. While off, no download runs and
+  /// players stream even what was downloaded; the files are kept.
+  Future<void> setDownloadsEnabled(bool enabled) async {}
+
+  /// Starts saving [request] (or restarts it after a failure). Progress
+  /// arrives on [downloadChanges].
+  Future<void> startDownload(PlayStackDownloadRequest request) {
+    throw UnimplementedError('startDownload() has not been implemented.');
+  }
+
+  /// Pauses the download [id].
+  Future<void> pauseDownload(String id) async {}
+
+  /// Resumes the download [id].
+  Future<void> resumeDownload(String id) async {}
+
+  /// Deletes the download [id] and its files.
+  Future<void> removeDownload(String id) async {}
+
+  /// Every download of the app, in any state.
+  Future<List<PlayStackDownload>> getDownloads() async => const [];
+
+  /// Progress and state changes of downloads. Empty for engines without
+  /// downloads.
+  Stream<PlayStackDownloadChange> get downloadChanges => const Stream.empty();
 
   /// Events of all native players of this engine.
   Stream<PlayStackPlatformEvent> get events {

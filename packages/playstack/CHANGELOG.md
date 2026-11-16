@@ -1,3 +1,20 @@
+## Unreleased
+
+* Offline viewing: `PlayStackManager.downloads` (`PlayStackDownloads`)
+  saves network videos and plays them without a network. Off until the app
+  turns it on per user (`setEnabled`, for example for premium
+  subscribers); while off, nothing downloads and saved videos stream. Every
+  manager shares the same downloads. Feeds prepare downloaded items while
+  offline. `PlayStackDownloadQuality` (`low`, `medium`, `high`, `best`)
+  lets users pick how good and how big a download is.
+* Network errors while the device is offline are no longer retried on a
+  timer, so the error shows at once; the manager still retries when the
+  network returns.
+* `PlayStackFeedView.errorBuilder` shows the app's own screen when a video
+  fails. The default controls show `PlayStackErrorView`: a message for the
+  user by error code and a Try again button, with replaceable texts,
+  instead of the engine's technical message.
+
 ## 0.1.0-dev.9
 
 * A recording of the demo app in the README and on pub.dev. No code

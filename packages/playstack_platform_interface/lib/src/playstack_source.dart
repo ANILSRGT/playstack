@@ -58,7 +58,7 @@ sealed class PlayStackSource {
   /// * [mimeType]: the MIME type, when the server reports a wrong one.
   /// * [cacheKey]: a stable key when the same video comes from changing URLs,
   ///   such as signed URLs, so the disk cache still finds it.
-  /// * [cachePolicy]: [PlayStackCachePolicy.noCache] for private videos that must
+  /// * [cachePolicy]: [PlayStackCachePolicy.bypass] for private videos that must
   ///   not be stored.
   /// * [id]: your own identifier, used as the feed item id when none is
   ///   given.

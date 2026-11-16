@@ -264,6 +264,17 @@ enum PlatformSystemEventType: Int, CaseIterable {
   case pictureInPictureStopped = 6
 }
 
+/// Where an offline download stands. `removed` is only sent on
+/// `downloadEvents`, when a download was deleted.
+enum PlatformDownloadState: Int, CaseIterable {
+  case queued = 0
+  case downloading = 1
+  case paused = 2
+  case completed = 3
+  case failed = 4
+  case removed = 5
+}
+
 /// Engine-wide settings, applied by the first `initialize` call.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
@@ -949,6 +960,152 @@ struct PlatformCapabilities: Hashable, CustomStringConvertible {
   }
 }
 
+/// A video to save for offline viewing.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformDownloadRequest: Hashable, CustomStringConvertible {
+  /// The app's id for the download, for example the episode id.
+  var id: String
+  /// A network source. Playing the same URL (or cache key) later uses the
+  /// download.
+  var source: PlatformSource
+  /// Shown in the download notification (Android).
+  var title: String? = nil
+  /// For adaptive streams (HLS, DASH): the tallest rendition to save, in
+  /// lines. Null saves the best one.
+  var maxVideoHeight: Int64? = nil
+  /// The app's own values, stored with the download.
+  var metadata: [String: String]
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformDownloadRequest? {
+    let id = pigeonVar_list[0] as! String
+    let source = pigeonVar_list[1] as! PlatformSource
+    let title: String? = nilOrValue(pigeonVar_list[2])
+    let maxVideoHeight: Int64? = nilOrValue(pigeonVar_list[3])
+    let metadata = pigeonVar_list[4] as! [String: String]
+
+    return PlatformDownloadRequest(
+      id: id,
+      source: source,
+      title: title,
+      maxVideoHeight: maxVideoHeight,
+      metadata: metadata
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      id,
+      source,
+      title,
+      maxVideoHeight,
+      metadata,
+    ]
+  }
+  static func == (lhs: PlatformDownloadRequest, rhs: PlatformDownloadRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.id, rhs.id) && MessagesPigeonInternal.deepEquals(lhs.source, rhs.source) && MessagesPigeonInternal.deepEquals(lhs.title, rhs.title) && MessagesPigeonInternal.deepEquals(lhs.maxVideoHeight, rhs.maxVideoHeight) && MessagesPigeonInternal.deepEquals(lhs.metadata, rhs.metadata)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformDownloadRequest")
+    MessagesPigeonInternal.deepHash(value: id, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: source, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: title, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: maxVideoHeight, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: metadata, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformDownloadRequest(id: \(String(describing: id)), source: \(String(describing: source)), title: \(String(describing: title)), maxVideoHeight: \(String(describing: maxVideoHeight)), metadata: \(String(describing: metadata)))"
+  }
+}
+
+/// One offline download.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformDownload: Hashable, CustomStringConvertible {
+  var id: String
+  /// The cache key, or the URL when the source has none: playing a source
+  /// with this key uses the download.
+  var key: String
+  var state: PlatformDownloadState
+  var bytesDownloaded: Int64
+  /// Null while unknown, for example for adaptive streams.
+  var totalBytes: Int64? = nil
+  /// 0 to 100, null while unknown.
+  var percent: Double? = nil
+  var title: String? = nil
+  var metadata: [String: String]
+  /// Why the download failed.
+  var error: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformDownload? {
+    let id = pigeonVar_list[0] as! String
+    let key = pigeonVar_list[1] as! String
+    let state = pigeonVar_list[2] as! PlatformDownloadState
+    let bytesDownloaded = pigeonVar_list[3] as! Int64
+    let totalBytes: Int64? = nilOrValue(pigeonVar_list[4])
+    let percent: Double? = nilOrValue(pigeonVar_list[5])
+    let title: String? = nilOrValue(pigeonVar_list[6])
+    let metadata = pigeonVar_list[7] as! [String: String]
+    let error: String? = nilOrValue(pigeonVar_list[8])
+
+    return PlatformDownload(
+      id: id,
+      key: key,
+      state: state,
+      bytesDownloaded: bytesDownloaded,
+      totalBytes: totalBytes,
+      percent: percent,
+      title: title,
+      metadata: metadata,
+      error: error
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      id,
+      key,
+      state,
+      bytesDownloaded,
+      totalBytes,
+      percent,
+      title,
+      metadata,
+      error,
+    ]
+  }
+  static func == (lhs: PlatformDownload, rhs: PlatformDownload) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.id, rhs.id) && MessagesPigeonInternal.deepEquals(lhs.key, rhs.key) && MessagesPigeonInternal.deepEquals(lhs.state, rhs.state) && MessagesPigeonInternal.deepEquals(lhs.bytesDownloaded, rhs.bytesDownloaded) && MessagesPigeonInternal.deepEquals(lhs.totalBytes, rhs.totalBytes) && MessagesPigeonInternal.deepEquals(lhs.percent, rhs.percent) && MessagesPigeonInternal.deepEquals(lhs.title, rhs.title) && MessagesPigeonInternal.deepEquals(lhs.metadata, rhs.metadata) && MessagesPigeonInternal.deepEquals(lhs.error, rhs.error)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformDownload")
+    MessagesPigeonInternal.deepHash(value: id, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: key, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: state, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: bytesDownloaded, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: totalBytes, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: percent, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: title, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: metadata, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: error, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformDownload(id: \(String(describing: id)), key: \(String(describing: key)), state: \(String(describing: state)), bytesDownloaded: \(String(describing: bytesDownloaded)), totalBytes: \(String(describing: totalBytes)), percent: \(String(describing: percent)), title: \(String(describing: title)), metadata: \(String(describing: metadata)), error: \(String(describing: error)))"
+  }
+}
+
 /// Generated class from Pigeon that represents data sent in messages.
 struct PlatformPosition: Hashable, CustomStringConvertible {
   var positionMs: Int64
@@ -1542,46 +1699,56 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 138:
-      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformDownloadState(rawValue: enumResultAsInt)
+      }
+      return nil
     case 139:
-      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
+      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
     case 140:
-      return PlatformSystemEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformMediaInfo.fromList(self.readValue() as! [Any?])
+      return PlatformSystemEvent.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
+      return PlatformMediaInfo.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
+      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 148:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 149:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 150:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformDownloadRequest.fromList(self.readValue() as! [Any?])
     case 151:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformDownload.fromList(self.readValue() as! [Any?])
     case 152:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 153:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 154:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 155:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 156:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
     case 157:
-      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
     case 158:
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+    case 159:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 160:
+      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+    case 161:
       return PlatformInterruptionEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1618,68 +1785,77 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformSystemEventType {
       super.writeByte(137)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformEngineConfig {
+    } else if let value = value as? PlatformDownloadState {
       super.writeByte(138)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformCacheInfo {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformEngineConfig {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSystemEvent {
+    } else if let value = value as? PlatformCacheInfo {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformMediaInfo {
+    } else if let value = value as? PlatformSystemEvent {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformDeviceOrientationEvent {
+    } else if let value = value as? PlatformMediaInfo {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformNetworkStatus {
+    } else if let value = value as? PlatformDeviceOrientationEvent {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTrack {
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformSource {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformDownloadRequest {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformDownload {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(153)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(155)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(156)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformFirstFrameEvent {
       super.writeByte(157)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInterruptionEvent {
+    } else if let value = value as? PlatformErrorEvent {
       super.writeByte(158)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformTracksChangedEvent {
+      super.writeByte(159)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(160)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformInterruptionEvent {
+      super.writeByte(161)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1762,6 +1938,19 @@ protocol PlayStackHostApi {
   func removeCached(cacheKey: String) async throws
   /// Bytes of one source available in the cache.
   func getCachedBytes(cacheKey: String) async throws -> Int64
+  /// Whether this engine can save videos for offline viewing.
+  func isDownloadSupported() throws -> Bool
+  /// Turns offline viewing on or off. Off (the default): no download runs,
+  /// and players stream even what was downloaded. Files are kept.
+  func setDownloadsEnabled(enabled: Bool) throws
+  /// Starts (or restarts) a download. Progress is sent on `downloadEvents`.
+  func startDownload(request: PlatformDownloadRequest) throws
+  func pauseDownload(id: String) throws
+  func resumeDownload(id: String) throws
+  /// Deletes a download and its files.
+  func removeDownload(id: String) throws
+  /// Every download this app saved, in any state.
+  func getDownloads() throws -> [PlatformDownload]
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -2216,6 +2405,113 @@ class PlayStackHostApiSetup {
     } else {
       getCachedBytesChannel.setMessageHandler(nil)
     }
+    /// Whether this engine can save videos for offline viewing.
+    let isDownloadSupportedChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.isDownloadSupported\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      isDownloadSupportedChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.isDownloadSupported()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      isDownloadSupportedChannel.setMessageHandler(nil)
+    }
+    /// Turns offline viewing on or off. Off (the default): no download runs,
+    /// and players stream even what was downloaded. Files are kept.
+    let setDownloadsEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setDownloadsEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setDownloadsEnabledChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let enabledArg = args[0] as! Bool
+        do {
+          try api.setDownloadsEnabled(enabled: enabledArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setDownloadsEnabledChannel.setMessageHandler(nil)
+    }
+    /// Starts (or restarts) a download. Progress is sent on `downloadEvents`.
+    let startDownloadChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.startDownload\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      startDownloadChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PlatformDownloadRequest
+        do {
+          try api.startDownload(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      startDownloadChannel.setMessageHandler(nil)
+    }
+    let pauseDownloadChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.pauseDownload\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      pauseDownloadChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let idArg = args[0] as! String
+        do {
+          try api.pauseDownload(id: idArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      pauseDownloadChannel.setMessageHandler(nil)
+    }
+    let resumeDownloadChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.resumeDownload\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      resumeDownloadChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let idArg = args[0] as! String
+        do {
+          try api.resumeDownload(id: idArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      resumeDownloadChannel.setMessageHandler(nil)
+    }
+    /// Deletes a download and its files.
+    let removeDownloadChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.removeDownload\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      removeDownloadChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let idArg = args[0] as! String
+        do {
+          try api.removeDownload(id: idArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      removeDownloadChannel.setMessageHandler(nil)
+    }
+    /// Every download this app saved, in any state.
+    let getDownloadsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getDownloads\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getDownloadsChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.getDownloads()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      getDownloadsChannel.setMessageHandler(nil)
+    }
   }
 }
 
@@ -2415,6 +2711,44 @@ class SystemEventsStreamHandler: PigeonEventChannelWrapper<PlatformSystemEvent> 
     streamHandler: SystemEventsStreamHandler
   ) -> SystemEventsEventChannel {
     let channel = SystemEventsEventChannel(messenger: messenger, instanceName: instanceName)
+    channel.setStreamHandler(streamHandler)
+    return channel
+  }
+}
+      
+/// A typed channel for communicating with the Flutter application using asynchronous event streams.
+class DownloadEventsEventChannel {
+  private let channel: FlutterEventChannel
+
+  init(messenger: FlutterBinaryMessenger, instanceName: String = "") {
+    var channelName = "dev.flutter.pigeon.playstack_ios.PlayStackEventApi.downloadEvents"
+    if !instanceName.isEmpty {
+      channelName += ".\(instanceName)"
+    }
+    channel = FlutterEventChannel(name: channelName, binaryMessenger: messenger, codec: messagesPigeonMethodCodec)
+  }
+
+  /// Sets the stream handler for this channel, replacing any previous handler.
+  /// 
+  /// Pass `nil` to remove the event channel registration.
+  func setStreamHandler(_ streamHandler: DownloadEventsStreamHandler?) {
+    let internalHandler = streamHandler.map({ PigeonStreamHandler<PlatformDownload>(wrapper: $0) })
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+class DownloadEventsStreamHandler: PigeonEventChannelWrapper<PlatformDownload> {
+  /// Creates and returns a new event channel that calls the provided stream handler.
+  /// 
+  /// The returned channel can be stored to allow changing or removing the stream handler.
+  /// If the handler will not be changed for the lifetime of the engine associated with the messenger,
+  /// the return value can be ignored.
+  @discardableResult static func register(
+    with messenger: FlutterBinaryMessenger,
+    instanceName: String = "",
+    streamHandler: DownloadEventsStreamHandler
+  ) -> DownloadEventsEventChannel {
+    let channel = DownloadEventsEventChannel(messenger: messenger, instanceName: instanceName)
     channel.setStreamHandler(streamHandler)
     return channel
   }

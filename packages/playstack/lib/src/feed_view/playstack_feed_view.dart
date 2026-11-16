@@ -39,6 +39,14 @@ typedef PlayStackFeedPageBuilder<T> = Widget Function(
   PlayStackFeedPage<T> page,
 );
 
+/// Signature of [PlayStackFeedView.errorBuilder]: what a page shows when its
+/// video failed. Call `page.controller.retry()` to try again.
+typedef PlayStackFeedErrorBuilder<T> = Widget Function(
+  BuildContext context,
+  PlayStackFeedPage<T> page,
+  PlayStackException error,
+);
+
 /// Signature of [PlayStackFeedView.pageBuilder] and
 /// [PlayStackFeedView.lockedBuilder]: builds the page of [item], your object.
 /// [isActive] tells whether the page is the one in view, for example to
@@ -859,6 +867,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.cinemaMode = PlayStackCinemaMode.fullscreen,
     this.cinemaModeDelay = const Duration(seconds: 3),
     this.screenLockBuilder,
+    this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
   }) : feed = null,
@@ -905,6 +914,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.cinemaMode = PlayStackCinemaMode.fullscreen,
     this.cinemaModeDelay = const Duration(seconds: 3),
     this.screenLockBuilder,
+    this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
   }) : items = preload.items,
@@ -967,6 +977,7 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.cinemaMode = PlayStackCinemaMode.fullscreen,
     this.cinemaModeDelay = const Duration(seconds: 3),
     this.screenLockBuilder,
+    this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
   }) : items = null,
@@ -1327,6 +1338,22 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// Defaults to [PlayStackScreenLockOverlay]: a tap shows an unlock button
   /// for a few seconds.
   final PlayStackFeedPageBuilder<T>? screenLockBuilder;
+
+  /// What a page shows instead of its controls when its video failed: your
+  /// own message, illustration or button. [PlayStackException.code] tells
+  /// what went wrong (no network, video not found, unsupported format);
+  /// `page.controller.retry()` tries again.
+  ///
+  /// ```dart
+  /// errorBuilder: (context, page, error) => MyErrorScreen(
+  ///   offline: error.code == PlayStackErrorCode.network,
+  ///   onRetry: page.controller.retry,
+  /// ),
+  /// ```
+  ///
+  /// Without it, [controlsBuilder] handles errors:
+  /// [PlayStackDefaultControls] shows a [PlayStackErrorView].
+  final PlayStackFeedErrorBuilder<T>? errorBuilder;
 
   /// What the system's media controls show for an item: return a
   /// [PlayStackMediaInfo] to show the video in view on the lock screen, in
@@ -2508,6 +2535,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
                   ? null
                   : widget.controlsBuilder,
               screenLockBuilder: widget.screenLockBuilder,
+              errorBuilder: widget.errorBuilder,
               pageBuilder: widget.pageBuilder,
               lockedBuilder: widget.lockedBuilder,
               fit: widget.fit,
@@ -2600,6 +2628,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
                           videoBuilder: widget.videoBuilder,
                           controlsBuilder: widget.controlsBuilder,
                           screenLockBuilder: widget.screenLockBuilder,
+                          errorBuilder: widget.errorBuilder,
                           pageBuilder: widget.pageBuilder,
                           lockedBuilder: widget.lockedBuilder,
                           fit: widget.fit,
@@ -2691,6 +2720,7 @@ class _PageContent<T> extends StatelessWidget {
     required this.videoBuilder,
     required this.controlsBuilder,
     required this.screenLockBuilder,
+    required this.errorBuilder,
     required this.pageBuilder,
     required this.lockedBuilder,
     required this.fit,
@@ -2706,6 +2736,7 @@ class _PageContent<T> extends StatelessWidget {
   final PlayStackFeedPageBuilder<T>? videoBuilder;
   final PlayStackFeedPageBuilder<T>? controlsBuilder;
   final PlayStackFeedPageBuilder<T>? screenLockBuilder;
+  final PlayStackFeedErrorBuilder<T>? errorBuilder;
   final PlayStackFeedItemBuilder<T>? pageBuilder;
   final PlayStackFeedItemBuilder<T>? lockedBuilder;
   final BoxFit? fit;
@@ -2755,7 +2786,21 @@ class _PageContent<T> extends StatelessWidget {
           isCinemaMode: isCinemaMode,
           isScreenLocked: isScreenLocked,
         );
-        final controls = controlsBuilder?.call(context, page);
+        Widget? controls = controlsBuilder?.call(context, page);
+        final onError = errorBuilder;
+        if (onError != null) {
+          final normal = controls;
+          controls = ValueListenableBuilder<PlayStackPlaybackState>(
+            valueListenable: controller,
+            builder: (context, state, _) {
+              final error = state.error;
+              if (state.hasError && error != null) {
+                return onError(context, page, error);
+              }
+              return normal ?? const SizedBox.shrink();
+            },
+          );
+        }
         return Stack(
           fit: StackFit.expand,
           children: [

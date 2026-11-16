@@ -26,6 +26,9 @@ evicted beyond `maxBytes`; videos being played are never evicted.
 
 Asset, file and memory sources never use the cache.
 
+The cache is for speed and can be evicted at any time. To keep videos for
+offline viewing, download them instead: see [Offline viewing](downloads.md).
+
 ## Per source
 
 ```dart

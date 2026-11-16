@@ -59,6 +59,10 @@ abstract interface class PlayStackControllerHost {
 
   /// Called when [PlayStackPlaybackState.isPlaying] changes.
   void playingChanged(PlayStackPlayerController controller, bool isPlaying);
+
+  /// Whether the device has no network now. Network errors are then not
+  /// retried on a timer: the host retries when the network returns.
+  bool get isOffline;
 }
 
 /// Plays one video: play, pause, seek, volume, speed, tracks, and its
@@ -820,7 +824,8 @@ class PlayStackPlayerController extends ChangeNotifier
         } on PlayStackException catch (error) {
           if (_disposed ||
               attempt >= _retry.maxAttempts ||
-              !_retry.isRetryable(error.code)) {
+              !_retry.isRetryable(error.code) ||
+              _failedOffline(error)) {
             rethrow;
           }
           await _waitForRetry(_retry.delayFor(attempt + 1));
@@ -922,10 +927,18 @@ class PlayStackPlayerController extends ChangeNotifier
     }
   }
 
+  /// A network error while the device is offline: retrying on a timer only
+  /// delays the error screen. The manager retries when the network returns.
+  bool _failedOffline(PlayStackException error) =>
+      _host.isOffline &&
+      (error.code == PlayStackErrorCode.network ||
+          error.code == PlayStackErrorCode.timeout);
+
   /// Schedules an automatic recovery from a playback error.
   void _scheduleRecovery(PlayStackException error) {
     if (!_retry.isRetryable(error.code) ||
-        _playbackRetries >= _retry.maxAttempts) {
+        _playbackRetries >= _retry.maxAttempts ||
+        _failedOffline(error)) {
       return;
     }
     _playbackRetries++;

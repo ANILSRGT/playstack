@@ -9,6 +9,7 @@ import '../config/playstack_config.dart';
 import '../controller/playstack_player_controller.dart';
 import '../feed/playstack_feed_config.dart';
 import '../feed/playstack_feed_item.dart';
+import '../download/playstack_downloads.dart';
 import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../pool/playstack_player_pool.dart';
@@ -61,6 +62,7 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   PlayStackFullscreenManager? _fullscreen;
   PlayStackMediaSession? _mediaSession;
   PlayStackPictureInPicture? _pictureInPicture;
+  PlayStackDownloads? _downloads;
   StreamSubscription<PlayStackSystemEvent>? _systemEvents;
 
   Future<void>? _initialization;
@@ -126,6 +128,17 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   PlayStackPictureInPicture get pictureInPicture =>
       _pictureInPicture ?? (throw _notInitialized());
 
+  /// Saves videos for offline viewing, for the users you allow. Throws
+  /// before [initialize].
+  PlayStackDownloads get downloads => _downloads ?? (throw _notInitialized());
+
+  @override
+  bool get isOffline => !_network.value.isConnected;
+
+  @override
+  bool isAvailableOffline(PlayStackSource source) =>
+      _downloads?.isAvailableOffline(source) ?? false;
+
   /// The device's connection: offline, Wi-Fi, mobile data, metered, data
   /// saver. Feeds use it to preload less on mobile data; show it to the user
   /// if you like. [PlayStackNetworkStatus.unknown] before [initialize] and on
@@ -175,6 +188,7 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
     _capabilities = capabilities;
     _cache = PlayStackCacheManager(platform, capabilities);
     _fullscreen = PlayStackFullscreenManager(platform, config.fullscreen);
+    _downloads = PlayStackDownloads(platform);
     final mediaSession = _mediaSession = PlayStackMediaSession(platform);
     final pictureInPicture = _pictureInPicture = PlayStackPictureInPicture(
       platform,
@@ -297,6 +311,7 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
     }
     _mediaSession?.dispose();
     _pictureInPicture?.dispose();
+    _downloads?.dispose();
     try {
       await _fullscreen?.dispose();
     } on Object catch (error, stack) {

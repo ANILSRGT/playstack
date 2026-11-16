@@ -1288,6 +1288,76 @@ void main() {
       }),
     );
 
+    testWidgets('errorBuilder replaces the controls of a failed video', (
+      tester,
+    ) async {
+      const bad = PlayStackSource.network('https://example.com/bad.m3u8');
+      engine.failingSources[bad] = const PlayStackException(
+        PlayStackErrorCode.network,
+        'socket closed',
+      );
+      await tester.pumpWidget(
+        host(
+          PlayStackFeedView<String>(
+            items: const ['https://example.com/bad.m3u8'],
+            controlsBuilder: (context, page) => const Text('controls'),
+            errorBuilder: (context, page, error) => TextButton(
+              onPressed: page.controller.retry,
+              child: Text('offline: ${error.code.name}'),
+            ),
+          ),
+        ),
+      );
+      await run(tester);
+      // Past the automatic retries (1 s, then 2 s).
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(seconds: 2));
+        await run(tester);
+      }
+      expect(find.text('offline: network'), findsOneWidget);
+      expect(find.text('controls'), findsNothing);
+
+      engine.failingSources.clear();
+      await tester.tap(find.text('offline: network'));
+      await run(tester);
+      expect(find.text('controls'), findsOneWidget, reason: 'retried');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
+    testWidgets('the default controls explain an error to the user', (
+      tester,
+    ) async {
+      const bad = PlayStackSource.network('https://example.com/bad.m3u8');
+      engine.failingSources[bad] = const PlayStackException(
+        PlayStackErrorCode.network,
+        'socket closed',
+      );
+      await tester.pumpWidget(
+        host(
+          const PlayStackFeedView<String>(
+            items: ['https://example.com/bad.m3u8'],
+          ),
+        ),
+      );
+      await run(tester);
+      // Past the automatic retries (1 s, then 2 s).
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(seconds: 2));
+        await run(tester);
+      }
+      expect(find.text('Check your connection and try again.'), findsOneWidget);
+      expect(find.text('socket closed'), findsNothing);
+      engine.failingSources.clear();
+      await tester.tap(find.text('Try again'));
+      await run(tester);
+      expect(find.text('Try again'), findsNothing, reason: 'retried');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+      await run(tester);
+    });
+
     testWidgets('locked items show lockedBuilder until unlocked', (
       tester,
     ) async {

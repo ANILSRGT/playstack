@@ -33,6 +33,24 @@ final class PlayerRegistry: PlayStackHostApi {
     sources = SourceResolver(assetLookup: assetLookup)
   }
 
+  func isDownloadSupported() throws -> Bool { true }
+
+  func setDownloadsEnabled(enabled: Bool) throws {
+    DownloadStore.shared.setEnabled(enabled)
+  }
+
+  func startDownload(request: PlatformDownloadRequest) throws {
+    try DownloadStore.shared.start(request)
+  }
+
+  func pauseDownload(id: String) throws { DownloadStore.shared.pause(id) }
+
+  func resumeDownload(id: String) throws { DownloadStore.shared.resume(id) }
+
+  func removeDownload(id: String) throws { DownloadStore.shared.remove(id) }
+
+  func getDownloads() throws -> [PlatformDownload] { DownloadStore.shared.all() }
+
   /// The first call configures the engine; later calls share it.
   func initialize(config: PlatformEngineConfig) throws -> PlatformCapabilities {
     if engineConfig == nil {

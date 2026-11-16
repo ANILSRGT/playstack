@@ -281,7 +281,7 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
       builder: (context, state, _) {
         final error = state.error;
         if (state.hasError && error != null) {
-          return _ErrorRetry(
+          return PlayStackErrorView(
             error: error,
             color: widget.color,
             onRetry: () => unawaited(_controller.retry().catchError(_ignore)),
@@ -1122,39 +1122,141 @@ class _IconButton extends StatelessWidget {
   }
 }
 
-class _ErrorRetry extends StatelessWidget {
-  const _ErrorRetry({
+/// What [PlayStackDefaultControls] shows when a video failed: an icon, a
+/// short message for the user and a retry button.
+///
+/// Use it in your own controls, or give `PlayStackFeedView.errorBuilder` a
+/// screen of your own. [messageOf] replaces the texts, for example to
+/// translate them:
+///
+/// ```dart
+/// PlayStackErrorView(
+///   error: error,
+///   onRetry: page.controller.retry,
+///   messageOf: (error) => switch (error.code) {
+///     PlayStackErrorCode.network => 'İnternet bağlantını kontrol et.',
+///     _ => 'Video oynatılamadı.',
+///   },
+///   retryLabel: 'Tekrar dene',
+/// )
+/// ```
+class PlayStackErrorView extends StatelessWidget {
+  /// Creates the error message of [error].
+  const PlayStackErrorView({
+    super.key,
     required this.error,
-    required this.color,
     required this.onRetry,
+    this.messageOf,
+    this.retryLabel = 'Try again',
+    this.color = const Color(0xFFFFFFFF),
+    this.background = const Color(0xFF000000),
   });
 
+  /// Why the video failed.
   final PlayStackException error;
+
+  /// Called by the retry button, usually `controller.retry`.
+  final VoidCallback? onRetry;
+
+  /// The text for [error]; [defaultMessage] when null.
+  final String Function(PlayStackException error)? messageOf;
+
+  /// Text of the retry button.
+  final String retryLabel;
+
+  /// Color of the icon and texts.
   final Color color;
-  final VoidCallback onRetry;
+
+  /// Behind the message, black by default.
+  final Color background;
+
+  /// A short text for the user about [error], in English.
+  static String defaultMessage(PlayStackException error) =>
+      switch (error.code) {
+        PlayStackErrorCode.network ||
+        PlayStackErrorCode.timeout => 'Check your connection and try again.',
+        PlayStackErrorCode.sourceNotFound ||
+        PlayStackErrorCode.invalidSource => 'This video is not available.',
+        PlayStackErrorCode.unsupportedFormat =>
+          'This video cannot be played on this device.',
+        PlayStackErrorCode.decoderUnavailable =>
+          'Too many videos are playing. Try again.',
+        PlayStackErrorCode.playbackNotAllowed => 'Tap to play.',
+        _ => 'This video could not be played.',
+      };
+
+  /// An icon for [error].
+  static IconData iconOf(PlayStackException error) => switch (error.code) {
+    PlayStackErrorCode.network ||
+    PlayStackErrorCode.timeout => Icons.wifi_off_rounded,
+    PlayStackErrorCode.sourceNotFound ||
+    PlayStackErrorCode.invalidSource => Icons.videocam_off_outlined,
+    PlayStackErrorCode.playbackNotAllowed => Icons.play_arrow_rounded,
+    _ => Icons.error_outline_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
+    final message = (messageOf ?? defaultMessage)(error);
     return ColoredBox(
-      color: const Color(0xFF000000),
+      color: background,
       child: Center(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onRetry,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.refresh_rounded, size: 48, color: color),
-                const SizedBox(height: 8),
-                Text(
-                  error.message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: color, fontSize: 14),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(iconOf(error), size: 44, color: color),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  inherit: false,
+                  color: color,
+                  fontSize: 15,
+                  height: 1.3,
+                ),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 16),
+                Semantics(
+                  button: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onRetry,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: color.withValues(alpha: 0.6)),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh_rounded, size: 18, color: color),
+                            const SizedBox(width: 6),
+                            Text(
+                              retryLabel,
+                              style: TextStyle(
+                                inherit: false,
+                                color: color,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),

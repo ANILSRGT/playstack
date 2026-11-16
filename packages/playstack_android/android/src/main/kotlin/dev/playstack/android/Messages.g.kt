@@ -357,6 +357,27 @@ enum class PlatformSystemEventType(val raw: Int) {
 }
 
 /**
+ * Where an offline download stands. `removed` is only sent on
+ * `downloadEvents`, when a download was deleted.
+ */
+enum class PlatformDownloadState(val raw: Int) {
+  QUEUED(0),
+  DOWNLOADING(1),
+  PAUSED(2),
+  COMPLETED(3),
+  FAILED(4),
+  REMOVED(5);
+
+  companion object {
+    private val pigeonValues = values()
+
+    fun ofRaw(raw: Int): PlatformDownloadState? {
+      return pigeonValues.getOrNull(raw)
+    }
+  }
+}
+
+/**
  * Engine-wide settings, applied by the first `initialize` call.
  *
  * Generated class from Pigeon that represents data sent in messages.
@@ -1022,6 +1043,154 @@ data class PlatformCapabilities (
   }
 }
 
+/**
+ * A video to save for offline viewing.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformDownloadRequest (
+  /** The app's id for the download, for example the episode id. */
+  val id: String,
+  /**
+   * A network source. Playing the same URL (or cache key) later uses the
+   * download.
+   */
+  val source: PlatformSource,
+  /** Shown in the download notification (Android). */
+  val title: String? = null,
+  /**
+   * For adaptive streams (HLS, DASH): the tallest rendition to save, in
+   * lines. Null saves the best one.
+   */
+  val maxVideoHeight: Long? = null,
+  /** The app's own values, stored with the download. */
+  val metadata: Map<String, String>
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformDownloadRequest {
+      val id = pigeonVar_list[0] as String
+      val source = pigeonVar_list[1] as PlatformSource
+      val title = pigeonVar_list[2] as String?
+      val maxVideoHeight = pigeonVar_list[3] as Long?
+      val metadata = pigeonVar_list[4] as Map<String, String>
+      return PlatformDownloadRequest(id, source, title, maxVideoHeight, metadata)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      id,
+      source,
+      title,
+      maxVideoHeight,
+      metadata,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformDownloadRequest
+    return MessagesPigeonUtils.deepEquals(this.id, other.id) && MessagesPigeonUtils.deepEquals(this.source, other.source) && MessagesPigeonUtils.deepEquals(this.title, other.title) && MessagesPigeonUtils.deepEquals(this.maxVideoHeight, other.maxVideoHeight) && MessagesPigeonUtils.deepEquals(this.metadata, other.metadata)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.id)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.source)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.title)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.maxVideoHeight)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.metadata)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformDownloadRequest(id=$id, source=$source, title=$title, maxVideoHeight=$maxVideoHeight, metadata=$metadata)"
+  }
+}
+
+/**
+ * One offline download.
+ *
+ * Generated class from Pigeon that represents data sent in messages.
+ */
+data class PlatformDownload (
+  val id: String,
+  /**
+   * The cache key, or the URL when the source has none: playing a source
+   * with this key uses the download.
+   */
+  val key: String,
+  val state: PlatformDownloadState,
+  val bytesDownloaded: Long,
+  /** Null while unknown, for example for adaptive streams. */
+  val totalBytes: Long? = null,
+  /** 0 to 100, null while unknown. */
+  val percent: Double? = null,
+  val title: String? = null,
+  val metadata: Map<String, String>,
+  /** Why the download failed. */
+  val error: String? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): PlatformDownload {
+      val id = pigeonVar_list[0] as String
+      val key = pigeonVar_list[1] as String
+      val state = pigeonVar_list[2] as PlatformDownloadState
+      val bytesDownloaded = pigeonVar_list[3] as Long
+      val totalBytes = pigeonVar_list[4] as Long?
+      val percent = pigeonVar_list[5] as Double?
+      val title = pigeonVar_list[6] as String?
+      val metadata = pigeonVar_list[7] as Map<String, String>
+      val error = pigeonVar_list[8] as String?
+      return PlatformDownload(id, key, state, bytesDownloaded, totalBytes, percent, title, metadata, error)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      id,
+      key,
+      state,
+      bytesDownloaded,
+      totalBytes,
+      percent,
+      title,
+      metadata,
+      error,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as PlatformDownload
+    return MessagesPigeonUtils.deepEquals(this.id, other.id) && MessagesPigeonUtils.deepEquals(this.key, other.key) && MessagesPigeonUtils.deepEquals(this.state, other.state) && MessagesPigeonUtils.deepEquals(this.bytesDownloaded, other.bytesDownloaded) && MessagesPigeonUtils.deepEquals(this.totalBytes, other.totalBytes) && MessagesPigeonUtils.deepEquals(this.percent, other.percent) && MessagesPigeonUtils.deepEquals(this.title, other.title) && MessagesPigeonUtils.deepEquals(this.metadata, other.metadata) && MessagesPigeonUtils.deepEquals(this.error, other.error)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.id)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.key)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.state)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.bytesDownloaded)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.totalBytes)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.percent)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.title)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.metadata)
+    result = 31 * result + MessagesPigeonUtils.deepHash(this.error)
+    return result
+  }
+  override fun toString(): String {
+    return "PlatformDownload(id=$id, key=$key, state=$state, bytesDownloaded=$bytesDownloaded, totalBytes=$totalBytes, percent=$percent, title=$title, metadata=$metadata, error=$error)"
+  }
+}
+
 /** Generated class from Pigeon that represents data sent in messages. */
 data class PlatformPosition (
   val positionMs: Long,
@@ -1605,106 +1774,121 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         }
       }
       138.toByte() -> {
-        (readValue(buffer) as? List<Any?>)?.let {
-          PlatformEngineConfig.fromList(it)
+        (readValue(buffer) as Long?)?.let {
+          PlatformDownloadState.ofRaw(it.toInt())
         }
       }
       139.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCacheInfo.fromList(it)
+          PlatformEngineConfig.fromList(it)
         }
       }
       140.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSystemEvent.fromList(it)
+          PlatformCacheInfo.fromList(it)
         }
       }
       141.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformMediaInfo.fromList(it)
+          PlatformSystemEvent.fromList(it)
         }
       }
       142.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformDeviceOrientationEvent.fromList(it)
+          PlatformMediaInfo.fromList(it)
         }
       }
       143.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformNetworkStatus.fromList(it)
+          PlatformDeviceOrientationEvent.fromList(it)
         }
       }
       144.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTrack.fromList(it)
+          PlatformNetworkStatus.fromList(it)
         }
       }
       145.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformSource.fromList(it)
+          PlatformTrack.fromList(it)
         }
       }
       146.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerOptions.fromList(it)
+          PlatformSource.fromList(it)
         }
       }
       147.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPlayerCreation.fromList(it)
+          PlatformPlayerOptions.fromList(it)
         }
       }
       148.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCapabilities.fromList(it)
+          PlatformPlayerCreation.fromList(it)
         }
       }
       149.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformPosition.fromList(it)
+          PlatformCapabilities.fromList(it)
         }
       }
       150.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformInitializedEvent.fromList(it)
+          PlatformDownloadRequest.fromList(it)
         }
       }
       151.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformStateEvent.fromList(it)
+          PlatformDownload.fromList(it)
         }
       }
       152.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformIsPlayingEvent.fromList(it)
+          PlatformPosition.fromList(it)
         }
       }
       153.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformVideoSizeEvent.fromList(it)
+          PlatformInitializedEvent.fromList(it)
         }
       }
       154.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformFirstFrameEvent.fromList(it)
+          PlatformStateEvent.fromList(it)
         }
       }
       155.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformErrorEvent.fromList(it)
+          PlatformIsPlayingEvent.fromList(it)
         }
       }
       156.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformTracksChangedEvent.fromList(it)
+          PlatformVideoSizeEvent.fromList(it)
         }
       }
       157.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
-          PlatformCuesEvent.fromList(it)
+          PlatformFirstFrameEvent.fromList(it)
         }
       }
       158.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformErrorEvent.fromList(it)
+        }
+      }
+      159.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformTracksChangedEvent.fromList(it)
+        }
+      }
+      160.toByte() -> {
+        (readValue(buffer) as? List<Any?>)?.let {
+          PlatformCuesEvent.fromList(it)
+        }
+      }
+      161.toByte() -> {
         (readValue(buffer) as? List<Any?>)?.let {
           PlatformInterruptionEvent.fromList(it)
         }
@@ -1750,88 +1934,100 @@ private open class MessagesPigeonCodec : StandardMessageCodec() {
         stream.write(137)
         writeValue(stream, value.raw.toLong())
       }
-      is PlatformEngineConfig -> {
+      is PlatformDownloadState -> {
         stream.write(138)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is PlatformCacheInfo -> {
+      is PlatformEngineConfig -> {
         stream.write(139)
         writeValue(stream, value.toList())
       }
-      is PlatformSystemEvent -> {
+      is PlatformCacheInfo -> {
         stream.write(140)
         writeValue(stream, value.toList())
       }
-      is PlatformMediaInfo -> {
+      is PlatformSystemEvent -> {
         stream.write(141)
         writeValue(stream, value.toList())
       }
-      is PlatformDeviceOrientationEvent -> {
+      is PlatformMediaInfo -> {
         stream.write(142)
         writeValue(stream, value.toList())
       }
-      is PlatformNetworkStatus -> {
+      is PlatformDeviceOrientationEvent -> {
         stream.write(143)
         writeValue(stream, value.toList())
       }
-      is PlatformTrack -> {
+      is PlatformNetworkStatus -> {
         stream.write(144)
         writeValue(stream, value.toList())
       }
-      is PlatformSource -> {
+      is PlatformTrack -> {
         stream.write(145)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerOptions -> {
+      is PlatformSource -> {
         stream.write(146)
         writeValue(stream, value.toList())
       }
-      is PlatformPlayerCreation -> {
+      is PlatformPlayerOptions -> {
         stream.write(147)
         writeValue(stream, value.toList())
       }
-      is PlatformCapabilities -> {
+      is PlatformPlayerCreation -> {
         stream.write(148)
         writeValue(stream, value.toList())
       }
-      is PlatformPosition -> {
+      is PlatformCapabilities -> {
         stream.write(149)
         writeValue(stream, value.toList())
       }
-      is PlatformInitializedEvent -> {
+      is PlatformDownloadRequest -> {
         stream.write(150)
         writeValue(stream, value.toList())
       }
-      is PlatformStateEvent -> {
+      is PlatformDownload -> {
         stream.write(151)
         writeValue(stream, value.toList())
       }
-      is PlatformIsPlayingEvent -> {
+      is PlatformPosition -> {
         stream.write(152)
         writeValue(stream, value.toList())
       }
-      is PlatformVideoSizeEvent -> {
+      is PlatformInitializedEvent -> {
         stream.write(153)
         writeValue(stream, value.toList())
       }
-      is PlatformFirstFrameEvent -> {
+      is PlatformStateEvent -> {
         stream.write(154)
         writeValue(stream, value.toList())
       }
-      is PlatformErrorEvent -> {
+      is PlatformIsPlayingEvent -> {
         stream.write(155)
         writeValue(stream, value.toList())
       }
-      is PlatformTracksChangedEvent -> {
+      is PlatformVideoSizeEvent -> {
         stream.write(156)
         writeValue(stream, value.toList())
       }
-      is PlatformCuesEvent -> {
+      is PlatformFirstFrameEvent -> {
         stream.write(157)
         writeValue(stream, value.toList())
       }
-      is PlatformInterruptionEvent -> {
+      is PlatformErrorEvent -> {
         stream.write(158)
+        writeValue(stream, value.toList())
+      }
+      is PlatformTracksChangedEvent -> {
+        stream.write(159)
+        writeValue(stream, value.toList())
+      }
+      is PlatformCuesEvent -> {
+        stream.write(160)
+        writeValue(stream, value.toList())
+      }
+      is PlatformInterruptionEvent -> {
+        stream.write(161)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -1916,6 +2112,21 @@ interface PlayStackHostApi {
   suspend fun removeCached(cacheKey: String)
   /** Bytes of one source available in the cache. */
   suspend fun getCachedBytes(cacheKey: String): Long
+  /** Whether this engine can save videos for offline viewing. */
+  fun isDownloadSupported(): Boolean
+  /**
+   * Turns offline viewing on or off. Off (the default): no download runs,
+   * and players stream even what was downloaded. Files are kept.
+   */
+  fun setDownloadsEnabled(enabled: Boolean)
+  /** Starts (or restarts) a download. Progress is sent on `downloadEvents`. */
+  fun startDownload(request: PlatformDownloadRequest)
+  fun pauseDownload(id: String)
+  fun resumeDownload(id: String)
+  /** Deletes a download and its files. */
+  fun removeDownload(id: String)
+  /** Every download this app saved, in any state. */
+  fun getDownloads(): List<PlatformDownload>
 
   companion object {
     /** The codec used by PlayStackHostApi. */
@@ -2414,6 +2625,126 @@ interface PlayStackHostApi {
           channel.setMessageHandler(null)
         }
       }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.isDownloadSupported$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.isDownloadSupported())
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.setDownloadsEnabled$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val enabledArg = args[0] as Boolean
+            val wrapped: List<Any?> = try {
+              api.setDownloadsEnabled(enabledArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.startDownload$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val requestArg = args[0] as PlatformDownloadRequest
+            val wrapped: List<Any?> = try {
+              api.startDownload(requestArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.pauseDownload$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val idArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.pauseDownload(idArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.resumeDownload$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val idArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.resumeDownload(idArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.removeDownload$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val idArg = args[0] as String
+            val wrapped: List<Any?> = try {
+              api.removeDownload(idArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.playstack_android.PlayStackHostApi.getDownloads$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            val wrapped: List<Any?> = try {
+              listOf(api.getDownloads())
+            } catch (exception: Throwable) {
+              MessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
     }
   }
 }
@@ -2630,6 +2961,51 @@ abstract class SystemEventsStreamHandler : MessagesPigeonEventChannelWrapper<Pla
 
   // Implement methods from MessagesPigeonEventChannelWrapper
   override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformSystemEvent>) {}
+
+  override fun onCancel(p0: Any?) {}
+}
+      
+/** A typed channel for communicating with the Flutter application using asynchronous event streams. */
+class DownloadEventsEventChannel(messenger: BinaryMessenger, instanceName: String = "") {
+  private val channel: EventChannel
+
+  init {
+    var channelName = "dev.flutter.pigeon.playstack_android.PlayStackEventApi.downloadEvents"
+    if (instanceName.isNotEmpty()) {
+      channelName += ".$instanceName"
+    }
+    channel = EventChannel(messenger, channelName, MessagesPigeonMethodCodec)
+  }
+
+  /**
+   * Sets the stream handler for this channel, replacing any previous handler.
+   *
+   * Pass `null` to remove the event channel registration.
+   */
+  fun setStreamHandler(streamHandler: DownloadEventsStreamHandler?) {
+    val internalHandler = streamHandler?.let { MessagesPigeonStreamHandler<PlatformDownload>(it) }
+    channel.setStreamHandler(internalHandler)
+  }
+}
+
+abstract class DownloadEventsStreamHandler : MessagesPigeonEventChannelWrapper<PlatformDownload> {
+  companion object {
+    /**
+     * Creates and returns a new event channel that calls the provided stream handler.
+     *
+     * The returned channel can be stored to allow changing or removing the stream handler.
+     * If the handler will not be changed for the lifetime of the engine associated with the messenger,
+     * the return value can be ignored.
+     */
+    fun register(messenger: BinaryMessenger, streamHandler: DownloadEventsStreamHandler, instanceName: String = ""): DownloadEventsEventChannel {
+      val channel = DownloadEventsEventChannel(messenger, instanceName)
+      channel.setStreamHandler(streamHandler)
+      return channel
+    }
+  }
+
+  // Implement methods from MessagesPigeonEventChannelWrapper
+  override fun onListen(p0: Any?, sink: PigeonEventSink<PlatformDownload>) {}
 
   override fun onCancel(p0: Any?) {}
 }

@@ -3,7 +3,6 @@ package dev.playstack.android
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import java.io.File
@@ -30,7 +29,7 @@ internal object MediaCache {
                 ?: SimpleCache(
                         File(context.applicationContext.cacheDir, DIRECTORY),
                         LeastRecentlyUsedCacheEvictor(requestedMaxBytes),
-                        StandaloneDatabaseProvider(context.applicationContext),
+                        Media3Database.obtain(context),
                     )
                     .also {
                       cache = it

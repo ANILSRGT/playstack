@@ -154,6 +154,17 @@ enum PlatformSystemEventType {
   pictureInPictureStopped,
 }
 
+/// Where an offline download stands. `removed` is only sent on
+/// `downloadEvents`, when a download was deleted.
+enum PlatformDownloadState {
+  queued,
+  downloading,
+  paused,
+  completed,
+  failed,
+  removed,
+}
+
 /// Engine-wide settings, applied by the first `initialize` call.
 class PlatformEngineConfig {
   PlatformEngineConfig({
@@ -992,6 +1003,178 @@ class PlatformCapabilities {
   }
 }
 
+/// A video to save for offline viewing.
+class PlatformDownloadRequest {
+  PlatformDownloadRequest({
+    required this.id,
+    required this.source,
+    this.title,
+    this.maxVideoHeight,
+    required this.metadata,
+  });
+
+  /// The app's id for the download, for example the episode id.
+  String id;
+
+  /// A network source. Playing the same URL (or cache key) later uses the
+  /// download.
+  PlatformSource source;
+
+  /// Shown in the download notification (Android).
+  String? title;
+
+  /// For adaptive streams (HLS, DASH): the tallest rendition to save, in
+  /// lines. Null saves the best one.
+  int? maxVideoHeight;
+
+  /// The app's own values, stored with the download.
+  Map<String, String> metadata;
+
+  List<Object?> _toList() {
+    return <Object?>[id, source, title, maxVideoHeight, metadata];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformDownloadRequest decode(Object result) {
+    result as List<Object?>;
+    return PlatformDownloadRequest(
+      id: result[0]! as String,
+      source: result[1]! as PlatformSource,
+      title: result[2] as String?,
+      maxVideoHeight: result[3] as int?,
+      metadata: (result[4]! as Map<Object?, Object?>).cast<String, String>(),
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformDownloadRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(id, other.id) &&
+        _deepEquals(source, other.source) &&
+        _deepEquals(title, other.title) &&
+        _deepEquals(maxVideoHeight, other.maxVideoHeight) &&
+        _deepEquals(metadata, other.metadata);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformDownloadRequest(id: $id, source: $source, title: $title, maxVideoHeight: $maxVideoHeight, metadata: $metadata)';
+  }
+}
+
+/// One offline download.
+class PlatformDownload {
+  PlatformDownload({
+    required this.id,
+    required this.key,
+    required this.state,
+    required this.bytesDownloaded,
+    this.totalBytes,
+    this.percent,
+    this.title,
+    required this.metadata,
+    this.error,
+  });
+
+  String id;
+
+  /// The cache key, or the URL when the source has none: playing a source
+  /// with this key uses the download.
+  String key;
+
+  PlatformDownloadState state;
+
+  int bytesDownloaded;
+
+  /// Null while unknown, for example for adaptive streams.
+  int? totalBytes;
+
+  /// 0 to 100, null while unknown.
+  double? percent;
+
+  String? title;
+
+  Map<String, String> metadata;
+
+  /// Why the download failed.
+  String? error;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      id,
+      key,
+      state,
+      bytesDownloaded,
+      totalBytes,
+      percent,
+      title,
+      metadata,
+      error,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformDownload decode(Object result) {
+    result as List<Object?>;
+    return PlatformDownload(
+      id: result[0]! as String,
+      key: result[1]! as String,
+      state: result[2]! as PlatformDownloadState,
+      bytesDownloaded: result[3]! as int,
+      totalBytes: result[4] as int?,
+      percent: result[5] as double?,
+      title: result[6] as String?,
+      metadata: (result[7]! as Map<Object?, Object?>).cast<String, String>(),
+      error: result[8] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformDownload || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(id, other.id) &&
+        _deepEquals(key, other.key) &&
+        _deepEquals(state, other.state) &&
+        _deepEquals(bytesDownloaded, other.bytesDownloaded) &&
+        _deepEquals(totalBytes, other.totalBytes) &&
+        _deepEquals(percent, other.percent) &&
+        _deepEquals(title, other.title) &&
+        _deepEquals(metadata, other.metadata) &&
+        _deepEquals(error, other.error);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformDownload(id: $id, key: $key, state: $state, bytesDownloaded: $bytesDownloaded, totalBytes: $totalBytes, percent: $percent, title: $title, metadata: $metadata, error: $error)';
+  }
+}
+
 class PlatformPosition {
   PlatformPosition({required this.positionMs, required this.bufferedMs});
 
@@ -1659,68 +1842,77 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformSystemEventType) {
       buffer.putUint8(137);
       writeValue(buffer, value.index);
-    } else if (value is PlatformEngineConfig) {
+    } else if (value is PlatformDownloadState) {
       buffer.putUint8(138);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformCacheInfo) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformEngineConfig) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSystemEvent) {
+    } else if (value is PlatformCacheInfo) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformMediaInfo) {
+    } else if (value is PlatformSystemEvent) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformDeviceOrientationEvent) {
+    } else if (value is PlatformMediaInfo) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformNetworkStatus) {
+    } else if (value is PlatformDeviceOrientationEvent) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTrack) {
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformDownloadRequest) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformDownload) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(153);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(154);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(155);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(156);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformFirstFrameEvent) {
       buffer.putUint8(157);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInterruptionEvent) {
+    } else if (value is PlatformErrorEvent) {
       buffer.putUint8(158);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformTracksChangedEvent) {
+      buffer.putUint8(159);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(160);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformInterruptionEvent) {
+      buffer.putUint8(161);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1760,46 +1952,53 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PlatformSystemEventType.values[value];
       case 138:
-        return PlatformEngineConfig.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformDownloadState.values[value];
       case 139:
-        return PlatformCacheInfo.decode(readValue(buffer)!);
+        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 140:
-        return PlatformSystemEvent.decode(readValue(buffer)!);
+        return PlatformCacheInfo.decode(readValue(buffer)!);
       case 141:
-        return PlatformMediaInfo.decode(readValue(buffer)!);
+        return PlatformSystemEvent.decode(readValue(buffer)!);
       case 142:
-        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
+        return PlatformMediaInfo.decode(readValue(buffer)!);
       case 143:
-        return PlatformNetworkStatus.decode(readValue(buffer)!);
+        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
       case 144:
-        return PlatformTrack.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 145:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 146:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 147:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 148:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 149:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 150:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformDownloadRequest.decode(readValue(buffer)!);
       case 151:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformDownload.decode(readValue(buffer)!);
       case 152:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 153:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 154:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 155:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 156:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
       case 157:
-        return PlatformCuesEvent.decode(readValue(buffer)!);
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
       case 158:
+        return PlatformErrorEvent.decode(readValue(buffer)!);
+      case 159:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 160:
+        return PlatformCuesEvent.decode(readValue(buffer)!);
+      case 161:
         return PlatformInterruptionEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -2380,6 +2579,143 @@ class PlayStackHostApi {
     );
     return pigeonVar_replyValue! as int;
   }
+
+  /// Whether this engine can save videos for offline viewing.
+  Future<bool> isDownloadSupported() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.isDownloadSupported$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as bool;
+  }
+
+  /// Turns offline viewing on or off. Off (the default): no download runs,
+  /// and players stream even what was downloaded. Files are kept.
+  Future<void> setDownloadsEnabled(bool enabled) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setDownloadsEnabled$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[enabled],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Starts (or restarts) a download. Progress is sent on `downloadEvents`.
+  Future<void> startDownload(PlatformDownloadRequest request) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.startDownload$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> pauseDownload(String id) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.pauseDownload$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[id],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> resumeDownload(String id) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.resumeDownload$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[id],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Deletes a download and its files.
+  Future<void> removeDownload(String id) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.removeDownload$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[id],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Every download this app saved, in any state.
+  Future<List<PlatformDownload>> getDownloads() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getDownloads$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return (pigeonVar_replyValue! as List<Object?>).cast<PlatformDownload>();
+  }
 }
 
 /// Returns a broadcast [Stream] of events from the `playerEvents` event channel.
@@ -2469,5 +2805,27 @@ Stream<PlatformSystemEvent> systemEvents({String instanceName = ''}) {
   );
   return systemEventsChannel.receiveBroadcastStream().map((dynamic event) {
     return event as PlatformSystemEvent;
+  });
+}
+
+/// A download changed: its state or progress (about once a second while
+/// it runs), or it was removed (state `removed`).
+///
+/// Returns a broadcast [Stream] of events from the `downloadEvents` event channel.
+///
+/// Each call to this method creates a new [EventChannel], so it should
+/// not be called multiple times for the same `instanceName`. To deliver
+/// events to multiple listeners, call this method once and listen to the
+/// returned broadcast stream multiple times instead.
+Stream<PlatformDownload> downloadEvents({String instanceName = ''}) {
+  if (instanceName.isNotEmpty) {
+    instanceName = '.$instanceName';
+  }
+  final EventChannel downloadEventsChannel = EventChannel(
+    'dev.flutter.pigeon.playstack_ios.PlayStackEventApi.downloadEvents$instanceName',
+    pigeonMethodCodec,
+  );
+  return downloadEventsChannel.receiveBroadcastStream().map((dynamic event) {
+    return event as PlatformDownload;
   });
 }
