@@ -14,6 +14,62 @@
   fails. The default controls show `PlayStackErrorView`: a message for the
   user by error code and a Try again button, with replaceable texts,
   instead of the engine's technical message.
+* Analytics: `PlayStackAnalytics.all` and `PlayStackManager.analytics`
+  report typed events (`PlayStackLoadEvent`, `PlayStackStartEvent` with
+  the startup time, pause, resume, seek, progress milestones, complete,
+  `PlayStackRebufferEvent`, quality, `PlayStackFailureEvent`,
+  `PlayStackEndEvent` with the watch time), each with a `name` and flat
+  `parameters` for analytics services. `PlayStackConfig.analytics`
+  (`PlayStackAnalyticsConfig`) sets the milestones;
+  `PlayStackPlayerController.contentId` names the video.
+* Series: `PlayStackFeedView.series` (`PlayStackSeries`) continues
+  episodes where the user stopped (`PlayStackWatchProgress`, saved through
+  `PlayStackProgressStorage`), shows skip buttons inside
+  `PlayStackSkipMarker`s (intro, recap, credits) and offers the next
+  episode with a countdown (`PlayStackNextUp`). Buttons and the offer are
+  replaceable (`skipButtonBuilder`, `nextUpBuilder`).
+* Cues: `PlayStackFeedView.cues` (`PlayStackFeedCues`) calls the app at
+  points of a video (`PlayStackCue`, `PlayStackCue.fromEnd`) to show a
+  widget (`builder`) or run code such as an ad SDK's interstitial
+  (`onCue`; the video can pause until its `Future` completes), and between
+  items (`onTransition`, with `PlayStackTransition`; the next item waits).
+  `PlayStackCueController` does the same for a single player.
+* VAST ads: `PlayStackFeedView.ads` (`PlayStackFeedAds`) plays pre-, mid-
+  and post-roll breaks (`PlayStackAdBreak`) from VAST 2 to 4 tags,
+  your own ads or your own loader (`PlayStackAdSource`), with skip,
+  "Learn more" (`PlayStackAds.onClick`) and tracking.
+  `PlayStackAdController` and `PlayStackAdOverlay` for single players;
+  `PlayStackVast` reads responses.
+* Subtitle files: `PlayStackSource.*(subtitles: [PlayStackSubtitleSource])`
+  adds WebVTT and SubRip files or text as subtitle tracks on every
+  platform.
+* Gestures in `PlayStackDefaultControls`, all off by default:
+  `doubleTapToSeek`, `horizontalDragToSeek` (drag sideways anywhere on the
+  video to seek), `dragGestures` (`PlayStackDragGestures`: brightness and
+  volume). `PlayStackManager.getScreenBrightness` and
+  `setScreenBrightness`.
+* Scrub preview: the progress bar shows the time and a thumbnail above the
+  finger. `PlayStackThumbnails.webVtt`, `.sprite`, `.builder` and
+  `.frames` (frames read from the video, MP4 and files on Android and
+  iOS); `scrubPreviewBuilder` and `PlayStackScrubPreview` replace the
+  look; `PlayStackProgressBar.scrubValue` drives the drag from outside.
+  `PlayStackManager.getVideoFrame` returns one frame as JPEG.
+* The progress bar's touch area is 36 px tall instead of 24.
+* `PlayStackDebugOverlay` and `PlayStackDefaultControls.showDebugInfo`:
+  state, bitrate, codec, buffer, timings and the pool.
+* Sleep timer: `PlayStackManager.sleepTimer` (`PlayStackSleepTimer`)
+  pauses after a time with a fade-out, or at the end of the video.
+* Audio only: `PlayStackPlayerController.setAudioOnly` and `audioOnly`
+  stop decoding the picture; `PlayStackVideoView` shows the poster.
+* Live streams: `PlayStackPositionSnapshot.windowStart`, `liveEdge` and
+  `behindLive`; `PlayStackPlayerController.seekToLiveEdge`;
+  `PlayStackLiveBadge`, shown by the default controls, which hide the
+  progress bar on live streams.
+* DRM: `PlayStackSource.network(drm: PlayStackDrm.widevine / playReady /
+  clearKey / fairPlay)`. Protected videos are drawn through a platform
+  view.
+* `PlayStackAirPlayButton` (iOS).
+* `PlayStackFeedViewController.scrollDirection`.
 
 ## 0.1.0-dev.9
 

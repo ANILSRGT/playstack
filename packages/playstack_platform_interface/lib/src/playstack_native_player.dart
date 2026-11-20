@@ -57,6 +57,8 @@ class PlayStackPositionSnapshot {
   const PlayStackPositionSnapshot({
     required this.position,
     required this.buffered,
+    this.windowStart,
+    this.liveEdge,
   });
 
   /// Current playback position.
@@ -65,14 +67,32 @@ class PlayStackPositionSnapshot {
   /// Position up to which media is buffered.
   final Duration buffered;
 
+  /// Live streams: the earliest point the user can go back to (the DVR
+  /// window), on the same clock as [position]. Null for other videos.
+  final Duration? windowStart;
+
+  /// Live streams: the live edge, on the same clock as [position]. Null for
+  /// other videos.
+  final Duration? liveEdge;
+
+  /// Live streams: how far behind live playback is, or null.
+  Duration? get behindLive {
+    final edge = liveEdge;
+    if (edge == null) return null;
+    final behind = edge - position;
+    return behind.isNegative ? Duration.zero : behind;
+  }
+
   @override
   bool operator ==(Object other) =>
       other is PlayStackPositionSnapshot &&
       other.position == position &&
-      other.buffered == buffered;
+      other.buffered == buffered &&
+      other.windowStart == windowStart &&
+      other.liveEdge == liveEdge;
 
   @override
-  int get hashCode => Object.hash(position, buffered);
+  int get hashCode => Object.hash(position, buffered, windowStart, liveEdge);
 
   @override
   String toString() =>

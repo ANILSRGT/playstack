@@ -109,11 +109,18 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Future<void> disposePlayer(int playerId) async {
     _textureIds.remove(playerId);
+    _layerPlayers.remove(playerId);
     await _guard(() => _api.disposePlayer(playerId));
   }
 
   @override
   Future<void> setSource(int playerId, PlayStackSource source, int generation) {
+    // FairPlay frames reach only an AVPlayerLayer, shown as a platform view.
+    if (source is PlayStackNetworkSource && source.drm != null) {
+      _layerPlayers.add(playerId);
+    } else {
+      _layerPlayers.remove(playerId);
+    }
     return _guard(
       () => _api.setSource(playerId, _toPlatformSource(source), generation),
     );
@@ -151,6 +158,14 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
     return PlayStackPositionSnapshot(
       position: Duration(milliseconds: position.positionMs),
       buffered: Duration(milliseconds: position.bufferedMs),
+      windowStart: switch (position.windowStartMs) {
+        null => null,
+        final ms => Duration(milliseconds: ms),
+      },
+      liveEdge: switch (position.liveEdgeMs) {
+        null => null,
+        final ms => Duration(milliseconds: ms),
+      },
     );
   }
 
@@ -221,6 +236,34 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Future<void> setPreloadBufferLimit(int playerId, Duration? limit) =>
       _guard(() => _api.setPreloadBufferLimit(playerId, limit?.inMilliseconds));
+
+  @override
+  Future<void> setVideoDisabled(int playerId, bool disabled) =>
+      _guard(() => _api.setVideoDisabled(playerId, disabled));
+
+  @override
+  Future<void> seekToLiveEdge(int playerId) =>
+      _guard(() => _api.seekToLiveEdge(playerId));
+
+  @override
+  Future<double?> getScreenBrightness() => _guard(_api.getScreenBrightness);
+
+  @override
+  Future<Uint8List?> getFrame(
+    PlayStackSource source,
+    Duration position, {
+    int maxWidth = 240,
+  }) => _guard(
+    () => _api.getFrame(
+      _toPlatformSource(source),
+      position.inMilliseconds,
+      maxWidth,
+    ),
+  );
+
+  @override
+  Future<void> setScreenBrightness(double? brightness) =>
+      _guard(() => _api.setScreenBrightness(brightness));
 
   @override
   Future<PlayStackNetworkStatus> getNetworkStatus() async =>
@@ -413,8 +456,19 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
   Widget buildView(int playerId) {
     final textureId = _textureIds[playerId];
     if (textureId == null) return const SizedBox.shrink();
+    if (_layerPlayers.contains(playerId)) {
+      return UiKitView(
+        key: ValueKey<int>(playerId),
+        viewType: 'dev.playstack/player_layer',
+        creationParams: <String, Object>{'playerId': playerId},
+        creationParamsCodec: const StandardMessageCodec(),
+      );
+    }
     return Texture(textureId: textureId);
   }
+
+  /// Players with a protected source.
+  final Set<int> _layerPlayers = <int>{};
 
   static Future<T> _guard<T>(Future<T> Function() call) async {
     try {
@@ -440,6 +494,21 @@ class PlayStackIOS extends PlayStackPlatform with SystemChromeFullscreen {
         httpHeaders: source.headers,
         cacheKey: source.effectiveCacheKey,
         useCache: source.cachePolicy == PlayStackCachePolicy.cache,
+        drm: switch (source.drm) {
+          null => null,
+          final drm => PlatformDrm(
+            type: switch (drm.type) {
+              PlayStackDrmType.widevine => PlatformDrmType.widevine,
+              PlayStackDrmType.playReady => PlatformDrmType.playReady,
+              PlayStackDrmType.clearKey => PlatformDrmType.clearKey,
+              PlayStackDrmType.fairPlay => PlatformDrmType.fairPlay,
+            },
+            licenseUrl: drm.licenseUrl,
+            certificateUrl: drm.certificateUrl,
+            headers: drm.headers,
+            contentId: drm.contentId,
+          ),
+        },
       ),
       PlayStackFileSource() => PlatformSource(
         type: PlatformSourceType.file,

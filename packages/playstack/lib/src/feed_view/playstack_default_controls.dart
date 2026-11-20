@@ -8,6 +8,9 @@ import '../controller/playstack_player_controller.dart';
 import '../controller/playstack_video_quality.dart';
 import '../feed/playstack_feed_manager.dart';
 import 'playstack_feed_view.dart';
+import '../manager/playstack_manager.dart';
+import 'playstack_debug_overlay.dart';
+import 'playstack_thumbnails.dart';
 
 /// What [PlayStackDefaultControls] does while the user holds a finger on the
 /// video.
@@ -23,6 +26,20 @@ enum PlayStackHoldAction {
   /// 2x by default) and returns to normal speed on release. A badge shows
   /// the speed.
   speedUp,
+}
+
+/// Where [PlayStackDefaultControls] lets vertical drags change the
+/// brightness (left half) and the volume (right half).
+enum PlayStackDragGestures {
+  /// Never (the default).
+  off,
+
+  /// Only in fullscreen, where swiping does not move the feed.
+  fullscreen,
+
+  /// Everywhere. Only for horizontal feeds and single players: in a
+  /// vertical feed the drag would no longer move to the next video.
+  always,
 }
 
 /// The controls a [PlayStackFeedView] shows when you pass no `controlsBuilder`.
@@ -88,6 +105,13 @@ class PlayStackDefaultControls extends StatefulWidget {
     this.bufferingIndicatorDelay = const Duration(seconds: 2),
     this.bufferingIndicator,
     this.color = const Color(0xFFFFFFFF),
+    this.doubleTapToSeek,
+    this.dragGestures = PlayStackDragGestures.off,
+    this.thumbnails,
+    this.scrubPreviewBuilder,
+    this.showDebugInfo = false,
+    this.showLiveBadge = true,
+    this.horizontalDragToSeek = false,
   });
 
   /// The default value of `PlayStackFeedView.controlsBuilder`: the default controls
@@ -188,6 +212,41 @@ class PlayStackDefaultControls extends StatefulWidget {
   /// Color of the icons, the spinner and the progress bar. White by default.
   final Color color;
 
+  /// How far a double tap on the left or right third of the video jumps
+  /// back or forward, like video apps. Null (the default) turns it off; a
+  /// double tap then calls [onDoubleTap] anywhere. With both, the middle
+  /// third calls [onDoubleTap]. Keep tapping the same side to jump again.
+  final Duration? doubleTapToSeek;
+
+  /// Where dragging up and down changes the brightness (left half) and the
+  /// volume (right half). [PlayStackDragGestures.off] by default. The
+  /// brightness returns to the system's when fullscreen ends.
+  final PlayStackDragGestures dragGestures;
+
+  /// Preview images shown above the progress bar while it is dragged. See
+  /// [PlayStackThumbnails].
+  final PlayStackThumbnails? thumbnails;
+
+  /// Replaces the preview shown while the progress bar is dragged.
+  final PlayStackScrubPreviewBuilder? scrubPreviewBuilder;
+
+  /// Whether a [PlayStackDebugOverlay] shows state, bitrate, buffer and
+  /// timings. False by default; for development.
+  final bool showDebugInfo;
+
+  /// Whether live streams show a [PlayStackLiveBadge] at the top left
+  /// (tap it to go back to live). True by default.
+  final bool showLiveBadge;
+
+  /// Whether dragging sideways anywhere on the video moves in it, like
+  /// short-video apps: the progress bar grows and shows the preview while
+  /// the finger moves, and the video jumps when it lifts. False by default.
+  ///
+  /// Easier than hitting the thin bar at the bottom edge, where the system's
+  /// home gesture lives. Only for vertical feeds and single players: in a
+  /// horizontal feed sideways drags move to the next video.
+  final bool horizontalDragToSeek;
+
   @override
   State<PlayStackDefaultControls> createState() =>
       _PlayStackDefaultControlsState();
@@ -195,6 +254,179 @@ class PlayStackDefaultControls extends StatefulWidget {
 
 class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
   bool _pausedByUser = false;
+
+  // Double tap to seek.
+  double _width = 0;
+  double _height = 0;
+  Offset? _doubleTapAt;
+
+  /// The side being tapped to seek (-1 back, 1 forward), while taps keep
+  /// seeking.
+  int? _seekSide;
+  Duration _seekTotal = Duration.zero;
+  Timer? _seekStreak;
+
+  // Sideways drag to seek: the point being dragged to, from 0 to 1.
+  double? _scrubValue;
+
+  bool get _scrubEnabled =>
+      widget.horizontalDragToSeek &&
+      widget.seekable &&
+      widget.page.isActive &&
+      !(widget.page.view.scrollDirection == Axis.horizontal &&
+          !widget.page.isFullscreen) &&
+      !(_controller.value.videoInfo?.isLive ?? false);
+
+  bool _scrubbing = false;
+  double _scrubDelta = 0;
+
+  Future<void> _onScrubStart(DragStartDetails _) async {
+    final duration = _controller.value.duration;
+    if (duration == null || duration <= Duration.zero) return;
+    _scrubbing = true;
+    _scrubDelta = 0;
+    final thumbnails = widget.thumbnails;
+    if (thumbnails != null) unawaited(thumbnails.load().catchError(_ignore));
+    final snapshot = await _controller.getPosition().catchError(
+      (Object _) => const PlayStackPositionSnapshot(
+        position: Duration.zero,
+        buffered: Duration.zero,
+      ),
+    );
+    if (!mounted || !_scrubbing) return;
+    final start = snapshot.position.inMilliseconds / duration.inMilliseconds;
+    setState(() => _scrubValue = (start + _scrubDelta).clamp(0.0, 1.0));
+  }
+
+  void _onScrubUpdate(DragUpdateDetails details) {
+    if (!_scrubbing || _width <= 0) return;
+    // The whole width spans the whole video, whatever its length.
+    final delta = details.delta.dx / _width;
+    final value = _scrubValue;
+    if (value == null) {
+      _scrubDelta += delta;
+      return;
+    }
+    setState(() => _scrubValue = (value + delta).clamp(0.0, 1.0));
+  }
+
+  void _onScrubEnd([DragEndDetails? _]) {
+    _scrubbing = false;
+    final value = _scrubValue;
+    final duration = _controller.value.duration;
+    setState(() => _scrubValue = null);
+    if (value == null || duration == null) return;
+    unawaited(
+      _controller
+          .seekTo(
+            Duration(microseconds: (duration.inMicroseconds * value).round()),
+          )
+          .catchError(_ignore),
+    );
+  }
+
+  // Drag for brightness and volume.
+  bool? _draggingBrightness;
+  double _dragValue = 0;
+  bool _changedBrightness = false;
+  Timer? _dragHud;
+  bool _showDragHud = false;
+
+  PlayStackManager get _manager => widget.page.feed.manager;
+
+  bool get _dragEnabled => switch (widget.dragGestures) {
+    PlayStackDragGestures.off => false,
+    PlayStackDragGestures.fullscreen => widget.page.isFullscreen,
+    PlayStackDragGestures.always => true,
+  };
+
+  /// -1, 0 or 1 for the left, middle and right third of the video.
+  int _sideAt(double dx) {
+    if (_width <= 0) return 0;
+    if (dx < _width / 3) return -1;
+    if (dx > _width * 2 / 3) return 1;
+    return 0;
+  }
+
+  void _seekStep(int side) {
+    final step = widget.doubleTapToSeek;
+    if (step == null || side == 0) return;
+    if (_seekSide != side) _seekTotal = Duration.zero;
+    _seekSide = side;
+    _seekTotal += step;
+    unawaited(_controller.seekBy(step * side).catchError(_ignore));
+    _seekStreak?.cancel();
+    _seekStreak = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _seekSide = null);
+    });
+    setState(() {});
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    // While the user keeps tapping one side, each tap jumps again.
+    final side = _sideAt(details.localPosition.dx);
+    if (_seekSide != null && side == _seekSide) {
+      _seekStep(side);
+      return;
+    }
+    if (widget.tapToPause) _togglePlay();
+  }
+
+  void _onDoubleTap() {
+    final at = _doubleTapAt;
+    final side = at == null ? 0 : _sideAt(at.dx);
+    if (widget.doubleTapToSeek != null && side != 0) {
+      if (!widget.page.isActive || !_controller.value.isInitialized) return;
+      _seekStep(side);
+      return;
+    }
+    widget.onDoubleTap?.call();
+  }
+
+  Future<void> _onDragStart(DragStartDetails details) async {
+    final brightness = details.localPosition.dx < _width / 2;
+    _draggingBrightness = brightness;
+    _dragValue = brightness
+        ? (await _manager.getScreenBrightness().catchError(
+                (Object _) => null,
+              ) ??
+              0.5)
+        : (_controller.value.isMuted ? 0 : _controller.value.volume);
+    _dragHud?.cancel();
+    if (mounted) setState(() => _showDragHud = true);
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final brightness = _draggingBrightness;
+    if (brightness == null || _height <= 0) return;
+    _dragValue = (_dragValue - details.delta.dy / (_height * 0.7)).clamp(
+      0.0,
+      1.0,
+    );
+    if (brightness) {
+      _changedBrightness = true;
+      unawaited(_manager.setScreenBrightness(_dragValue).catchError(_ignore));
+    } else {
+      if (_controller.value.isMuted && _dragValue > 0) {
+        unawaited(_controller.setMuted(false).catchError(_ignore));
+      }
+      unawaited(_controller.setVolume(_dragValue).catchError(_ignore));
+    }
+    setState(() {});
+  }
+
+  void _onDragEnd([DragEndDetails? _]) {
+    _dragHud?.cancel();
+    _dragHud = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _showDragHud = false);
+    });
+  }
+
+  void _restoreBrightness() {
+    if (!_changedBrightness) return;
+    _changedBrightness = false;
+    unawaited(_manager.setScreenBrightness(null).catchError(_ignore));
+  }
 
   /// The action of the finger held down right now, if any.
   PlayStackHoldAction? _holding;
@@ -205,6 +437,9 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
   @override
   void didUpdateWidget(PlayStackDefaultControls oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.page.isFullscreen && !widget.page.isFullscreen) {
+      _restoreBrightness();
+    }
     if (!widget.page.isActive) {
       _pausedByUser = false;
       _endHold();
@@ -214,6 +449,9 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
   @override
   void dispose() {
     _endHold();
+    _seekStreak?.cancel();
+    _dragHud?.cancel();
+    _restoreBrightness();
     super.dispose();
   }
 
@@ -295,21 +533,83 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.tapToPause ? _togglePlay : null,
-              onDoubleTap: widget.onDoubleTap,
-              onLongPressStart: widget.holdAction == PlayStackHoldAction.none
-                  ? null
-                  : (_) => _startHold(),
-              onLongPressEnd: widget.holdAction == PlayStackHoldAction.none
-                  ? null
-                  : (_) => _endHold(),
-              onLongPressCancel: widget.holdAction == PlayStackHoldAction.none
-                  ? null
-                  : _endHold,
-              child: const SizedBox.expand(),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                _width = constraints.maxWidth;
+                _height = constraints.maxHeight;
+                final seekGestures = widget.doubleTapToSeek != null;
+                final drags = _dragEnabled;
+                final scrub = _scrubEnabled;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: widget.tapToPause || seekGestures ? _onTapUp : null,
+                  // Only with a double tap action: listening for one delays
+                  // every single tap.
+                  onDoubleTapDown: widget.onDoubleTap != null || seekGestures
+                      ? (details) => _doubleTapAt = details.localPosition
+                      : null,
+                  onDoubleTap: widget.onDoubleTap != null || seekGestures
+                      ? _onDoubleTap
+                      : null,
+                  onVerticalDragStart: drags
+                      ? (details) => unawaited(_onDragStart(details))
+                      : null,
+                  onVerticalDragUpdate: drags ? _onDragUpdate : null,
+                  onVerticalDragEnd: drags ? _onDragEnd : null,
+                  onVerticalDragCancel: drags ? _onDragEnd : null,
+                  onHorizontalDragStart: scrub
+                      ? (details) => unawaited(_onScrubStart(details))
+                      : null,
+                  onHorizontalDragUpdate: scrub ? _onScrubUpdate : null,
+                  onHorizontalDragEnd: scrub ? _onScrubEnd : null,
+                  onHorizontalDragCancel: scrub ? _onScrubEnd : null,
+                  onLongPressStart:
+                      widget.holdAction == PlayStackHoldAction.none
+                      ? null
+                      : (_) => _startHold(),
+                  onLongPressEnd: widget.holdAction == PlayStackHoldAction.none
+                      ? null
+                      : (_) => _endHold(),
+                  onLongPressCancel:
+                      widget.holdAction == PlayStackHoldAction.none
+                      ? null
+                      : _endHold,
+                  child: const SizedBox.expand(),
+                );
+              },
             ),
+            if (_seekSide case final side? when !hidden)
+              _SeekFeedback(
+                forward: side > 0,
+                amount: _seekTotal,
+                color: widget.color,
+              ),
+            if (_showDragHud && _draggingBrightness != null)
+              _LevelHud(
+                icon: _draggingBrightness!
+                    ? Icons.brightness_6_rounded
+                    : _dragValue == 0
+                    ? Icons.volume_off_rounded
+                    : Icons.volume_up_rounded,
+                value: _dragValue,
+                color: widget.color,
+              ),
+            if (widget.showDebugInfo)
+              PlayStackDebugOverlay(controller: _controller, manager: _manager),
+            if (widget.showLiveBadge && (state.videoInfo?.isLive ?? false))
+              Positioned(
+                left: 12,
+                top: 12,
+                child: chrome(
+                  SafeArea(
+                    child: PlayStackLiveBadge(
+                      controller: _controller,
+                      active: page.isActive,
+                      color: widget.color,
+                    ),
+                  ),
+                ),
+              ),
             // Above the gesture layer, not inside it: its buttons get their
             // taps at once instead of waiting for a possible double tap.
             if (widget.child case final child?) chrome(child),
@@ -452,6 +752,9 @@ class _PlayStackDefaultControlsState extends State<PlayStackDefaultControls> {
                     active: page.isActive,
                     color: widget.color,
                     seekable: widget.seekable,
+                    thumbnails: widget.thumbnails,
+                    scrubPreviewBuilder: widget.scrubPreviewBuilder,
+                    scrubValue: _scrubValue,
                   ),
                 ),
               ),
@@ -488,7 +791,11 @@ class PlayStackProgressBar extends StatefulWidget {
     this.backgroundColor = const Color(0x3DFFFFFF),
     this.interval = const Duration(milliseconds: 200),
     this.seekable = false,
-    this.touchHeight = 24,
+    this.touchHeight = 36,
+    this.thumbnails,
+    this.showScrubPreview = true,
+    this.scrubPreviewBuilder,
+    this.scrubValue,
   });
 
   /// The video whose progress is shown, usually `page.controller`.
@@ -516,20 +823,82 @@ class PlayStackProgressBar extends StatefulWidget {
   /// video jumps to the chosen point when the finger lifts.
   final bool seekable;
 
-  /// Height of the area that reacts to the finger when [seekable], 24 by
+  /// Height of the area that reacts to the finger when [seekable], 36 by
   /// default. The bar stays [height] thick at the bottom of it; the area
   /// makes it easy to hit.
   final double touchHeight;
+
+  /// Preview images shown above the finger while dragging, for example
+  /// `PlayStackThumbnails.webVtt(url)`. Null shows the time only.
+  final PlayStackThumbnails? thumbnails;
+
+  /// Whether a preview (time, and the thumbnail when [thumbnails] is set)
+  /// floats above the finger while dragging. True by default.
+  final bool showScrubPreview;
+
+  /// Replaces the default preview ([PlayStackScrubPreview]). It receives
+  /// the position under the finger and its thumbnail, if any.
+  final PlayStackScrubPreviewBuilder? scrubPreviewBuilder;
+
+  /// A drag run from outside the bar, from 0 to 1, for example a sideways
+  /// drag on the whole video (see
+  /// [PlayStackDefaultControls.horizontalDragToSeek]). While set the bar
+  /// shows it like its own drag: thicker, with the preview. Seek yourself
+  /// when the drag ends. Null by default.
+  final double? scrubValue;
 
   @override
   State<PlayStackProgressBar> createState() => _PlayStackProgressBarState();
 }
 
 class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
+  static const double _previewWidth = 160;
+
+  Widget _preview(
+    BuildContext context,
+    double value,
+    double width,
+    Duration duration,
+  ) {
+    final position = Duration(
+      microseconds: (duration.inMicroseconds * value).round(),
+    );
+    Widget build(BuildContext context) {
+      final thumbnail = widget.thumbnails?.at(position);
+      return widget.scrubPreviewBuilder?.call(context, position, thumbnail) ??
+          PlayStackScrubPreview(
+            position: position,
+            thumbnail: thumbnail,
+            color: widget.color,
+          );
+    }
+
+    final updates = widget.thumbnails?.updates;
+    final preview = updates == null
+        ? build(context)
+        : ListenableBuilder(
+            listenable: updates,
+            builder: (context, _) => build(context),
+          );
+    final left = (value * width - _previewWidth / 2).clamp(
+      0.0,
+      (width - _previewWidth).clamp(0.0, double.infinity),
+    );
+    return Positioned(
+      left: left,
+      bottom: widget.touchHeight + 8,
+      width: _previewWidth,
+      child: IgnorePointer(child: Center(child: preview)),
+    );
+  }
+
   Stream<PlayStackPositionSnapshot>? _positions;
 
   /// The point being dragged to, from 0 to 1; null when not dragging.
   double? _dragValue;
+
+  /// The bar's own drag, or the one run from outside.
+  double? get _drag => _dragValue ?? widget.scrubValue;
 
   /// The point last seeked to, shown until the position catches up.
   double? _seekValue;
@@ -538,6 +907,18 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
 
   double _valueAt(double dx, double width) =>
       width <= 0 ? 0 : (dx / width).clamp(0.0, 1.0);
+
+  void _startDrag(double value) {
+    final thumbnails = widget.thumbnails;
+    if (thumbnails != null) {
+      unawaited(
+        thumbnails.load().then((_) {
+          if (mounted) setState(() {});
+        }, onError: (Object _) {}),
+      );
+    }
+    setState(() => _dragValue = value);
+  }
 
   void _seek(double value, Duration duration) {
     setState(() {
@@ -573,15 +954,17 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
       builder: (context, state, _) {
         final duration = state.duration;
         if (duration == null || duration <= Duration.zero) return empty;
+        // Live streams have no fixed length; PlayStackLiveBadge shows them.
+        if (state.videoInfo?.isLive ?? false) return empty;
         final bar = StreamBuilder<PlayStackPositionSnapshot>(
           stream: positions,
           builder: (context, snapshot) {
             final position = snapshot.data?.position ?? Duration.zero;
             final value =
-                _dragValue ??
+                _drag ??
                 _seekValue ??
                 position.inMilliseconds / duration.inMilliseconds;
-            final height = _dragValue != null
+            final height = _drag != null
                 ? widget.height * 2.5
                 : widget.height;
             return SizedBox(
@@ -604,9 +987,8 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
               label: 'Video position',
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onHorizontalDragStart: (details) => setState(
-                  () => _dragValue = _valueAt(details.localPosition.dx, width),
-                ),
+                onHorizontalDragStart: (details) =>
+                    _startDrag(_valueAt(details.localPosition.dx, width)),
                 onHorizontalDragUpdate: (details) => setState(
                   () => _dragValue = _valueAt(details.localPosition.dx, width),
                 ),
@@ -619,13 +1001,106 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
                     _seek(_valueAt(details.localPosition.dx, width), duration),
                 child: SizedBox(
                   height: widget.touchHeight,
-                  child: Align(alignment: Alignment.bottomCenter, child: bar),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Align(alignment: Alignment.bottomCenter, child: bar),
+                      if (_drag case final value?
+                          when widget.showScrubPreview)
+                        _preview(context, value, width, duration),
+                    ],
+                  ),
                 ),
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+/// Builds what floats above the finger while the user drags a
+/// [PlayStackProgressBar].
+typedef PlayStackScrubPreviewBuilder = Widget Function(
+  BuildContext context,
+  Duration position,
+  PlayStackThumbnail? thumbnail,
+);
+
+/// The default preview above a dragged progress bar: the thumbnail (when
+/// there is one) and the time.
+class PlayStackScrubPreview extends StatelessWidget {
+  /// Creates a preview of [position].
+  const PlayStackScrubPreview({
+    super.key,
+    required this.position,
+    this.thumbnail,
+    this.color = const Color(0xFFFFFFFF),
+    this.thumbnailSize = const Size(160, 90),
+  });
+
+  /// The position under the finger.
+  final Duration position;
+
+  /// Its image, or null.
+  final PlayStackThumbnail? thumbnail;
+
+  /// Text and border color.
+  final Color color;
+
+  /// The size of the image, 160 by 90 by default.
+  final Size thumbnailSize;
+
+  /// "1:05" or "1:02:05".
+  static String format(Duration position) {
+    final hours = position.inHours;
+    final minutes = position.inMinutes.remainder(60);
+    final seconds = position.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return hours > 0
+        ? '$hours:${minutes.toString().padLeft(2, '0')}:$seconds'
+        : '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xB3000000),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(
+          format(position),
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+    final image = thumbnail;
+    if (image == null) return label;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: thumbnailSize.width,
+          height: thumbnailSize.height,
+          decoration: BoxDecoration(
+            border: Border.all(color: color, width: 1.5),
+            borderRadius: BorderRadius.circular(6),
+            color: const Color(0xFF000000),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: PlayStackThumbnailImage(thumbnail: image),
+        ),
+        const SizedBox(height: 4),
+        label,
+      ],
     );
   }
 }
@@ -1083,6 +1558,199 @@ class PlayStackMuteButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// A "LIVE" badge for live streams: red at the live edge, grey with how far
+/// behind while the user paused or went back. A tap returns to live
+/// ([PlayStackPlayerController.seekToLiveEdge]).
+///
+/// [PlayStackDefaultControls] shows it on live streams; place it yourself
+/// in your own controls.
+class PlayStackLiveBadge extends StatefulWidget {
+  /// Creates a badge for [controller].
+  const PlayStackLiveBadge({
+    super.key,
+    required this.controller,
+    this.active = true,
+    this.color = const Color(0xFFFFFFFF),
+    this.liveColor = const Color(0xFFE53935),
+    this.tolerance = const Duration(seconds: 6),
+    this.label = 'LIVE',
+  });
+
+  /// The live stream.
+  final PlayStackPlayerController controller;
+
+  /// Whether to follow the position. Pass `page.isActive`.
+  final bool active;
+
+  /// Text color.
+  final Color color;
+
+  /// Badge color at the live edge, red by default.
+  final Color liveColor;
+
+  /// How far behind still counts as live, 6 seconds by default (streams
+  /// play a few segments behind the edge).
+  final Duration tolerance;
+
+  /// The text, "LIVE" by default.
+  final String label;
+
+  @override
+  State<PlayStackLiveBadge> createState() => _PlayStackLiveBadgeState();
+}
+
+class _PlayStackLiveBadgeState extends State<PlayStackLiveBadge> {
+  Stream<PlayStackPositionSnapshot>? _positions;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.active) {
+      _positions ??= widget.controller.positions(
+        interval: const Duration(seconds: 1),
+      );
+    } else {
+      _positions = null;
+    }
+    return StreamBuilder<PlayStackPositionSnapshot>(
+      stream: _positions,
+      builder: (context, snapshot) {
+        final behind = snapshot.data?.behindLive ?? Duration.zero;
+        final atLive = behind <= widget.tolerance;
+        return Semantics(
+          button: !atLive,
+          label: atLive ? widget.label : 'Go to live',
+          child: GestureDetector(
+            onTap: atLive
+                ? null
+                : () => unawaited(
+                    widget.controller.seekToLiveEdge().catchError(
+                      (Object _) {},
+                    ),
+                  ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: atLive ? widget.liveColor : const Color(0x99000000),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                child: Text(
+                  atLive
+                      ? widget.label
+                      : '${widget.label}  -${PlayStackScrubPreview.format(behind)}',
+                  style: TextStyle(
+                    color: widget.color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// "+10 s" on the side being tapped.
+class _SeekFeedback extends StatelessWidget {
+  const _SeekFeedback({
+    required this.forward,
+    required this.amount,
+    required this.color,
+  });
+
+  final bool forward;
+  final Duration amount;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Align(
+        alignment: forward ? const Alignment(0.7, 0) : const Alignment(-0.7, 0),
+        child: Container(
+          width: 96,
+          height: 96,
+          decoration: const BoxDecoration(
+            color: Color(0x40000000),
+            shape: BoxShape.circle,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                forward
+                    ? Icons.fast_forward_rounded
+                    : Icons.fast_rewind_rounded,
+                color: color,
+                size: 32,
+              ),
+              Text(
+                '${forward ? '+' : '-'}${amount.inSeconds} s',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The brightness or volume level while dragging.
+class _LevelHud extends StatelessWidget {
+  const _LevelHud({
+    required this.icon,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Align(
+        alignment: const Alignment(0, -0.5),
+        child: Container(
+          width: 180,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0x99000000),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: value,
+                    minHeight: 4,
+                    color: color,
+                    backgroundColor: color.withValues(alpha: 0.25),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

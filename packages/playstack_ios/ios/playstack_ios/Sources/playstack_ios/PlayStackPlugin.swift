@@ -47,6 +47,10 @@ public final class PlayStackPlugin: NSObject, FlutterPlugin {
       self?.downloadEvents.emit(download)
     }
     PlayStackHostApiSetup.setUp(binaryMessenger: messenger, api: registry)
+    registrar.register(
+      PlayerLayerViewFactory(player: { [weak registry] id in registry?.player(id) }),
+      withId: PlayerLayerViewFactory.viewType)
+    registrar.register(AirPlayButtonFactory(), withId: AirPlayButtonFactory.viewType)
   }
 
   public static func register(with registrar: FlutterPluginRegistrar) {

@@ -47,6 +47,23 @@ Library: `package:playstack/playstack.dart` (re-exports the types of
 | `PlayStackNetworkStatus`, `PlayStackNetworkType` | Connectivity | [Manager](manager.md) |
 | `PlayStackPlatformCapabilities` | What the engine supports | [Platform support](platforms.md) |
 | `PlayStackException`, `PlayStackErrorCode` | Errors | [Errors](errors.md) |
+| `PlayStackAnalytics`, `PlayStackAnalyticsConfig`, `PlayStackAnalyticsEvent` and its subtypes | Typed playback events for analytics (`manager.analytics`, `PlayStackAnalytics.all`) | [Analytics](analytics.md) |
+| `PlayStackSeries`, `PlayStackWatchProgress`, `PlayStackProgressStorage`, `PlayStackSkipMarker`, `PlayStackNextUp` | Continue watching, skip intro, next episode | [Series](series.md) |
+| `PlayStackFeedCues`, `PlayStackCue`, `PlayStackCueController`, `PlayStackTransition` | Your own moments in a video and between items | [Cues and transitions](cues.md) |
+| `PlayStackFeedAds`, `PlayStackAdBreak`, `PlayStackAdSource`, `PlayStackAd`, `PlayStackAdController`, `PlayStackAdOverlay`, `PlayStackVast`, `PlayStackAds` | VAST video ads | [Ads](ads.md) |
+| `PlayStackDrm`, `PlayStackDrmType` | Widevine, PlayReady, ClearKey, FairPlay | [DRM](drm.md) |
+| `PlayStackSubtitleSource`, `PlayStackSubtitleFormat` | Subtitle files | [Tracks and subtitles](subtitles.md#subtitle-files) |
+| `PlayStackLiveBadge` | Live streams | [Live streams](live.md) |
+| `PlayStackDragGestures`, `PlayStackThumbnails`, `PlayStackThumbnail`, `PlayStackScrubPreview`, `PlayStackDebugOverlay` | Gestures, scrub preview, debug panel | [Gestures](gestures.md) |
+| `PlayStackSleepTimer` | Sleep timer (`manager.sleepTimer`); audio only is on the controller | [Sleep timer and audio only](sleep-timer.md) |
+| `PlayStackAirPlayButton` | AirPlay; Chromecast is in `playstack_cast` | [Chromecast and AirPlay](cast.md) |
+
+## Other packages
+
+| Package | Role | Guide |
+| --- | --- | --- |
+| `playstack_cast` | `PlayStackCast`, `PlayStackCastButton`: Chromecast | [Chromecast and AirPlay](cast.md) |
+| `playstack_test` | `FakePlayStackPlatform`, `pumpPlayStack`, `disposePlayStack`: tests without a device | [Testing](testing.md) |
 
 ## Engine implementers
 

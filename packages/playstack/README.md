@@ -29,8 +29,22 @@ Engines: AndroidX Media3 ExoPlayer (Android), AVFoundation (iOS) and
 - **App-aware.** Pauses under pushed routes, in hidden tabs and in the
   background. Pull to refresh and watch-time reports are one callback
   each.
+- **Series.** Continue watching (saved through your storage), skip intro,
+  next-episode countdown.
+- **Your own moments.** Polls, banners or your ad SDK's interstitials at
+  points of a video and between items; the video waits for your `Future`.
+- **Ads and analytics.** VAST pre-, mid- and post-rolls; typed playback
+  events (start time, progress, rebuffers, watch time) for any analytics
+  service.
+- **Gestures and scrub preview.** Double tap to jump, drag sideways to
+  seek, brightness and volume, thumbnails above the bar. Off until you
+  turn them on.
+- **Live streams, DRM (Widevine, FairPlay), AirPlay**, and Chromecast in
+  `playstack_cast`.
 - **Disk cache, fullscreen with orientation restore, audio focus and
-  interruptions, automatic retry, tracks and subtitles, typed errors.**
+  interruptions, automatic retry, tracks and subtitle files, offline
+  downloads, sleep timer, audio only, typed errors.** Test your screens
+  with `playstack_test`.
 
 ## Install
 
@@ -132,6 +146,34 @@ PlayStackFeedView<Episode>(
 viewController.jumpToItem(series.episodes[7]);               // episode list
 ```
 
+Or let `series:` save progress across app starts and add "Skip intro" and
+a next-episode countdown; show your ad SDK's interstitial between episodes
+with `cues:`:
+
+```dart
+PlayStackFeedView<Episode>(
+  items: series.episodes,
+  videoUrl: (episode) => episode.url,
+  itemId: (episode) => episode.id,
+  autoAdvance: true,
+  series: PlayStackSeries(
+    progress: watchProgress,  // PlayStackWatchProgress with your storage
+    skipMarkers: (episode) => [
+      PlayStackSkipMarker.intro(start: Duration.zero, end: episode.introEnd),
+    ],
+  ),
+  cues: PlayStackFeedCues(
+    // The next episode waits until the Future completes (the ad closes).
+    onTransition: (context, move) async {
+      if (move.count % 3 == 0) await interstitials.show();
+    },
+  ),
+)
+```
+
+[Series](https://github.com/ANILSRGT/playstack/blob/main/docs/guides/series.md),
+[cues and ad SDKs](https://github.com/ANILSRGT/playstack/blob/main/docs/guides/cues.md).
+
 ## A single player
 
 ```dart
@@ -159,6 +201,8 @@ your controls from it.
 | File sources | Yes | Yes | No |
 | Disk cache | Progressive + HLS/DASH segments | Progressive | Browser cache |
 | Fullscreen and orientation | Yes | Yes | Fullscreen API |
+| DRM | Widevine, PlayReady, ClearKey | FairPlay | No |
+| Casting | Chromecast (`playstack_cast`) | AirPlay, Chromecast | No |
 
 [Full matrix](https://github.com/ANILSRGT/playstack/blob/main/docs/guides/platforms.md).
 `PlayStackPlatformCapabilities` reports what the running engine supports.
@@ -167,10 +211,13 @@ your controls from it.
 
 - [Guides](https://github.com/ANILSRGT/playstack/blob/main/docs/README.md):
   feeds, controller, manager, preloading, caching, fullscreen, audio,
-  subtitles, errors, performance
+  subtitles, gestures and scrub preview, series, cues and ad SDKs, VAST
+  ads, analytics, live, DRM, Chromecast and AirPlay, sleep timer, testing,
+  errors, performance
 - [Demo app](https://github.com/ANILSRGT/playstack/tree/main/demo): a reels
-  app (likes, comments, explore grid, live stats) and a drama app
-  (episodes, continue watching, episode list)
+  app (likes, comments, explore grid, live stats, drag to seek with
+  previews), a drama app (episodes, continue watching, skip intro, ads,
+  sleep timer, casting) and a live stream screen
 - [Benchmarks](https://github.com/ANILSRGT/playstack/blob/main/docs/BENCHMARKS.md)
 - [Issues](https://github.com/ANILSRGT/playstack/issues)
 

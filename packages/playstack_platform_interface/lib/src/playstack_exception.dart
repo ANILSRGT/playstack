@@ -72,6 +72,11 @@ enum PlayStackErrorCode {
   /// An argument was outside its valid range.
   invalidArgument,
 
+  /// A protected stream could not get its keys: the license server refused
+  /// the request, the license expired, or the device does not support the
+  /// protection system.
+  drm,
+
   /// Any other error.
   unknown,
 }

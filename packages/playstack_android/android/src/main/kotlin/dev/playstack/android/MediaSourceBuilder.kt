@@ -3,6 +3,7 @@ package dev.playstack.android
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -47,6 +48,7 @@ internal class MediaSourceBuilder(
             .setUri(uri)
             .setMimeType(mimeType(source))
             .setCustomCacheKey(source.cacheKey)
+            .setDrmConfiguration(source.drm?.let(::drmConfiguration))
             .build()
     val direct = DefaultDataSource.Factory(context, http)
     val streaming = cachingFactory(source, direct) ?: direct
@@ -116,6 +118,23 @@ internal class MediaSourceBuilder(
         PlatformVideoFormat.AUTO,
         PlatformVideoFormat.PROGRESSIVE -> source.mimeType
       }
+
+  /** Widevine, PlayReady or ClearKey; FairPlay exists only on Apple devices. */
+  private fun drmConfiguration(drm: PlatformDrm): MediaItem.DrmConfiguration {
+    val scheme =
+        when (drm.type) {
+          PlatformDrmType.WIDEVINE -> C.WIDEVINE_UUID
+          PlatformDrmType.PLAY_READY -> C.PLAYREADY_UUID
+          PlatformDrmType.CLEAR_KEY -> C.CLEARKEY_UUID
+          PlatformDrmType.FAIR_PLAY ->
+              throw FlutterError("drm", "FairPlay is only available on iOS.", null)
+        }
+    return MediaItem.DrmConfiguration.Builder(scheme)
+        .setLicenseUri(drm.licenseUrl)
+        .setLicenseRequestHeaders(drm.headers)
+        .setMultiSession(true)
+        .build()
+  }
 
   private fun invalid(message: String) = FlutterError("invalidSource", message, null)
 }

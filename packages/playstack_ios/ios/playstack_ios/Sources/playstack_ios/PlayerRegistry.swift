@@ -1,5 +1,6 @@
 import Flutter
 import Foundation
+import UIKit
 
 /// Implements the PlayStack host API and owns every native player of one
 /// Flutter engine. Pigeon delivers all calls on the main thread.
@@ -31,6 +32,7 @@ final class PlayerRegistry: PlayStackHostApi {
     mediaSession = MediaSessionCoordinator(events: systemEvents)
     pictureInPicture = PictureInPictureCoordinator(events: systemEvents)
     sources = SourceResolver(assetLookup: assetLookup)
+    frames = FrameExtractor(resolver: sources)
   }
 
   func isDownloadSupported() throws -> Bool { true }
@@ -206,6 +208,49 @@ final class PlayerRegistry: PlayStackHostApi {
     try requirePlayer(playerId).setVideoQualityLimit(
       maxBitrate: maxBitrate, maxWidth: maxWidth, maxHeight: maxHeight)
   }
+
+  func setVideoDisabled(playerId: Int64, disabled: Bool) throws {
+    try requirePlayer(playerId).setVideoDisabled(disabled)
+  }
+
+  func seekToLiveEdge(playerId: Int64) async throws {
+    let player = try requirePlayer(playerId)
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      player.seekToLiveEdge { continuation.resume() }
+    }
+  }
+
+  private let frames: FrameExtractor
+
+  func getFrame(source: PlatformSource, positionMs: Int64, maxWidth: Int64) async throws
+    -> FlutterStandardTypedData?
+  {
+    await withCheckedContinuation { continuation in
+      frames.frame(source: source, positionMs: positionMs, maxWidth: maxWidth) {
+        continuation.resume(returning: $0)
+      }
+    }
+  }
+
+    /// The system's brightness before the first override.
+  private var systemBrightness: CGFloat?
+
+  func getScreenBrightness() throws -> Double {
+    Double(UIScreen.main.brightness)
+  }
+
+  func setScreenBrightness(brightness: Double?) throws {
+    if let brightness {
+      if systemBrightness == nil { systemBrightness = UIScreen.main.brightness }
+      UIScreen.main.brightness = CGFloat(min(max(brightness, 0), 1))
+    } else if let original = systemBrightness {
+      UIScreen.main.brightness = original
+      systemBrightness = nil
+    }
+  }
+
+  /// The player with [id], for platform views.
+  func player(_ id: Int64) -> NativePlayer? { players[id] }
 
   func releaseAll() {
     mediaSession.clear()

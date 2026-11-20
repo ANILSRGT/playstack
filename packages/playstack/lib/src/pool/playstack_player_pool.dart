@@ -55,6 +55,9 @@ class AppliedPlayerSettings {
   /// Native players start without a quality limit; it applies to every
   /// source set afterwards.
   PlayStackVideoQualityLimit qualityLimit = PlayStackVideoQualityLimit.none;
+
+  /// Native players start with the picture on.
+  bool videoDisabled = false;
 }
 
 /// A native player owned by a [PlayStackPlayerPool].

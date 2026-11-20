@@ -264,6 +264,14 @@ enum PlatformSystemEventType: Int, CaseIterable {
   case pictureInPictureStopped = 6
 }
 
+/// Content protection system of a [PlatformDrm].
+enum PlatformDrmType: Int, CaseIterable {
+  case widevine = 0
+  case playReady = 1
+  case clearKey = 2
+  case fairPlay = 3
+}
+
 /// Where an offline download stands. `removed` is only sent on
 /// `downloadEvents`, when a download was deleted.
 enum PlatformDownloadState: Int, CaseIterable {
@@ -676,8 +684,72 @@ struct PlatformTrack: Hashable, CustomStringConvertible {
   }
 }
 
+/// How to get the keys of a protected stream.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PlatformDrm: Hashable, CustomStringConvertible {
+  var type: PlatformDrmType
+  /// The license server.
+  var licenseUrl: String? = nil
+  /// FairPlay: the URL of the application certificate.
+  var certificateUrl: String? = nil
+  /// Sent with license (and certificate) requests.
+  var headers: [String: String]
+  /// FairPlay: the content id sent to the key server; null uses the host
+  /// of the `skd://` key URL.
+  var contentId: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PlatformDrm? {
+    let type = pigeonVar_list[0] as! PlatformDrmType
+    let licenseUrl: String? = nilOrValue(pigeonVar_list[1])
+    let certificateUrl: String? = nilOrValue(pigeonVar_list[2])
+    let headers = pigeonVar_list[3] as! [String: String]
+    let contentId: String? = nilOrValue(pigeonVar_list[4])
+
+    return PlatformDrm(
+      type: type,
+      licenseUrl: licenseUrl,
+      certificateUrl: certificateUrl,
+      headers: headers,
+      contentId: contentId
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      type,
+      licenseUrl,
+      certificateUrl,
+      headers,
+      contentId,
+    ]
+  }
+  static func == (lhs: PlatformDrm, rhs: PlatformDrm) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.licenseUrl, rhs.licenseUrl) && MessagesPigeonInternal.deepEquals(lhs.certificateUrl, rhs.certificateUrl) && MessagesPigeonInternal.deepEquals(lhs.headers, rhs.headers) && MessagesPigeonInternal.deepEquals(lhs.contentId, rhs.contentId)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PlatformDrm")
+    MessagesPigeonInternal.deepHash(value: type, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: licenseUrl, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: certificateUrl, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: headers, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: contentId, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PlatformDrm(type: \(String(describing: type)), licenseUrl: \(String(describing: licenseUrl)), certificateUrl: \(String(describing: certificateUrl)), headers: \(String(describing: headers)), contentId: \(String(describing: contentId)))"
+  }
+}
+
 /// Generated class from Pigeon that represents data sent in messages.
 struct PlatformSource: Hashable, CustomStringConvertible {
+  /// Content protection, or null for clear streams.
+  var drm: PlatformDrm? = nil
   var type: PlatformSourceType
   /// Network URL or absolute file path.
   var uri: String? = nil
@@ -698,18 +770,20 @@ struct PlatformSource: Hashable, CustomStringConvertible {
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
   static func fromList(_ pigeonVar_list: [Any?]) -> PlatformSource? {
-    let type = pigeonVar_list[0] as! PlatformSourceType
-    let uri: String? = nilOrValue(pigeonVar_list[1])
-    let assetName: String? = nilOrValue(pigeonVar_list[2])
-    let assetPackage: String? = nilOrValue(pigeonVar_list[3])
-    let bytes: FlutterStandardTypedData? = nilOrValue(pigeonVar_list[4])
-    let mimeType: String? = nilOrValue(pigeonVar_list[5])
-    let formatHint = pigeonVar_list[6] as! PlatformVideoFormat
-    let httpHeaders = pigeonVar_list[7] as! [String: String]
-    let cacheKey: String? = nilOrValue(pigeonVar_list[8])
-    let useCache = pigeonVar_list[9] as! Bool
+    let drm: PlatformDrm? = nilOrValue(pigeonVar_list[0])
+    let type = pigeonVar_list[1] as! PlatformSourceType
+    let uri: String? = nilOrValue(pigeonVar_list[2])
+    let assetName: String? = nilOrValue(pigeonVar_list[3])
+    let assetPackage: String? = nilOrValue(pigeonVar_list[4])
+    let bytes: FlutterStandardTypedData? = nilOrValue(pigeonVar_list[5])
+    let mimeType: String? = nilOrValue(pigeonVar_list[6])
+    let formatHint = pigeonVar_list[7] as! PlatformVideoFormat
+    let httpHeaders = pigeonVar_list[8] as! [String: String]
+    let cacheKey: String? = nilOrValue(pigeonVar_list[9])
+    let useCache = pigeonVar_list[10] as! Bool
 
     return PlatformSource(
+      drm: drm,
       type: type,
       uri: uri,
       assetName: assetName,
@@ -724,6 +798,7 @@ struct PlatformSource: Hashable, CustomStringConvertible {
   }
   func toList() -> [Any?] {
     return [
+      drm,
       type,
       uri,
       assetName,
@@ -740,11 +815,12 @@ struct PlatformSource: Hashable, CustomStringConvertible {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.uri, rhs.uri) && MessagesPigeonInternal.deepEquals(lhs.assetName, rhs.assetName) && MessagesPigeonInternal.deepEquals(lhs.assetPackage, rhs.assetPackage) && MessagesPigeonInternal.deepEquals(lhs.bytes, rhs.bytes) && MessagesPigeonInternal.deepEquals(lhs.mimeType, rhs.mimeType) && MessagesPigeonInternal.deepEquals(lhs.formatHint, rhs.formatHint) && MessagesPigeonInternal.deepEquals(lhs.httpHeaders, rhs.httpHeaders) && MessagesPigeonInternal.deepEquals(lhs.cacheKey, rhs.cacheKey) && MessagesPigeonInternal.deepEquals(lhs.useCache, rhs.useCache)
+    return MessagesPigeonInternal.deepEquals(lhs.drm, rhs.drm) && MessagesPigeonInternal.deepEquals(lhs.type, rhs.type) && MessagesPigeonInternal.deepEquals(lhs.uri, rhs.uri) && MessagesPigeonInternal.deepEquals(lhs.assetName, rhs.assetName) && MessagesPigeonInternal.deepEquals(lhs.assetPackage, rhs.assetPackage) && MessagesPigeonInternal.deepEquals(lhs.bytes, rhs.bytes) && MessagesPigeonInternal.deepEquals(lhs.mimeType, rhs.mimeType) && MessagesPigeonInternal.deepEquals(lhs.formatHint, rhs.formatHint) && MessagesPigeonInternal.deepEquals(lhs.httpHeaders, rhs.httpHeaders) && MessagesPigeonInternal.deepEquals(lhs.cacheKey, rhs.cacheKey) && MessagesPigeonInternal.deepEquals(lhs.useCache, rhs.useCache)
   }
 
   func hash(into hasher: inout Hasher) {
     hasher.combine("PlatformSource")
+    MessagesPigeonInternal.deepHash(value: drm, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: type, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: uri, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: assetName, hasher: &hasher)
@@ -758,7 +834,7 @@ struct PlatformSource: Hashable, CustomStringConvertible {
   }
 
   public var description: String {
-    return "PlatformSource(type: \(String(describing: type)), uri: \(String(describing: uri)), assetName: \(String(describing: assetName)), assetPackage: \(String(describing: assetPackage)), bytes: \(String(describing: bytes)), mimeType: \(String(describing: mimeType)), formatHint: \(String(describing: formatHint)), httpHeaders: \(String(describing: httpHeaders)), cacheKey: \(String(describing: cacheKey)), useCache: \(String(describing: useCache)))"
+    return "PlatformSource(drm: \(String(describing: drm)), type: \(String(describing: type)), uri: \(String(describing: uri)), assetName: \(String(describing: assetName)), assetPackage: \(String(describing: assetPackage)), bytes: \(String(describing: bytes)), mimeType: \(String(describing: mimeType)), formatHint: \(String(describing: formatHint)), httpHeaders: \(String(describing: httpHeaders)), cacheKey: \(String(describing: cacheKey)), useCache: \(String(describing: useCache)))"
   }
 }
 
@@ -1110,39 +1186,52 @@ struct PlatformDownload: Hashable, CustomStringConvertible {
 struct PlatformPosition: Hashable, CustomStringConvertible {
   var positionMs: Int64
   var bufferedMs: Int64
+  /// Live streams: the start of the range the user can seek in (DVR
+  /// window), on the same clock as [positionMs].
+  var windowStartMs: Int64? = nil
+  /// Live streams: the live edge, on the same clock as [positionMs].
+  var liveEdgeMs: Int64? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
   static func fromList(_ pigeonVar_list: [Any?]) -> PlatformPosition? {
     let positionMs = pigeonVar_list[0] as! Int64
     let bufferedMs = pigeonVar_list[1] as! Int64
+    let windowStartMs: Int64? = nilOrValue(pigeonVar_list[2])
+    let liveEdgeMs: Int64? = nilOrValue(pigeonVar_list[3])
 
     return PlatformPosition(
       positionMs: positionMs,
-      bufferedMs: bufferedMs
+      bufferedMs: bufferedMs,
+      windowStartMs: windowStartMs,
+      liveEdgeMs: liveEdgeMs
     )
   }
   func toList() -> [Any?] {
     return [
       positionMs,
       bufferedMs,
+      windowStartMs,
+      liveEdgeMs,
     ]
   }
   static func == (lhs: PlatformPosition, rhs: PlatformPosition) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return MessagesPigeonInternal.deepEquals(lhs.positionMs, rhs.positionMs) && MessagesPigeonInternal.deepEquals(lhs.bufferedMs, rhs.bufferedMs)
+    return MessagesPigeonInternal.deepEquals(lhs.positionMs, rhs.positionMs) && MessagesPigeonInternal.deepEquals(lhs.bufferedMs, rhs.bufferedMs) && MessagesPigeonInternal.deepEquals(lhs.windowStartMs, rhs.windowStartMs) && MessagesPigeonInternal.deepEquals(lhs.liveEdgeMs, rhs.liveEdgeMs)
   }
 
   func hash(into hasher: inout Hasher) {
     hasher.combine("PlatformPosition")
     MessagesPigeonInternal.deepHash(value: positionMs, hasher: &hasher)
     MessagesPigeonInternal.deepHash(value: bufferedMs, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: windowStartMs, hasher: &hasher)
+    MessagesPigeonInternal.deepHash(value: liveEdgeMs, hasher: &hasher)
   }
 
   public var description: String {
-    return "PlatformPosition(positionMs: \(String(describing: positionMs)), bufferedMs: \(String(describing: bufferedMs)))"
+    return "PlatformPosition(positionMs: \(String(describing: positionMs)), bufferedMs: \(String(describing: bufferedMs)), windowStartMs: \(String(describing: windowStartMs)), liveEdgeMs: \(String(describing: liveEdgeMs)))"
   }
 }
 
@@ -1701,54 +1790,62 @@ private class MessagesPigeonCodecReader: FlutterStandardReader {
     case 138:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return PlatformDownloadState(rawValue: enumResultAsInt)
+        return PlatformDrmType(rawValue: enumResultAsInt)
       }
       return nil
     case 139:
-      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PlatformDownloadState(rawValue: enumResultAsInt)
+      }
+      return nil
     case 140:
-      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
+      return PlatformEngineConfig.fromList(self.readValue() as! [Any?])
     case 141:
-      return PlatformSystemEvent.fromList(self.readValue() as! [Any?])
+      return PlatformCacheInfo.fromList(self.readValue() as! [Any?])
     case 142:
-      return PlatformMediaInfo.fromList(self.readValue() as! [Any?])
+      return PlatformSystemEvent.fromList(self.readValue() as! [Any?])
     case 143:
-      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
+      return PlatformMediaInfo.fromList(self.readValue() as! [Any?])
     case 144:
-      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
+      return PlatformDeviceOrientationEvent.fromList(self.readValue() as! [Any?])
     case 145:
-      return PlatformTrack.fromList(self.readValue() as! [Any?])
+      return PlatformNetworkStatus.fromList(self.readValue() as! [Any?])
     case 146:
-      return PlatformSource.fromList(self.readValue() as! [Any?])
+      return PlatformTrack.fromList(self.readValue() as! [Any?])
     case 147:
-      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
+      return PlatformDrm.fromList(self.readValue() as! [Any?])
     case 148:
-      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
+      return PlatformSource.fromList(self.readValue() as! [Any?])
     case 149:
-      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerOptions.fromList(self.readValue() as! [Any?])
     case 150:
-      return PlatformDownloadRequest.fromList(self.readValue() as! [Any?])
+      return PlatformPlayerCreation.fromList(self.readValue() as! [Any?])
     case 151:
-      return PlatformDownload.fromList(self.readValue() as! [Any?])
+      return PlatformCapabilities.fromList(self.readValue() as! [Any?])
     case 152:
-      return PlatformPosition.fromList(self.readValue() as! [Any?])
+      return PlatformDownloadRequest.fromList(self.readValue() as! [Any?])
     case 153:
-      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformDownload.fromList(self.readValue() as! [Any?])
     case 154:
-      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
+      return PlatformPosition.fromList(self.readValue() as! [Any?])
     case 155:
-      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
+      return PlatformInitializedEvent.fromList(self.readValue() as! [Any?])
     case 156:
-      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
+      return PlatformStateEvent.fromList(self.readValue() as! [Any?])
     case 157:
-      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
+      return PlatformIsPlayingEvent.fromList(self.readValue() as! [Any?])
     case 158:
-      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
+      return PlatformVideoSizeEvent.fromList(self.readValue() as! [Any?])
     case 159:
-      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+      return PlatformFirstFrameEvent.fromList(self.readValue() as! [Any?])
     case 160:
-      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+      return PlatformErrorEvent.fromList(self.readValue() as! [Any?])
     case 161:
+      return PlatformTracksChangedEvent.fromList(self.readValue() as! [Any?])
+    case 162:
+      return PlatformCuesEvent.fromList(self.readValue() as! [Any?])
+    case 163:
       return PlatformInterruptionEvent.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1785,77 +1882,83 @@ private class MessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PlatformSystemEventType {
       super.writeByte(137)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformDownloadState {
+    } else if let value = value as? PlatformDrmType {
       super.writeByte(138)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PlatformEngineConfig {
+    } else if let value = value as? PlatformDownloadState {
       super.writeByte(139)
-      super.writeValue(value.toList())
-    } else if let value = value as? PlatformCacheInfo {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PlatformEngineConfig {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSystemEvent {
+    } else if let value = value as? PlatformCacheInfo {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformMediaInfo {
+    } else if let value = value as? PlatformSystemEvent {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformDeviceOrientationEvent {
+    } else if let value = value as? PlatformMediaInfo {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformNetworkStatus {
+    } else if let value = value as? PlatformDeviceOrientationEvent {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTrack {
+    } else if let value = value as? PlatformNetworkStatus {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformSource {
+    } else if let value = value as? PlatformTrack {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerOptions {
+    } else if let value = value as? PlatformDrm {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPlayerCreation {
+    } else if let value = value as? PlatformSource {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCapabilities {
+    } else if let value = value as? PlatformPlayerOptions {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformDownloadRequest {
+    } else if let value = value as? PlatformPlayerCreation {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformDownload {
+    } else if let value = value as? PlatformCapabilities {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformPosition {
+    } else if let value = value as? PlatformDownloadRequest {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInitializedEvent {
+    } else if let value = value as? PlatformDownload {
       super.writeByte(153)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformStateEvent {
+    } else if let value = value as? PlatformPosition {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformIsPlayingEvent {
+    } else if let value = value as? PlatformInitializedEvent {
       super.writeByte(155)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformVideoSizeEvent {
+    } else if let value = value as? PlatformStateEvent {
       super.writeByte(156)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformFirstFrameEvent {
+    } else if let value = value as? PlatformIsPlayingEvent {
       super.writeByte(157)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformErrorEvent {
+    } else if let value = value as? PlatformVideoSizeEvent {
       super.writeByte(158)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformTracksChangedEvent {
+    } else if let value = value as? PlatformFirstFrameEvent {
       super.writeByte(159)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformCuesEvent {
+    } else if let value = value as? PlatformErrorEvent {
       super.writeByte(160)
       super.writeValue(value.toList())
-    } else if let value = value as? PlatformInterruptionEvent {
+    } else if let value = value as? PlatformTracksChangedEvent {
       super.writeByte(161)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformCuesEvent {
+      super.writeByte(162)
+      super.writeValue(value.toList())
+    } else if let value = value as? PlatformInterruptionEvent {
+      super.writeByte(163)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1911,6 +2014,21 @@ protocol PlayStackHostApi {
   /// playing; null removes the limit. Used for players prepared ahead of
   /// time so they do not download whole videos the user may never watch.
   func setPreloadBufferLimit(playerId: Int64, maxBufferMs: Int64?) throws
+  /// Stops (or restarts) decoding and downloading the picture, for
+  /// listening only. Adaptive streams switch to their smallest rendition or
+  /// to audio only.
+  func setVideoDisabled(playerId: Int64, disabled: Bool) throws
+  /// Moves a live stream to its live edge.
+  func seekToLiveEdge(playerId: Int64) async throws
+  /// A frame of [source] near [positionMs], as JPEG at most [maxWidth]
+  /// pixels wide, for the scrub preview; null when none can be read
+  /// (streams, protected content).
+  func getFrame(source: PlatformSource, positionMs: Int64, maxWidth: Int64) async throws -> FlutterStandardTypedData?
+  /// The brightness of the app's screen, 0.0 to 1.0.
+  func getScreenBrightness() throws -> Double
+  /// Overrides the brightness of the app's screen while it is shown; null
+  /// returns to the system's brightness.
+  func setScreenBrightness(brightness: Double?) throws
   func getNetworkStatus() throws -> PlatformNetworkStatus
   /// Shows [playerId] in the system's media controls (lock screen,
   /// notification, headphones, car) with [info]; null removes them. The
@@ -2227,6 +2345,96 @@ class PlayStackHostApiSetup {
       }
     } else {
       setPreloadBufferLimitChannel.setMessageHandler(nil)
+    }
+    /// Stops (or restarts) decoding and downloading the picture, for
+    /// listening only. Adaptive streams switch to their smallest rendition or
+    /// to audio only.
+    let setVideoDisabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setVideoDisabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setVideoDisabledChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg = args[0] as! Int64
+        let disabledArg = args[1] as! Bool
+        do {
+          try api.setVideoDisabled(playerId: playerIdArg, disabled: disabledArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setVideoDisabledChannel.setMessageHandler(nil)
+    }
+    /// Moves a live stream to its live edge.
+    let seekToLiveEdgeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.seekToLiveEdge\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      seekToLiveEdgeChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let playerIdArg = args[0] as! Int64
+        Task { @MainActor in
+          do {
+            try await api.seekToLiveEdge(playerId: playerIdArg)
+            reply(wrapResult(nil))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      seekToLiveEdgeChannel.setMessageHandler(nil)
+    }
+    /// A frame of [source] near [positionMs], as JPEG at most [maxWidth]
+    /// pixels wide, for the scrub preview; null when none can be read
+    /// (streams, protected content).
+    let getFrameChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getFrame\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getFrameChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let sourceArg = args[0] as! PlatformSource
+        let positionMsArg = args[1] as! Int64
+        let maxWidthArg = args[2] as! Int64
+        Task { @MainActor in
+          do {
+            let result = try await api.getFrame(source: sourceArg, positionMs: positionMsArg, maxWidth: maxWidthArg)
+            reply(wrapResult(result))
+          } catch {
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getFrameChannel.setMessageHandler(nil)
+    }
+    /// The brightness of the app's screen, 0.0 to 1.0.
+    let getScreenBrightnessChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getScreenBrightness\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getScreenBrightnessChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.getScreenBrightness()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      getScreenBrightnessChannel.setMessageHandler(nil)
+    }
+    /// Overrides the brightness of the app's screen while it is shown; null
+    /// returns to the system's brightness.
+    let setScreenBrightnessChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.setScreenBrightness\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setScreenBrightnessChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let brightnessArg: Double? = nilOrValue(args[0])
+        do {
+          try api.setScreenBrightness(brightness: brightnessArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setScreenBrightnessChannel.setMessageHandler(nil)
     }
     let getNetworkStatusChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.playstack_ios.PlayStackHostApi.getNetworkStatus\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

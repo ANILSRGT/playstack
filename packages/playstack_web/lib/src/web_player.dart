@@ -156,10 +156,32 @@ class WebPlayer {
         break;
       }
     }
+    // Live streams: the seekable range is the DVR window.
+    Duration? windowStart;
+    Duration? liveEdge;
+    final seekable = element.seekable;
+    if (element.duration.isInfinite && seekable.length > 0) {
+      windowStart = _duration(seekable.start(0));
+      liveEdge = _duration(seekable.end(seekable.length - 1));
+    }
     return PlayStackPositionSnapshot(
       position: _duration(current),
       buffered: _duration(bufferedEnd),
+      windowStart: windowStart,
+      liveEdge: liveEdge,
     );
+  }
+
+  /// Moves a live stream to its live edge.
+  void seekToLiveEdge() {
+    final seekable = element.seekable;
+    if (seekable.length == 0) return;
+    element.currentTime = seekable.end(seekable.length - 1);
+  }
+
+  /// Hides the picture; browsers keep decoding it.
+  void setVideoDisabled(bool disabled) {
+    element.style.visibility = disabled ? 'hidden' : 'visible';
   }
 
   // Tracks ------------------------------------------------------------------

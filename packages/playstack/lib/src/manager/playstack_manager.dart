@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
+import '../analytics/playstack_analytics.dart';
 import '../cache/playstack_cache_manager.dart';
 import '../config/playstack_config.dart';
 import '../controller/playstack_player_controller.dart';
@@ -14,6 +15,7 @@ import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../pool/playstack_player_pool.dart';
 import '../system/playstack_media_session.dart';
+import '../system/playstack_sleep_timer.dart';
 import 'playstack_playback_coordinator.dart';
 
 /// The entry point of PlayStack: starts the native video engine, keeps a
@@ -46,7 +48,8 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   }) : _platformOverride = platform,
        _coordinator = PlayStackPlaybackCoordinator(
          exclusive: config.exclusivePlayback,
-       );
+       ),
+       _analytics = PlayStackAnalytics(config.analytics);
 
   /// The settings this manager was created with: pool, player defaults, cache, audio, lifecycle, fullscreen.
   final PlayStackConfig config;
@@ -64,6 +67,23 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   PlayStackPictureInPicture? _pictureInPicture;
   PlayStackDownloads? _downloads;
   StreamSubscription<PlayStackSystemEvent>? _systemEvents;
+  final PlayStackAnalytics _analytics;
+  PlayStackSleepTimer? _sleepTimer;
+
+  /// Pauses this manager's videos after a while or at the end of the
+  /// current one. See [PlayStackSleepTimer].
+  PlayStackSleepTimer get sleepTimer => _sleepTimer ??= PlayStackSleepTimer(
+    controllers: () => controllers,
+    feeds: () => List<PlayStackFeedManager>.of(_feeds),
+    active: _coordinator.active,
+  );
+
+  /// Analytics events of this manager's videos: start, pause, progress
+  /// milestones, rebuffering, quality changes, errors, watch time. Listen to
+  /// [PlayStackAnalytics.events], or to [PlayStackAnalytics.all] for every
+  /// manager. Configure with [PlayStackConfig.analytics].
+  @override
+  PlayStackAnalytics get analytics => _analytics;
 
   Future<void>? _initialization;
   PlayStackPlatformCapabilities? _capabilities;
@@ -152,6 +172,25 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   /// player or to react to the playing video changing.
   ValueListenable<PlayStackPlayerController?> get activeController =>
       _coordinator.active;
+
+  /// A still frame of [source] near [position], as JPEG bytes at most
+  /// [maxWidth] pixels wide, for your own previews and covers. Null where
+  /// none can be read: HLS, DASH, protected streams, the web.
+  /// [PlayStackThumbnails.frames] uses it for the progress bar.
+  Future<Uint8List?> getVideoFrame(
+    PlayStackSource source,
+    Duration position, {
+    int maxWidth = 240,
+  }) => platform.getFrame(source, position, maxWidth: maxWidth);
+
+  /// The brightness of the app's screen, 0.0 to 1.0, or null on engines
+  /// that cannot read it (web).
+  Future<double?> getScreenBrightness() => platform.getScreenBrightness();
+
+  /// Overrides the screen brightness while the app is shown, for a
+  /// brightness gesture; null returns to the system's brightness.
+  Future<void> setScreenBrightness(double? brightness) =>
+      platform.setScreenBrightness(brightness);
 
   /// Starts the engine and sizes the player pool. Idempotent; concurrent
   /// calls share one initialization. A failed initialization can be retried.
@@ -298,6 +337,7 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
+    _sleepTimer?.dispose();
     _bindingObserver?.detach();
     _bindingObserver = null;
     _pausedByLifecycle.clear();
@@ -332,6 +372,7 @@ class PlayStackManager implements PlayStackControllerHost, PlayStackFeedHost {
     _events = null;
     _coordinator.dispose();
     _network.dispose();
+    _analytics.dispose();
   }
 
   Future<void> _startNetworkStatus() async {

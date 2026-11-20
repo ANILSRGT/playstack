@@ -24,17 +24,24 @@ controls; for anything else you build the UI on its players.
 | [`playstack_android`](packages/playstack_android) | Media3 ExoPlayer engine. |
 | [`playstack_ios`](packages/playstack_ios) | AVFoundation engine. |
 | [`playstack_web`](packages/playstack_web) | `HTMLVideoElement` engine. |
+| [`playstack_cast`](packages/playstack_cast) | Chromecast, optional: apps that do not cast do not ship the Google Cast SDK. |
+| [`playstack_test`](packages/playstack_test) | A fake engine for testing apps that use PlayStack, without a device. |
 
 Documentation: [guides](docs/README.md) (installation, quick start,
 controller, manager, feeds, preloading, caching, fullscreen, rendering,
-audio, subtitles, errors, platform support, performance, API reference,
+audio, subtitles, gestures and scrub preview, series, cues and ad SDKs,
+VAST ads, analytics, live streams, DRM, Chromecast and AirPlay, sleep
+timer, testing, errors, platform support, performance, API reference,
 examples), [architecture](docs/ARCHITECTURE.md) and
 [benchmarks](docs/BENCHMARKS.md).
 
 Try it: [`demo/`](demo) holds two small apps behind one launcher: reels
 (endless feed, pull to refresh, likes, comments, an explore grid, watch
-time and live stats) and drama (a series in episodes: continue watching,
-jump to any episode, next episode on its own) — `cd demo && flutter run`.
+time and live stats, drag sideways to seek with previews) and drama (a
+series in episodes: continue watching, skip intro, next-episode countdown,
+a pre-roll ad, a poll and an interstitial between episodes, sleep timer,
+audio only, Cast and AirPlay), plus a live stream screen —
+`cd demo && flutter run`.
 
 ## Quick start
 
@@ -230,6 +237,28 @@ PlayStackFeedView<Post>(
   `pictureInPicture: true` (or `manager.pictureInPicture`) moves it to a
   floating window when the user leaves the app. Both need platform setup
   ([guide](docs/guides/background-playback.md)).
+- **Series.** `PlayStackFeedView(series: ...)` continues each episode where
+  the user stopped (saved through your storage), shows "Skip intro" and a
+  next-episode countdown ([guide](docs/guides/series.md)).
+- **Your own moments.** `cues:` calls you at points of a video and between
+  items: show a poll, a banner, or your ad SDK's interstitial; the video
+  waits for the `Future` you return ([guide](docs/guides/cues.md)).
+- **VAST ads.** `ads:` plays pre-, mid- and post-rolls with skip, "Learn
+  more" and tracking ([guide](docs/guides/ads.md)).
+- **Analytics.** Typed events for start time, progress, rebuffers, errors
+  and watch time, ready for Firebase and others
+  ([guide](docs/guides/analytics.md)).
+- **Gestures and scrub preview.** Double tap to jump, drag sideways to
+  seek, brightness and volume drags, thumbnails above the bar (WebVTT,
+  sprites, or frames read from the video), a debug panel; all off until
+  turned on ([guide](docs/guides/gestures.md)).
+- **Live, DRM, casting.** A LIVE badge and return to live, Widevine and
+  FairPlay, AirPlay, and Chromecast in `playstack_cast`
+  ([live](docs/guides/live.md), [DRM](docs/guides/drm.md),
+  [cast](docs/guides/cast.md)).
+- **Subtitle files, sleep timer, audio only, testing.** WebVTT and SRT
+  next to the video, a fading sleep timer, sound without picture, and
+  `playstack_test` for widget tests without a device.
 
 Each concept has a guide with examples in [docs/](docs/README.md).
 
@@ -243,6 +272,8 @@ Each concept has a guide with examples in [docs/](docs/README.md).
 | HLS / DASH | Yes / Yes | Yes / No | Safari or HLS.js / No |
 | Tracks and subtitles | Yes | Yes (no rendition choice) | What the browser exposes |
 | Disk cache | Progressive + HLS/DASH segments | Progressive | Browser cache only |
+| DRM | Widevine, PlayReady, ClearKey | FairPlay | No |
+| Casting | Chromecast (`playstack_cast`) | AirPlay, Chromecast (`playstack_cast`) | No |
 | Preload buffer limit | Yes | Preference | No |
 | Fullscreen and orientation | Yes | Yes | Fullscreen API (user gesture) |
 | Audio focus / session | Audio focus | `AVAudioSession` category, interruptions | Browser |
@@ -315,6 +346,11 @@ Releasing: [docs/RELEASING.md](docs/RELEASING.md).
    integration test, documentation guides for every feature, documented
    public API, release checklist, web suite run in a browser. Publishing
    waits for physical-device verification.
+8. App features — **done, unreleased**: analytics, series (watch progress,
+   skip markers, next episode), cues and transitions, VAST ads, gestures
+   and scrub preview, subtitle files, debug panel, sleep timer, audio
+   only, live streams, DRM, AirPlay, Chromecast (`playstack_cast`), test
+   kit (`playstack_test`). DRM and casting wait for device verification.
 
 ## License
 

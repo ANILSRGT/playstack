@@ -141,6 +141,35 @@ abstract class PlayStackPlatform extends PlatformInterface {
     );
   }
 
+  /// Stops (with [disabled]) or restarts decoding and downloading the
+  /// picture, for listening only.
+  Future<void> setVideoDisabled(int playerId, bool disabled) {
+    throw UnimplementedError('setVideoDisabled() has not been implemented.');
+  }
+
+  /// Moves a live stream to its live edge.
+  Future<void> seekToLiveEdge(int playerId) {
+    throw UnimplementedError('seekToLiveEdge() has not been implemented.');
+  }
+
+  /// A still frame of [source] near [position], as JPEG bytes at most
+  /// [maxWidth] pixels wide; null where none can be read. Used for the
+  /// progress bar preview. Works for files and progressive downloads (MP4);
+  /// HLS, DASH and protected streams give null.
+  Future<Uint8List?> getFrame(
+    PlayStackSource source,
+    Duration position, {
+    int maxWidth = 240,
+  }) async => null;
+
+  /// The brightness of the app's screen, 0.0 to 1.0, or null where it
+  /// cannot be read.
+  Future<double?> getScreenBrightness() async => null;
+
+  /// Overrides the screen brightness while the app is shown; null returns
+  /// to the system's. Does nothing where it cannot be set.
+  Future<void> setScreenBrightness(double? brightness) async {}
+
   /// Current connectivity. See
   /// [PlayStackPlatformCapabilities.supportsNetworkStatus].
   Future<PlayStackNetworkStatus> getNetworkStatus() {

@@ -200,6 +200,20 @@ second of a video starts it over.
 For a single player, set `controller.startPosition` or pass
 `startPosition:` to `manager.createController`.
 
+`series: PlayStackSeries(...)` does all of this for you, saved across app
+starts, and adds "Skip intro" buttons and a next-episode countdown: see
+[Series](series.md).
+
+### More features
+
+All optional, all off until you pass them:
+
+| Parameter | What it adds | Guide |
+| --- | --- | --- |
+| `series` | Continue watching, skip intro and recap, next episode | [Series](series.md) |
+| `ads` | VAST pre-, mid- and post-roll ads | [Ads](ads.md) |
+| `cues` | Your own moments in a video and between items: polls, banners, your ad SDK's interstitials | [Cues and transitions](cues.md) |
+
 ## Controls
 
 `controlsBuilder` draws everything above the video. It is called for each
@@ -236,6 +250,16 @@ By default the builder is `PlayStackDefaultControls`:
 - a buffering indicator that appears only when a wait gets long
 - a message for the user and a retry button when a video fails
   (`PlayStackErrorView`; see [Errors](#errors))
+- a LIVE badge on live streams (`showLiveBadge`; see [Live streams](live.md))
+
+Off until you turn them on (see [Gestures and scrub preview](gestures.md)):
+
+- `doubleTapToSeek`: double tap the sides to jump back and forward
+- `horizontalDragToSeek`: drag sideways anywhere on the video to seek,
+  easier than the thin bar in reels
+- `dragGestures`: vertical drags change brightness and volume
+- `thumbnails`, `scrubPreviewBuilder`: images above the bar while seeking
+- `showDebugInfo`: a panel with bitrate, buffer and timings
 
 Pass `bufferingIndicator:` (any widget, for example a Lottie animation of
 your app) to replace the spinner.

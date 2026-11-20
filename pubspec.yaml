@@ -12,6 +12,8 @@ workspace:
   - packages/playstack_android
   - packages/playstack_ios
   - packages/playstack_web
+  - packages/playstack_test
+  - packages/playstack_cast
   - demo
 
 dev_dependencies:

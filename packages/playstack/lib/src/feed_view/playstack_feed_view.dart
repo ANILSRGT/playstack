@@ -15,7 +15,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
+import '../ads/playstack_ad_controller.dart';
 import '../config/playstack_config.dart';
+import '../cues/playstack_cues.dart';
 import '../controller/playstack_playback_state.dart';
 import '../controller/playstack_player_controller.dart';
 import '../feed/playstack_feed_config.dart';
@@ -24,6 +26,8 @@ import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 import '../manager/playstack_manager.dart';
 import '../pool/playstack_player_pool.dart';
+import '../series/playstack_series.dart';
+import '../series/playstack_watch_progress.dart';
 import '../system/playstack_media_session.dart';
 import '../view/playstack_video_view.dart';
 import 'playstack_default_controls.dart';
@@ -351,6 +355,9 @@ class PlayStackFeedViewController extends ChangeNotifier {
   /// screen.
   int? get index => feed?.activeIndex.value;
 
+  /// The direction the attached view swipes in, vertical when detached.
+  Axis get scrollDirection => _view?.widget.scrollDirection ?? Axis.vertical;
+
   /// The exact scroll position in pages: 2.0 when the third page fills the
   /// screen, 2.5 halfway to the fourth. Null before the view is laid out.
   /// Useful for custom animations tied to scrolling.
@@ -565,6 +572,7 @@ PlayStackFeedItem _mapFeedItem<T>(
   required String Function(T item)? itemId,
   required Duration? Function(T item)? startPosition,
   required bool Function(T item)? isLocked,
+  Duration? Function(String id)? resume,
 }) {
   final PlayStackSource? video;
   if (source != null) {
@@ -593,7 +601,7 @@ PlayStackFeedItem _mapFeedItem<T>(
     id: id,
     poster: image,
     data: item,
-    startPosition: startPosition?.call(item),
+    startPosition: startPosition?.call(item) ?? resume?.call(id),
     locked: isLocked?.call(item) ?? false,
   );
 }
@@ -870,6 +878,9 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
+    this.series,
+    this.ads,
+    this.cues,
   }) : feed = null,
        preload = null,
        onEndReached = null,
@@ -917,6 +928,9 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
+    this.series,
+    this.ads,
+    this.cues,
   }) : items = preload.items,
        videoUrl = preload.videoUrl,
        source = preload.source,
@@ -980,6 +994,9 @@ class PlayStackFeedView<T> extends StatefulWidget {
     this.errorBuilder,
     this.mediaInfo,
     this.pictureInPicture = false,
+    this.series,
+    this.ads,
+    this.cues,
   }) : items = null,
        preload = null,
        videoUrl = null,
@@ -1384,6 +1401,23 @@ class PlayStackFeedView<T> extends StatefulWidget {
   /// supported nothing happens.
   final bool pictureInPicture;
 
+  /// Features for watching a series: continue where the user stopped
+  /// (needs [itemId]), skip buttons for the intro and recap, and the next
+  /// episode offered near the end with a countdown. Null (the default)
+  /// turns them off. See [PlayStackSeries].
+  final PlayStackSeries<T>? series;
+
+  /// Video ads: pre-roll, mid-roll and post-roll breaks per item (VAST or
+  /// your own), with a skip button and "Learn more". Null (the default)
+  /// shows none. See [PlayStackFeedAds].
+  final PlayStackFeedAds<T>? ads;
+
+  /// Your own moments: cues at positions of each item (a poll, a banner,
+  /// an ad of your ad SDK) and a hook between items, for example an
+  /// interstitial between episodes. Null (the default) adds none. See
+  /// [PlayStackFeedCues].
+  final PlayStackFeedCues<T>? cues;
+
   /// Called when the user leaves an item (swipes to another one, or the view
   /// is removed) with how long they watched it: watch time, whether they
   /// watched to the end, and your item. Use it for view counts and
@@ -1483,6 +1517,10 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   bool _hidden = false;
   bool _userPaused = false;
   bool _pausedFeed = false;
+
+  // PlayStackFeedCues.onTransition: the new item waits while handlers run.
+  int _transitionHolds = 0;
+  int _transitions = 0;
 
   // The item in view, for onItemViewed.
   PlayStackFeedItem? _viewed;
@@ -1591,7 +1629,10 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (feed == null || feed.isDisposed) return;
     // The fullscreen route covers the feed but shows its video.
     final hidden = _hidden && _fullscreenRoute == null;
-    final pause = _userPaused || (hidden && widget.pauseWhenHidden);
+    final pause =
+        _userPaused ||
+        _transitionHolds > 0 ||
+        (hidden && widget.pauseWhenHidden);
     if (pause) {
       if (!feed.isPaused) {
         feed.pause();
@@ -1613,6 +1654,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     itemId: widget.itemId,
     startPosition: widget.startPosition,
     isLocked: widget.isLocked,
+    resume: widget.series?.progress?.resumePosition,
   );
 
   /// Asks [PlayStackFeedView.isLocked] again for every video, after a
@@ -1661,6 +1703,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     _listened = null;
     _unwatch();
     _reportViewed();
+    _stopProgress();
     if (_pausedFeed && feed != null && !feed.isDisposed) {
       _pausedFeed = false;
       if (feed.isPaused) feed.resume();
@@ -1792,6 +1835,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     _followFeed();
     _watchActive();
     _trackViewed();
+    _trackProgress();
     _controller._changed();
   }
 
@@ -1799,6 +1843,7 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     if (!mounted) return;
     _syncSystem();
     _trackViewed();
+    _trackProgress();
     final index = _feed?.activeIndex.value;
     if (index == null) return;
     _followFeed();
@@ -1846,8 +1891,48 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
   void _onPageChanged(int index) {
     final feed = _feed;
     if (feed == null || feed.isDisposed || index >= feed.length) return;
+    _runTransition(feed, index);
     feed.setActiveIndex(index);
     widget.onPageChanged?.call(index);
+  }
+
+  /// Calls [PlayStackFeedCues.onTransition] and keeps the feed paused
+  /// until it completes.
+  void _runTransition(PlayStackFeedManager feed, int index) {
+    final handler = widget.cues?.onTransition;
+    final from = feed.activeIndex.value;
+    if (handler == null || from == null || from == index) return;
+    if (from >= feed.length) return;
+    final transition = PlayStackTransition<T>(
+      from: feed.itemAt(from).data as T,
+      to: feed.itemAt(index).data as T,
+      fromIndex: from,
+      toIndex: index,
+      count: ++_transitions,
+    );
+    _transitionHolds++;
+    _applyPause();
+    Future<void> run() async {
+      try {
+        await handler(context, transition);
+      } on Object catch (error, stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'playstack',
+            context: ErrorDescription('in PlayStackFeedCues.onTransition'),
+          ),
+        );
+      }
+    }
+
+    unawaited(
+      run().whenComplete(() {
+        _transitionHolds--;
+        if (mounted) _applyPause();
+      }),
+    );
   }
 
   void _checkEnd(int index) {
@@ -1907,6 +1992,37 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
     } on Object catch (error, stack) {
       _report(error, stack, 'while refreshing the feed');
     }
+  }
+
+  // --- watch progress -------------------------------------------------------
+
+  PlayStackProgressTracking? _progressTracking;
+
+  /// Saves the position of the item in view with
+  /// [PlayStackSeries.progress].
+  void _trackProgress() {
+    final progress = widget.series?.progress;
+    final feed = _feed;
+    final index = feed?.activeIndex.value;
+    final item =
+        progress == null || feed == null || feed.isDisposed || index == null
+        ? null
+        : feed.itemAt(index);
+    if (item != null && item.id == _progressTracking?.id) return;
+    _stopProgress();
+    if (progress == null || item == null || !item.isPlayable) return;
+    final controller = feed!.controllerAt(index!);
+    // A controller created before the progress was loaded.
+    if (!controller.value.isInitialized && controller.startPosition == null) {
+      controller.startPosition = progress.resumePosition(item.id);
+    }
+    _progressTracking = progress.track(controller, item.id);
+  }
+
+  void _stopProgress() {
+    final tracking = _progressTracking;
+    _progressTracking = null;
+    if (tracking != null) unawaited(tracking.stop());
   }
 
   // --- watch reports --------------------------------------------------------
@@ -2539,6 +2655,10 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
               pageBuilder: widget.pageBuilder,
               lockedBuilder: widget.lockedBuilder,
               fit: widget.fit,
+              series: widget.series,
+              autoAdvance: widget.autoAdvance,
+              ads: widget.ads,
+              cues: widget.cues,
             ),
           );
         },
@@ -2632,6 +2752,10 @@ class _PlayStackFeedViewState<T> extends State<PlayStackFeedView<T>> {
                           pageBuilder: widget.pageBuilder,
                           lockedBuilder: widget.lockedBuilder,
                           fit: widget.fit,
+                          series: widget.series,
+                          autoAdvance: widget.autoAdvance,
+                          ads: widget.ads,
+                          cues: widget.cues,
                         );
                   page = _ScrollHandoff(
                     axis: widget.scrollDirection,
@@ -2724,6 +2848,10 @@ class _PageContent<T> extends StatelessWidget {
     required this.pageBuilder,
     required this.lockedBuilder,
     required this.fit,
+    required this.series,
+    required this.autoAdvance,
+    required this.ads,
+    required this.cues,
   });
 
   final PlayStackFeedManager feed;
@@ -2740,6 +2868,10 @@ class _PageContent<T> extends StatelessWidget {
   final PlayStackFeedItemBuilder<T>? pageBuilder;
   final PlayStackFeedItemBuilder<T>? lockedBuilder;
   final BoxFit? fit;
+  final PlayStackSeries<T>? series;
+  final bool autoAdvance;
+  final PlayStackFeedAds<T>? ads;
+  final PlayStackFeedCues<T>? cues;
 
   @override
   Widget build(BuildContext context) {
@@ -2818,6 +2950,22 @@ class _PageContent<T> extends StatelessWidget {
                 onTap: view.exitCinemaMode,
                 child: const SizedBox.expand(),
               ),
+            if (series case final series? when controlsBuilder != null)
+              PlayStackSeriesLayer<T>(
+                page: page,
+                series: series,
+                autoAdvance: autoAdvance,
+              ),
+            if (ads case final ads?)
+              PlayStackFeedAdLayer<T>(
+                ads: ads,
+                item: page.data,
+                controller: controller,
+                manager: feed.manager,
+                isActive: page.isActive,
+              ),
+            if (cues case final cues?)
+              PlayStackFeedCueLayer<T>(cues: cues, page: page),
           ],
         );
       },

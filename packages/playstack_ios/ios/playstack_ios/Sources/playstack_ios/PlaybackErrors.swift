@@ -19,6 +19,8 @@ enum PlaybackErrors {
 
   private static func specificCode(for error: NSError) -> String? {
     switch error.domain {
+    case FairPlayKeyLoader.errorDomain:
+      return "drm"
     case NSURLErrorDomain:
       switch error.code {
       case NSURLErrorFileDoesNotExist: return "sourceNotFound"

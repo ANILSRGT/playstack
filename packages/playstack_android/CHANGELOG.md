@@ -1,5 +1,16 @@
 ## Unreleased
 
+* DRM: Widevine, PlayReady and ClearKey through Media3's
+  `DrmConfiguration`; protected players render into a secure
+  `SurfaceView` platform view (`dev.playstack/secure_video`). Errors
+  6000 to 6999 report `drm`.
+* `setVideoDisabled` (audio only) disables the video track type.
+* Live streams: window start and live edge in positions,
+  `seekToLiveEdge`.
+* `getFrame` reads frames with `MediaMetadataRetriever` for the scrub
+  preview; the last three videos stay open.
+* Screen brightness through the window's `screenBrightness`.
+
 * Offline downloads with a Media3 `DownloadManager` in a separate,
   never-evicted cache: progressive files, and HLS and DASH up to a maximum
   height. Downloaded sources play from that cache while downloads are

@@ -68,6 +68,33 @@ Stack(
 
 Styling and positioning from the subtitle file are not preserved.
 
+## Subtitle files
+
+For videos without subtitles inside the stream, add WebVTT or SubRip files
+to the source:
+
+```dart
+PlayStackSource.network(
+  'https://cdn.example.com/episode-3.mp4',
+  subtitles: [
+    PlayStackSubtitleSource.network(
+      'https://cdn.example.com/episode-3.tr.vtt',
+      language: 'tr',
+      label: 'Türkçe',
+      isDefault: true,          // on when the video starts
+    ),
+    PlayStackSubtitleSource.text(srtFromApi, language: 'en', label: 'English'),
+  ],
+)
+```
+
+They appear in `controller.tracks` as text tracks next to the stream's
+own, are chosen the same way (`selectTrack`, the settings sheet), and fill
+`controller.subtitles`. The format is detected from the URL (`.srt` is
+SubRip, anything else WebVTT) or set with `format:`. `headers:` are sent
+when downloading. Files are parsed in Dart, so they work on every
+platform and with every source type.
+
 ## Video quality
 
 Let the user pick a rendition of an adaptive stream:
@@ -113,6 +140,7 @@ On Android a specific video track (rendition) can also be selected with
 | --- | --- | --- | --- |
 | Audio tracks | Yes | Yes (media selection) | Only where the browser exposes `audioTracks` (Safari) |
 | Subtitle tracks and text | In-band, HLS and DASH | Legible media selection | Tracks the browser exposes, for example HLS in Safari; Chromium does not expose in-band MP4 text |
+| Subtitle files (`PlayStackSubtitleSource`) | Yes | Yes | Yes |
 | Video rendition selection | Yes | No: listed for information, AVFoundation chooses | No |
 | User quality choice (`setVideoQuality`) | Yes | Yes (HLS variants, iOS 15+) | No |
 | Quality limit | Yes | Yes (`preferredPeakBitRate`, `preferredMaximumResolution`) | No (`notImplemented`) |

@@ -24,6 +24,7 @@ internal class PlayerRegistry(
   private val players = HashMap<Long, NativePlayer>()
   private var engineConfig: PlatformEngineConfig? = null
   private val sources = MediaSourceBuilder(context, flutterAssets) { engineConfig }
+  private val frames = FrameExtractor(context, flutterAssets)
   private var nextPlayerId = 1L
   private var capabilities: PlatformCapabilities? = null
 
@@ -103,6 +104,11 @@ internal class PlayerRegistry(
     requirePlayer(playerId).setPreloadBufferLimit(maxBufferMs)
   }
 
+  override fun setVideoDisabled(playerId: Long, disabled: Boolean) =
+      requirePlayer(playerId).setVideoDisabled(disabled)
+
+  override suspend fun seekToLiveEdge(playerId: Long) = requirePlayer(playerId).seekToLiveEdge()
+
   override fun getNetworkStatus(): PlatformNetworkStatus = network.current()
 
   override fun getAppOrientations(): List<PlatformOrientation> = orientation.appOrientations()
@@ -159,11 +165,42 @@ internal class PlayerRegistry(
       engineConfig
           ?: throw FlutterError("notInitialized", "Call initialize() before createPlayer().", null)
 
+  override suspend fun getFrame(
+      source: PlatformSource,
+      positionMs: Long,
+      maxWidth: Long
+  ): ByteArray? = frames.frame(source, positionMs, maxWidth)
+
+  override fun getScreenBrightness(): Double {
+    val override = orientation.activity?.window?.attributes?.screenBrightness ?: -1f
+    if (override >= 0f) return override.toDouble()
+    return try {
+      android.provider.Settings.System.getInt(
+          context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255.0
+    } catch (error: android.provider.Settings.SettingNotFoundException) {
+      0.5
+    }
+  }
+
+  override fun setScreenBrightness(brightness: Double?) {
+    val window = orientation.activity?.window ?: return
+    window.attributes =
+        window.attributes.apply {
+          screenBrightness =
+              brightness?.toFloat()?.coerceIn(0.01f, 1f)
+                  ?: android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        }
+  }
+
+  /** The player with [id], for platform views. */
+  fun player(id: Long): NativePlayer? = players[id]
+
   fun releaseAll() {
     mediaSession.clear()
     pictureInPicture.setPlayer(null, false)
     players.values.forEach { it.release() }
     players.clear()
+    frames.release()
   }
 
   private fun requirePlayer(playerId: Long): NativePlayer =

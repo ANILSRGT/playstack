@@ -427,7 +427,8 @@ class PlayStackFeedManager extends ChangeNotifier {
     }
     final controller = _host.createFeedController(source, config.player)
       ..priority = PlayStackPlayerPriority.background
-      ..startPosition = item.startPosition;
+      ..startPosition = item.startPosition
+      ..contentId = item.id;
     final muted = _muted;
     if (muted != null && controller.value.isMuted != muted) {
       unawaited(controller.setMuted(muted).catchError(_ignore));

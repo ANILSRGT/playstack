@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import 'playstack_drm.dart';
+import 'playstack_subtitle_source.dart';
+
 /// Whether a network source uses the engine's disk cache.
 enum PlayStackCachePolicy {
   /// Read from and write to the cache when caching is enabled.
@@ -47,7 +50,11 @@ enum PlayStackVideoFormat {
 @immutable
 sealed class PlayStackSource {
   /// Constructor for the source classes. Use the named factories instead.
-  const PlayStackSource({this.id, this.formatHint = PlayStackVideoFormat.auto});
+  const PlayStackSource({
+    this.id,
+    this.formatHint = PlayStackVideoFormat.auto,
+    this.subtitles = const <PlayStackSubtitleSource>[],
+  });
 
   /// A video at [url]: an MP4 or other file, an HLS stream (`.m3u8`) or a
   /// DASH stream (`.mpd`).
@@ -62,6 +69,8 @@ sealed class PlayStackSource {
   ///   not be stored.
   /// * [id]: your own identifier, used as the feed item id when none is
   ///   given.
+  /// * [drm]: Widevine, PlayReady or FairPlay keys for protected streams.
+  /// * [subtitles]: subtitle files next to the video (WebVTT, SRT).
   const factory PlayStackSource.network(
     String url, {
     Map<String, String> headers,
@@ -70,6 +79,8 @@ sealed class PlayStackSource {
     String? cacheKey,
     PlayStackCachePolicy cachePolicy,
     String? id,
+    PlayStackDrm? drm,
+    List<PlayStackSubtitleSource> subtitles,
   }) = PlayStackNetworkSource;
 
   /// A video file on the device at the absolute [path], for example one the
@@ -78,6 +89,7 @@ sealed class PlayStackSource {
     String path, {
     PlayStackVideoFormat formatHint,
     String? id,
+    List<PlayStackSubtitleSource> subtitles,
   }) = PlayStackFileSource;
 
   /// A video bundled with the app and declared under `assets:` in
@@ -88,6 +100,7 @@ sealed class PlayStackSource {
     String? package,
     PlayStackVideoFormat formatHint,
     String? id,
+    List<PlayStackSubtitleSource> subtitles,
   }) = PlayStackAssetSource;
 
   /// A video held in memory as [bytes] of type [mimeType] (for example
@@ -106,6 +119,11 @@ sealed class PlayStackSource {
   /// The format you declare. [PlayStackVideoFormat.auto] (default) detects it from
   /// the URL or path; set it when the URL has no telling extension.
   final PlayStackVideoFormat formatHint;
+
+  /// Subtitle files that go with the video (WebVTT, SRT). They are listed
+  /// as text tracks next to the stream's own. See
+  /// [PlayStackSubtitleSource].
+  final List<PlayStackSubtitleSource> subtitles;
 
   /// Human-readable location used in logs and error messages.
   String get description;
@@ -143,7 +161,12 @@ final class PlayStackNetworkSource extends PlayStackSource {
     this.cacheKey,
     this.cachePolicy = PlayStackCachePolicy.cache,
     super.id,
+    this.drm,
+    super.subtitles,
   });
+
+  /// Content protection, or null for clear streams. See [PlayStackDrm].
+  final PlayStackDrm? drm;
 
   /// HTTP or HTTPS URL of the video or manifest.
   final String url;
@@ -180,7 +203,9 @@ final class PlayStackNetworkSource extends PlayStackSource {
       other.mimeType == mimeType &&
       other.cacheKey == cacheKey &&
       other.cachePolicy == cachePolicy &&
-      other.id == id;
+      other.id == id &&
+      other.drm == drm &&
+      listEquals(other.subtitles, subtitles);
 
   @override
   int get hashCode => Object.hash(
@@ -193,6 +218,8 @@ final class PlayStackNetworkSource extends PlayStackSource {
     cacheKey,
     cachePolicy,
     id,
+    drm,
+    Object.hashAll(subtitles),
   );
 
   @override
@@ -202,7 +229,12 @@ final class PlayStackNetworkSource extends PlayStackSource {
 /// A video stored on the device file system.
 final class PlayStackFileSource extends PlayStackSource {
   /// Creates a source for the file at [path].
-  const PlayStackFileSource(this.path, {super.formatHint, super.id});
+  const PlayStackFileSource(
+    this.path, {
+    super.formatHint,
+    super.id,
+    super.subtitles,
+  });
 
   /// Absolute path of the file.
   final String path;
@@ -218,10 +250,11 @@ final class PlayStackFileSource extends PlayStackSource {
       other is PlayStackFileSource &&
       other.path == path &&
       other.formatHint == formatHint &&
-      other.id == id;
+      other.id == id &&
+      listEquals(other.subtitles, subtitles);
 
   @override
-  int get hashCode => Object.hash(path, formatHint, id);
+  int get hashCode => Object.hash(path, formatHint, id, Object.hashAll(subtitles));
 
   @override
   String toString() => 'PlayStackSource.file($path)';
@@ -235,6 +268,7 @@ final class PlayStackAssetSource extends PlayStackSource {
     this.package,
     super.formatHint,
     super.id,
+    super.subtitles,
   });
 
   /// Asset key as declared in `pubspec.yaml`.
@@ -256,10 +290,12 @@ final class PlayStackAssetSource extends PlayStackSource {
       other.assetName == assetName &&
       other.package == package &&
       other.formatHint == formatHint &&
-      other.id == id;
+      other.id == id &&
+      listEquals(other.subtitles, subtitles);
 
   @override
-  int get hashCode => Object.hash(assetName, package, formatHint, id);
+  int get hashCode =>
+      Object.hash(assetName, package, formatHint, id, Object.hashAll(subtitles));
 
   @override
   String toString() => 'PlayStackSource.asset($description)';

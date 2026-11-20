@@ -105,9 +105,29 @@ class PlayStackVideoView extends StatelessWidget {
         if (state.hasError && error != null && errorBuilder != null) {
           content = errorBuilder!(context, error);
         } else {
-          content = _buildVideo(context, state);
+          content = _audioOnly(context, _buildVideo(context, state));
         }
         return _clip(ColoredBox(color: backgroundColor, child: content));
+      },
+    );
+  }
+
+  /// In audio-only mode the picture stops; the poster (or nothing) shows.
+  Widget _audioOnly(BuildContext context, Widget video) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: controller.audioOnly,
+      child: video,
+      builder: (context, audioOnly, video) {
+        if (!audioOnly) return video!;
+        final image = poster;
+        return image == null
+            ? const SizedBox.expand()
+            : Image(
+                image: image,
+                fit: fit,
+                alignment: alignment,
+                gaplessPlayback: true,
+              );
       },
     );
   }

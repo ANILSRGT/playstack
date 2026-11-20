@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
@@ -108,11 +111,18 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Future<void> disposePlayer(int playerId) async {
     _textureIds.remove(playerId);
+    _secureViews.remove(playerId);
     await _guard(() => _api.disposePlayer(playerId));
   }
 
   @override
   Future<void> setSource(int playerId, PlayStackSource source, int generation) {
+    // Protected frames reach only a secure surface, shown as a platform view.
+    if (source is PlayStackNetworkSource && source.drm != null) {
+      _secureViews.add(playerId);
+    } else {
+      _secureViews.remove(playerId);
+    }
     return _guard(
       () => _api.setSource(playerId, _toPlatformSource(source), generation),
     );
@@ -150,6 +160,14 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
     return PlayStackPositionSnapshot(
       position: Duration(milliseconds: position.positionMs),
       buffered: Duration(milliseconds: position.bufferedMs),
+      windowStart: switch (position.windowStartMs) {
+        null => null,
+        final ms => Duration(milliseconds: ms),
+      },
+      liveEdge: switch (position.liveEdgeMs) {
+        null => null,
+        final ms => Duration(milliseconds: ms),
+      },
     );
   }
 
@@ -220,6 +238,34 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   @override
   Future<void> setPreloadBufferLimit(int playerId, Duration? limit) =>
       _guard(() => _api.setPreloadBufferLimit(playerId, limit?.inMilliseconds));
+
+  @override
+  Future<void> setVideoDisabled(int playerId, bool disabled) =>
+      _guard(() => _api.setVideoDisabled(playerId, disabled));
+
+  @override
+  Future<void> seekToLiveEdge(int playerId) =>
+      _guard(() => _api.seekToLiveEdge(playerId));
+
+  @override
+  Future<double?> getScreenBrightness() => _guard(_api.getScreenBrightness);
+
+  @override
+  Future<Uint8List?> getFrame(
+    PlayStackSource source,
+    Duration position, {
+    int maxWidth = 240,
+  }) => _guard(
+    () => _api.getFrame(
+      _toPlatformSource(source),
+      position.inMilliseconds,
+      maxWidth,
+    ),
+  );
+
+  @override
+  Future<void> setScreenBrightness(double? brightness) =>
+      _guard(() => _api.setScreenBrightness(brightness));
 
   @override
   Future<PlayStackNetworkStatus> getNetworkStatus() async =>
@@ -412,8 +458,35 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
   Widget buildView(int playerId) {
     final textureId = _textureIds[playerId];
     if (textureId == null) return const SizedBox.shrink();
+    if (_secureViews.contains(playerId)) {
+      return PlatformViewLink(
+        key: ValueKey<int>(playerId),
+        viewType: _secureViewType,
+        surfaceFactory: (context, controller) => AndroidViewSurface(
+          controller: controller as AndroidViewController,
+          gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+          hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+        ),
+        onCreatePlatformView: (params) {
+          final controller = PlatformViewsService.initExpensiveAndroidView(
+            id: params.id,
+            viewType: _secureViewType,
+            layoutDirection: TextDirection.ltr,
+            creationParams: <String, Object>{'playerId': playerId},
+            creationParamsCodec: const StandardMessageCodec(),
+          )..addOnPlatformViewCreatedListener(params.onPlatformViewCreated);
+          unawaited(controller.create());
+          return controller;
+        },
+      );
+    }
     return Texture(textureId: textureId);
   }
+
+  static const String _secureViewType = 'dev.playstack/secure_video';
+
+  /// Players with a protected source.
+  final Set<int> _secureViews = <int>{};
 
   static Future<T> _guard<T>(Future<T> Function() call) async {
     try {
@@ -439,6 +512,21 @@ class PlayStackAndroid extends PlayStackPlatform with SystemChromeFullscreen {
         httpHeaders: source.headers,
         cacheKey: source.effectiveCacheKey,
         useCache: source.cachePolicy == PlayStackCachePolicy.cache,
+        drm: switch (source.drm) {
+          null => null,
+          final drm => PlatformDrm(
+            type: switch (drm.type) {
+              PlayStackDrmType.widevine => PlatformDrmType.widevine,
+              PlayStackDrmType.playReady => PlatformDrmType.playReady,
+              PlayStackDrmType.clearKey => PlatformDrmType.clearKey,
+              PlayStackDrmType.fairPlay => PlatformDrmType.fairPlay,
+            },
+            licenseUrl: drm.licenseUrl,
+            certificateUrl: drm.certificateUrl,
+            headers: drm.headers,
+            contentId: drm.contentId,
+          ),
+        },
       ),
       PlayStackFileSource() => PlatformSource(
         type: PlatformSourceType.file,

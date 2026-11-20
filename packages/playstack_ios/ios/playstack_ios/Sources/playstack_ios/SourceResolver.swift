@@ -14,6 +14,8 @@ struct SourceResolver {
     /// Cache loader that must live as long as the asset and be closed when
     /// the source is detached.
     var loader: CachingResourceLoader? = nil
+    /// FairPlay key loader, kept and closed like [loader].
+    var keyLoader: FairPlayKeyLoader? = nil
   }
 
   /// With [cacheEnabled], progressive network sources go through the disk
@@ -27,6 +29,20 @@ struct SourceResolver {
     case .network:
       guard let string = source.uri, let url = URL(string: string), url.scheme != nil else {
         throw invalid("Invalid network URL: \(source.uri ?? "nil").")
+      }
+      if let drm = source.drm {
+        guard drm.type == .fairPlay else {
+          throw PigeonError(
+            code: "drm", message: "Only FairPlay is available on iOS; got \(drm.type).",
+            details: nil)
+        }
+        var options: [String: Any] = [:]
+        if !source.httpHeaders.isEmpty {
+          options["AVURLAssetHTTPHeaderFieldsKey"] = source.httpHeaders
+        }
+        let asset = AVURLAsset(url: url, options: options)
+        return Resolved(
+          asset: asset, temporaryFile: nil, keyLoader: try FairPlayKeyLoader(drm: drm, asset: asset))
       }
       // A downloaded source plays from its file, also without a network.
       if let saved = DownloadStore.shared.completedURL(forKey: source.cacheKey ?? string) {

@@ -154,6 +154,9 @@ enum PlatformSystemEventType {
   pictureInPictureStopped,
 }
 
+/// Content protection system of a [PlatformDrm].
+enum PlatformDrmType { widevine, playReady, clearKey, fairPlay }
+
 /// Where an offline download stands. `removed` is only sent on
 /// `downloadEvents`, when a download was deleted.
 enum PlatformDownloadState {
@@ -647,8 +650,79 @@ class PlatformTrack {
   }
 }
 
+/// How to get the keys of a protected stream.
+class PlatformDrm {
+  PlatformDrm({
+    required this.type,
+    this.licenseUrl,
+    this.certificateUrl,
+    required this.headers,
+    this.contentId,
+  });
+
+  PlatformDrmType type;
+
+  /// The license server.
+  String? licenseUrl;
+
+  /// FairPlay: the URL of the application certificate.
+  String? certificateUrl;
+
+  /// Sent with license (and certificate) requests.
+  Map<String, String> headers;
+
+  /// FairPlay: the content id sent to the key server; null uses the host
+  /// of the `skd://` key URL.
+  String? contentId;
+
+  List<Object?> _toList() {
+    return <Object?>[type, licenseUrl, certificateUrl, headers, contentId];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PlatformDrm decode(Object result) {
+    result as List<Object?>;
+    return PlatformDrm(
+      type: result[0]! as PlatformDrmType,
+      licenseUrl: result[1] as String?,
+      certificateUrl: result[2] as String?,
+      headers: (result[3]! as Map<Object?, Object?>).cast<String, String>(),
+      contentId: result[4] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PlatformDrm || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(type, other.type) &&
+        _deepEquals(licenseUrl, other.licenseUrl) &&
+        _deepEquals(certificateUrl, other.certificateUrl) &&
+        _deepEquals(headers, other.headers) &&
+        _deepEquals(contentId, other.contentId);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PlatformDrm(type: $type, licenseUrl: $licenseUrl, certificateUrl: $certificateUrl, headers: $headers, contentId: $contentId)';
+  }
+}
+
 class PlatformSource {
   PlatformSource({
+    this.drm,
     required this.type,
     this.uri,
     this.assetName,
@@ -660,6 +734,9 @@ class PlatformSource {
     this.cacheKey,
     required this.useCache,
   });
+
+  /// Content protection, or null for clear streams.
+  PlatformDrm? drm;
 
   PlatformSourceType type;
 
@@ -689,6 +766,7 @@ class PlatformSource {
 
   List<Object?> _toList() {
     return <Object?>[
+      drm,
       type,
       uri,
       assetName,
@@ -709,16 +787,17 @@ class PlatformSource {
   static PlatformSource decode(Object result) {
     result as List<Object?>;
     return PlatformSource(
-      type: result[0]! as PlatformSourceType,
-      uri: result[1] as String?,
-      assetName: result[2] as String?,
-      assetPackage: result[3] as String?,
-      bytes: result[4] as Uint8List?,
-      mimeType: result[5] as String?,
-      formatHint: result[6]! as PlatformVideoFormat,
-      httpHeaders: (result[7]! as Map<Object?, Object?>).cast<String, String>(),
-      cacheKey: result[8] as String?,
-      useCache: result[9]! as bool,
+      drm: result[0] as PlatformDrm?,
+      type: result[1]! as PlatformSourceType,
+      uri: result[2] as String?,
+      assetName: result[3] as String?,
+      assetPackage: result[4] as String?,
+      bytes: result[5] as Uint8List?,
+      mimeType: result[6] as String?,
+      formatHint: result[7]! as PlatformVideoFormat,
+      httpHeaders: (result[8]! as Map<Object?, Object?>).cast<String, String>(),
+      cacheKey: result[9] as String?,
+      useCache: result[10]! as bool,
     );
   }
 
@@ -731,7 +810,8 @@ class PlatformSource {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(type, other.type) &&
+    return _deepEquals(drm, other.drm) &&
+        _deepEquals(type, other.type) &&
         _deepEquals(uri, other.uri) &&
         _deepEquals(assetName, other.assetName) &&
         _deepEquals(assetPackage, other.assetPackage) &&
@@ -749,7 +829,7 @@ class PlatformSource {
 
   @override
   String toString() {
-    return 'PlatformSource(type: $type, uri: $uri, assetName: $assetName, assetPackage: $assetPackage, bytes: $bytes, mimeType: $mimeType, formatHint: $formatHint, httpHeaders: $httpHeaders, cacheKey: $cacheKey, useCache: $useCache)';
+    return 'PlatformSource(drm: $drm, type: $type, uri: $uri, assetName: $assetName, assetPackage: $assetPackage, bytes: $bytes, mimeType: $mimeType, formatHint: $formatHint, httpHeaders: $httpHeaders, cacheKey: $cacheKey, useCache: $useCache)';
   }
 }
 
@@ -1176,14 +1256,26 @@ class PlatformDownload {
 }
 
 class PlatformPosition {
-  PlatformPosition({required this.positionMs, required this.bufferedMs});
+  PlatformPosition({
+    required this.positionMs,
+    required this.bufferedMs,
+    this.windowStartMs,
+    this.liveEdgeMs,
+  });
 
   int positionMs;
 
   int bufferedMs;
 
+  /// Live streams: the start of the range the user can seek in (DVR
+  /// window), on the same clock as [positionMs].
+  int? windowStartMs;
+
+  /// Live streams: the live edge, on the same clock as [positionMs].
+  int? liveEdgeMs;
+
   List<Object?> _toList() {
-    return <Object?>[positionMs, bufferedMs];
+    return <Object?>[positionMs, bufferedMs, windowStartMs, liveEdgeMs];
   }
 
   Object encode() {
@@ -1195,6 +1287,8 @@ class PlatformPosition {
     return PlatformPosition(
       positionMs: result[0]! as int,
       bufferedMs: result[1]! as int,
+      windowStartMs: result[2] as int?,
+      liveEdgeMs: result[3] as int?,
     );
   }
 
@@ -1208,7 +1302,9 @@ class PlatformPosition {
       return true;
     }
     return _deepEquals(positionMs, other.positionMs) &&
-        _deepEquals(bufferedMs, other.bufferedMs);
+        _deepEquals(bufferedMs, other.bufferedMs) &&
+        _deepEquals(windowStartMs, other.windowStartMs) &&
+        _deepEquals(liveEdgeMs, other.liveEdgeMs);
   }
 
   @override
@@ -1217,7 +1313,7 @@ class PlatformPosition {
 
   @override
   String toString() {
-    return 'PlatformPosition(positionMs: $positionMs, bufferedMs: $bufferedMs)';
+    return 'PlatformPosition(positionMs: $positionMs, bufferedMs: $bufferedMs, windowStartMs: $windowStartMs, liveEdgeMs: $liveEdgeMs)';
   }
 }
 
@@ -1842,77 +1938,83 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PlatformSystemEventType) {
       buffer.putUint8(137);
       writeValue(buffer, value.index);
-    } else if (value is PlatformDownloadState) {
+    } else if (value is PlatformDrmType) {
       buffer.putUint8(138);
       writeValue(buffer, value.index);
-    } else if (value is PlatformEngineConfig) {
+    } else if (value is PlatformDownloadState) {
       buffer.putUint8(139);
-      writeValue(buffer, value.encode());
-    } else if (value is PlatformCacheInfo) {
+      writeValue(buffer, value.index);
+    } else if (value is PlatformEngineConfig) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSystemEvent) {
+    } else if (value is PlatformCacheInfo) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformMediaInfo) {
+    } else if (value is PlatformSystemEvent) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformDeviceOrientationEvent) {
+    } else if (value is PlatformMediaInfo) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformNetworkStatus) {
+    } else if (value is PlatformDeviceOrientationEvent) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTrack) {
+    } else if (value is PlatformNetworkStatus) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformSource) {
+    } else if (value is PlatformTrack) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerOptions) {
+    } else if (value is PlatformDrm) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPlayerCreation) {
+    } else if (value is PlatformSource) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCapabilities) {
+    } else if (value is PlatformPlayerOptions) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformDownloadRequest) {
+    } else if (value is PlatformPlayerCreation) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformDownload) {
+    } else if (value is PlatformCapabilities) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformPosition) {
+    } else if (value is PlatformDownloadRequest) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInitializedEvent) {
+    } else if (value is PlatformDownload) {
       buffer.putUint8(153);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformStateEvent) {
+    } else if (value is PlatformPosition) {
       buffer.putUint8(154);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformIsPlayingEvent) {
+    } else if (value is PlatformInitializedEvent) {
       buffer.putUint8(155);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformVideoSizeEvent) {
+    } else if (value is PlatformStateEvent) {
       buffer.putUint8(156);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformFirstFrameEvent) {
+    } else if (value is PlatformIsPlayingEvent) {
       buffer.putUint8(157);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformErrorEvent) {
+    } else if (value is PlatformVideoSizeEvent) {
       buffer.putUint8(158);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformTracksChangedEvent) {
+    } else if (value is PlatformFirstFrameEvent) {
       buffer.putUint8(159);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformCuesEvent) {
+    } else if (value is PlatformErrorEvent) {
       buffer.putUint8(160);
       writeValue(buffer, value.encode());
-    } else if (value is PlatformInterruptionEvent) {
+    } else if (value is PlatformTracksChangedEvent) {
       buffer.putUint8(161);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformCuesEvent) {
+      buffer.putUint8(162);
+      writeValue(buffer, value.encode());
+    } else if (value is PlatformInterruptionEvent) {
+      buffer.putUint8(163);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1953,52 +2055,57 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : PlatformSystemEventType.values[value];
       case 138:
         final value = readValue(buffer) as int?;
-        return value == null ? null : PlatformDownloadState.values[value];
+        return value == null ? null : PlatformDrmType.values[value];
       case 139:
-        return PlatformEngineConfig.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PlatformDownloadState.values[value];
       case 140:
-        return PlatformCacheInfo.decode(readValue(buffer)!);
+        return PlatformEngineConfig.decode(readValue(buffer)!);
       case 141:
-        return PlatformSystemEvent.decode(readValue(buffer)!);
+        return PlatformCacheInfo.decode(readValue(buffer)!);
       case 142:
-        return PlatformMediaInfo.decode(readValue(buffer)!);
+        return PlatformSystemEvent.decode(readValue(buffer)!);
       case 143:
-        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
+        return PlatformMediaInfo.decode(readValue(buffer)!);
       case 144:
-        return PlatformNetworkStatus.decode(readValue(buffer)!);
+        return PlatformDeviceOrientationEvent.decode(readValue(buffer)!);
       case 145:
-        return PlatformTrack.decode(readValue(buffer)!);
+        return PlatformNetworkStatus.decode(readValue(buffer)!);
       case 146:
-        return PlatformSource.decode(readValue(buffer)!);
+        return PlatformTrack.decode(readValue(buffer)!);
       case 147:
-        return PlatformPlayerOptions.decode(readValue(buffer)!);
+        return PlatformDrm.decode(readValue(buffer)!);
       case 148:
-        return PlatformPlayerCreation.decode(readValue(buffer)!);
+        return PlatformSource.decode(readValue(buffer)!);
       case 149:
-        return PlatformCapabilities.decode(readValue(buffer)!);
+        return PlatformPlayerOptions.decode(readValue(buffer)!);
       case 150:
-        return PlatformDownloadRequest.decode(readValue(buffer)!);
+        return PlatformPlayerCreation.decode(readValue(buffer)!);
       case 151:
-        return PlatformDownload.decode(readValue(buffer)!);
+        return PlatformCapabilities.decode(readValue(buffer)!);
       case 152:
-        return PlatformPosition.decode(readValue(buffer)!);
+        return PlatformDownloadRequest.decode(readValue(buffer)!);
       case 153:
-        return PlatformInitializedEvent.decode(readValue(buffer)!);
+        return PlatformDownload.decode(readValue(buffer)!);
       case 154:
-        return PlatformStateEvent.decode(readValue(buffer)!);
+        return PlatformPosition.decode(readValue(buffer)!);
       case 155:
-        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
+        return PlatformInitializedEvent.decode(readValue(buffer)!);
       case 156:
-        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
+        return PlatformStateEvent.decode(readValue(buffer)!);
       case 157:
-        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
+        return PlatformIsPlayingEvent.decode(readValue(buffer)!);
       case 158:
-        return PlatformErrorEvent.decode(readValue(buffer)!);
+        return PlatformVideoSizeEvent.decode(readValue(buffer)!);
       case 159:
-        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+        return PlatformFirstFrameEvent.decode(readValue(buffer)!);
       case 160:
-        return PlatformCuesEvent.decode(readValue(buffer)!);
+        return PlatformErrorEvent.decode(readValue(buffer)!);
       case 161:
+        return PlatformTracksChangedEvent.decode(readValue(buffer)!);
+      case 162:
+        return PlatformCuesEvent.decode(readValue(buffer)!);
+      case 163:
         return PlatformInterruptionEvent.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -2354,6 +2461,115 @@ class PlayStackHostApi {
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
       <Object?>[playerId, maxBufferMs],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Stops (or restarts) decoding and downloading the picture, for
+  /// listening only. Adaptive streams switch to their smallest rendition or
+  /// to audio only.
+  Future<void> setVideoDisabled(int playerId, bool disabled) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.setVideoDisabled$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId, disabled],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Moves a live stream to its live edge.
+  Future<void> seekToLiveEdge(int playerId) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.seekToLiveEdge$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[playerId],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// A frame of [source] near [positionMs], as JPEG at most [maxWidth]
+  /// pixels wide, for the scrub preview; null when none can be read
+  /// (streams, protected content).
+  Future<Uint8List?> getFrame(
+    PlatformSource source,
+    int positionMs,
+    int maxWidth,
+  ) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.getFrame$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[source, positionMs, maxWidth],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+    return pigeonVar_replyValue as Uint8List?;
+  }
+
+  /// The brightness of the app's screen, 0.0 to 1.0.
+  Future<double> getScreenBrightness() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.getScreenBrightness$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as double;
+  }
+
+  /// Overrides the brightness of the app's screen while it is shown; null
+  /// returns to the system's brightness.
+  Future<void> setScreenBrightness(double? brightness) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.playstack_android.PlayStackHostApi.setScreenBrightness$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[brightness],
     );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
     _extractReplyValueOrThrow(

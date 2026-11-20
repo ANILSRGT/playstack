@@ -7,6 +7,15 @@
   `downloadChanges`, with defaults for engines without downloads.
 * Fixed the `PlayStackSource.network` documentation, which named a
   `PlayStackCachePolicy.noCache` that does not exist (it is `bypass`).
+* `PlayStackDrm` and `PlayStackDrmType`; `PlayStackSource.network(drm:)`
+  and `PlayStackErrorCode.drm`.
+* `PlayStackSubtitleSource` and `PlayStackSubtitleFormat`; `subtitles` on
+  every source type.
+* Live streams: `PlayStackPositionSnapshot.windowStart`, `liveEdge`,
+  `behindLive`; `PlayStackPlatform.seekToLiveEdge`.
+* `PlayStackPlatform.setVideoDisabled`, `getScreenBrightness`,
+  `setScreenBrightness` and `getFrame`, with defaults for engines without
+  them.
 
 ## 0.1.0-dev.8
 

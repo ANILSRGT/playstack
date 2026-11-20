@@ -61,11 +61,11 @@ internal class NativePlayer(
     surfaceProducer.setCallback(
         object : TextureRegistry.SurfaceProducer.Callback {
           override fun onSurfaceAvailable() {
-            if (!released) exoPlayer.setVideoSurface(surfaceProducer.surface)
+            if (!released && surfaceView == null) exoPlayer.setVideoSurface(surfaceProducer.surface)
           }
 
           override fun onSurfaceCleanup() {
-            if (!released) exoPlayer.setVideoSurface(null)
+            if (!released && surfaceView == null) exoPlayer.setVideoSurface(null)
           }
         })
     exoPlayer.setVideoSurface(surfaceProducer.surface)
@@ -107,6 +107,33 @@ internal class NativePlayer(
     loadControl.pausedBufferLimitUs = maxBufferMs?.let { it * 1000 } ?: C.TIME_UNSET
   }
 
+  /** Listening only: no video track is selected, decoded or downloaded. */
+  fun setVideoDisabled(disabled: Boolean) {
+    exoPlayer.trackSelectionParameters =
+        exoPlayer.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, disabled)
+            .build()
+  }
+
+  fun seekToLiveEdge() = exoPlayer.seekToDefaultPosition()
+
+  /** The secure view showing this player (DRM), or null for the texture. */
+  private var surfaceView: android.view.SurfaceView? = null
+
+  fun attachSurfaceView(view: android.view.SurfaceView) {
+    if (released) return
+    surfaceView = view
+    exoPlayer.setVideoSurfaceView(view)
+  }
+
+  fun detachSurfaceView(view: android.view.SurfaceView) {
+    if (released || surfaceView !== view) return
+    surfaceView = null
+    exoPlayer.clearVideoSurfaceView(view)
+    exoPlayer.setVideoSurface(surfaceProducer.surface)
+  }
+
   fun play() = exoPlayer.play()
 
   fun pause() = exoPlayer.pause()
@@ -133,9 +160,18 @@ internal class NativePlayer(
     exoPlayer.playbackParameters = PlaybackParameters(speed.toFloat())
   }
 
-  fun position(): PlatformPosition =
-      PlatformPosition(
-          positionMs = exoPlayer.currentPosition, bufferedMs = exoPlayer.bufferedPosition)
+  fun position(): PlatformPosition {
+    // Live streams: positions are relative to the start of the window the
+    // user can seek in; the window's end is the live edge.
+    val live = exoPlayer.isCurrentMediaItemLive
+    val window = exoPlayer.duration
+    return PlatformPosition(
+        positionMs = exoPlayer.currentPosition,
+        bufferedMs = exoPlayer.bufferedPosition,
+        windowStartMs = if (live) 0L else null,
+        liveEdgeMs = if (live && window != C.TIME_UNSET) window else null,
+    )
+  }
 
   fun release() {
     if (released) return

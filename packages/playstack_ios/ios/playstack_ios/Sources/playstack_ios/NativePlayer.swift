@@ -31,6 +31,9 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   private var legibleOutput: AVPlayerItemLegibleOutput?
   private var temporaryFile: URL?
   private var cacheLoader: CachingResourceLoader?
+  private var keyLoader: FairPlayKeyLoader?
+  /// Listening only: the smallest rendition and no video track.
+  private var videoDisabled = false
   private let audioSession: AudioSessionCoordinator
   private var sessionNotifications: [NSObjectProtocol] = []
   /// Playback requested through `play()` and not ended by `pause()` or the
@@ -103,6 +106,7 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     self.generation = generation
     temporaryFile = resolved.temporaryFile
     cacheLoader = resolved.loader
+    keyLoader = resolved.keyLoader
 
     let item = AVPlayerItem(asset: resolved.asset)
     let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
@@ -224,9 +228,42 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
   private var qualityLimit: (bitrate: Int64?, width: Int64?, height: Int64?) = (nil, nil, nil)
 
   private func applyQualityLimit(to item: AVPlayerItem) {
-    TrackSelection.limitVideo(
-      item, maxBitrate: qualityLimit.bitrate, maxWidth: qualityLimit.width,
-      maxHeight: qualityLimit.height)
+    if videoDisabled {
+      // The smallest rendition: HLS has no way to drop the picture alone.
+      TrackSelection.limitVideo(item, maxBitrate: 1, maxWidth: 1, maxHeight: 1)
+    } else {
+      TrackSelection.limitVideo(
+        item, maxBitrate: qualityLimit.bitrate, maxWidth: qualityLimit.width,
+        maxHeight: qualityLimit.height)
+    }
+    for track in item.tracks where track.assetTrack?.mediaType == .video {
+      track.isEnabled = !videoDisabled
+    }
+  }
+
+  /// Listening only: progressive files stop decoding the picture, HLS
+  /// streams switch to their smallest rendition.
+  func setVideoDisabled(_ disabled: Bool) {
+    videoDisabled = disabled
+    guard let item else { return }
+    applyQualityLimit(to: item)
+  }
+
+  /// Moves a live stream to its live edge.
+  func seekToLiveEdge(completion: @escaping () -> Void) {
+    guard let range = item?.seekableTimeRanges.last?.timeRangeValue else {
+      completion()
+      return
+    }
+    seek(toMilliseconds: milliseconds(CMTimeRangeGetEnd(range)), completion: completion)
+  }
+
+  /// The `AVPlayerLayer` of a platform view shows a frame (FairPlay, where
+  /// the video output receives none).
+  func layerReadyForDisplay() {
+    guard !firstFrameSent, generation != NativePlayer.noSource else { return }
+    firstFrameSent = true
+    events.emit(PlatformFirstFrameEvent(playerId: id, generation: generation))
   }
 
   // MARK: AVPlayerItemLegibleOutputPushDelegate
@@ -258,7 +295,18 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
         }
       }
     }
-    return PlatformPosition(positionMs: positionMs, bufferedMs: bufferedMs)
+    var windowStartMs: Int64?
+    var liveEdgeMs: Int64?
+    if let item, item.duration.isIndefinite,
+      let first = item.seekableTimeRanges.first?.timeRangeValue,
+      let last = item.seekableTimeRanges.last?.timeRangeValue
+    {
+      windowStartMs = milliseconds(first.start)
+      liveEdgeMs = milliseconds(CMTimeRangeGetEnd(last))
+    }
+    return PlatformPosition(
+      positionMs: positionMs, bufferedMs: bufferedMs, windowStartMs: windowStartMs,
+      liveEdgeMs: liveEdgeMs)
   }
 
   func release() {
@@ -397,6 +445,8 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     case .readyToPlay:
       guard !initializedSent else { return }
       initializedSent = true
+      // The tracks are known now.
+      if videoDisabled { applyQualityLimit(to: item) }
       readGeometry(of: item)
       let size = frameSize(of: item)
       let duration = item.duration
@@ -556,6 +606,8 @@ final class NativePlayer: NSObject, FlutterTexture, AVPlayerItemLegibleOutputPus
     temporaryFile = nil
     cacheLoader?.close()
     cacheLoader = nil
+    keyLoader?.close()
+    keyLoader = nil
     playRequested = false
     interrupted = false
     updateDisplayLink()

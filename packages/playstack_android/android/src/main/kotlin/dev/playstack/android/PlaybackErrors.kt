@@ -28,10 +28,12 @@ internal object PlaybackErrors {
         PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
         PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> "unsupportedFormat"
         in PARSING_RANGE -> "unsupportedFormat"
+        in DRM_RANGE -> "drm"
         in DECODING_RANGE -> "decoder"
         else -> "unknown"
       }
 
   private val PARSING_RANGE = 3000..3999
   private val DECODING_RANGE = 4000..4999
+  private val DRM_RANGE = 6000..6999
 }

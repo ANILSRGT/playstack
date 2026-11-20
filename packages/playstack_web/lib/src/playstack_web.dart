@@ -251,6 +251,14 @@ class PlayStackWeb extends PlayStackPlatform {
   }
 
   @override
+  Future<void> seekToLiveEdge(int playerId) async =>
+      _require(playerId).seekToLiveEdge();
+
+  @override
+  Future<void> setVideoDisabled(int playerId, bool disabled) async =>
+      _require(playerId).setVideoDisabled(disabled);
+
+  @override
   Future<void> setPreloadBufferLimit(int playerId, Duration? limit) async {
     _require(playerId);
     if (limit == null) return;

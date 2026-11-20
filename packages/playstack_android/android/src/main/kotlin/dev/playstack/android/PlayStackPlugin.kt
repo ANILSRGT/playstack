@@ -52,6 +52,8 @@ class PlayStackPlugin : FlutterPlugin, ActivityAware {
             downloads = downloadCoordinator,
         )
     PlayStackHostApi.setUp(binding.binaryMessenger, playerRegistry)
+    binding.platformViewRegistry.registerViewFactory(
+        SecureVideoViewFactory.VIEW_TYPE, SecureVideoViewFactory { playerRegistry.player(it) })
     eventChannel = PlayerEventsStreamHandler.register(binding.binaryMessenger, dispatcher)
     networkChannel = NetworkEventsStreamHandler.register(binding.binaryMessenger, networkMonitor)
     orientationChannel =

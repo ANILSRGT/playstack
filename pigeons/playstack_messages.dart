@@ -195,6 +195,29 @@ class PlatformTrack {
   int? channelCount;
 }
 
+/// Content protection system of a [PlatformDrm].
+enum PlatformDrmType { widevine, playReady, clearKey, fairPlay }
+
+/// How to get the keys of a protected stream.
+class PlatformDrm {
+  PlatformDrm({required this.type, required this.headers});
+
+  PlatformDrmType type;
+
+  /// The license server.
+  String? licenseUrl;
+
+  /// FairPlay: the URL of the application certificate.
+  String? certificateUrl;
+
+  /// Sent with license (and certificate) requests.
+  Map<String, String> headers;
+
+  /// FairPlay: the content id sent to the key server; null uses the host
+  /// of the `skd://` key URL.
+  String? contentId;
+}
+
 class PlatformSource {
   PlatformSource({
     required this.type,
@@ -202,6 +225,9 @@ class PlatformSource {
     required this.httpHeaders,
     required this.useCache,
   });
+
+  /// Content protection, or null for clear streams.
+  PlatformDrm? drm;
 
   PlatformSourceType type;
 
@@ -374,6 +400,13 @@ class PlatformPosition {
 
   int positionMs;
   int bufferedMs;
+
+  /// Live streams: the start of the range the user can seek in (DVR
+  /// window), on the same clock as [positionMs].
+  int? windowStartMs;
+
+  /// Live streams: the live edge, on the same clock as [positionMs].
+  int? liveEdgeMs;
 }
 
 @HostApi()
@@ -429,6 +462,28 @@ abstract class PlayStackHostApi {
   /// playing; null removes the limit. Used for players prepared ahead of
   /// time so they do not download whole videos the user may never watch.
   void setPreloadBufferLimit(int playerId, int? maxBufferMs);
+
+  /// Stops (or restarts) decoding and downloading the picture, for
+  /// listening only. Adaptive streams switch to their smallest rendition or
+  /// to audio only.
+  void setVideoDisabled(int playerId, bool disabled);
+
+  /// Moves a live stream to its live edge.
+  @async
+  void seekToLiveEdge(int playerId);
+
+  /// A frame of [source] near [positionMs], as JPEG at most [maxWidth]
+  /// pixels wide, for the scrub preview; null when none can be read
+  /// (streams, protected content).
+  @async
+  Uint8List? getFrame(PlatformSource source, int positionMs, int maxWidth);
+
+  /// The brightness of the app's screen, 0.0 to 1.0.
+  double getScreenBrightness();
+
+  /// Overrides the brightness of the app's screen while it is shown; null
+  /// returns to the system's brightness.
+  void setScreenBrightness(double? brightness);
 
   PlatformNetworkStatus getNetworkStatus();
 

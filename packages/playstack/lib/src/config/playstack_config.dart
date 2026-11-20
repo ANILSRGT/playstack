@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
+import '../analytics/playstack_analytics.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
 
 /// All settings of a `PlayStackManager`, grouped by topic. Every setting has a
@@ -30,6 +31,7 @@ class PlayStackConfig {
     this.cache = const PlayStackCacheConfig(),
     this.audio = const PlayStackAudioConfig(),
     this.fullscreen = const PlayStackFullscreenConfig(),
+    this.analytics = const PlayStackAnalyticsConfig(),
   });
 
   /// Settings tuned for a full-screen short-video feed where users swipe
@@ -126,6 +128,10 @@ class PlayStackConfig {
   /// ends.
   final PlayStackFullscreenConfig fullscreen;
 
+  /// Which analytics events are reported (`PlayStackManager.analytics`):
+  /// on by default, with milestones at 25, 50 and 75 percent.
+  final PlayStackAnalyticsConfig analytics;
+
   @override
   bool operator ==(Object other) =>
       other is PlayStackConfig &&
@@ -135,7 +141,8 @@ class PlayStackConfig {
       other.exclusivePlayback == exclusivePlayback &&
       other.cache == cache &&
       other.audio == audio &&
-      other.fullscreen == fullscreen;
+      other.fullscreen == fullscreen &&
+      other.analytics == analytics;
 
   @override
   int get hashCode => Object.hash(
@@ -146,6 +153,7 @@ class PlayStackConfig {
     cache,
     audio,
     fullscreen,
+    analytics,
   );
 }
 

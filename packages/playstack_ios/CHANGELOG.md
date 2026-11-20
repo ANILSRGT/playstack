@@ -1,5 +1,17 @@
 ## Unreleased
 
+* FairPlay through `AVContentKeySession`: certificate download, SPC to
+  the license server, CKC back. Protected players render into an
+  `AVPlayerLayer` platform view (`dev.playstack/player_layer`); key
+  failures report `drm`.
+* `PlayStackAirPlayButton` platform view (`AVRoutePickerView`,
+  `dev.playstack/airplay_button`).
+* `setVideoDisabled` (audio only), live window and edge from
+  `seekableTimeRanges`, `seekToLiveEdge`.
+* `getFrame` reads frames with `AVAssetImageGenerator` for the scrub
+  preview.
+* Screen brightness through `UIScreen.brightness`.
+
 * Offline downloads: progressive files with a background `URLSession`,
   HLS with `AVAssetDownloadURLSession` up to a maximum height (iOS 16+). Downloaded
   sources play from their file while downloads are enabled; background

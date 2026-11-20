@@ -32,6 +32,14 @@
 | Device orientation sensors | `OrientationEventListener` | `UIDevice` orientation notifications | No |
 | Decoder-shortage detection | `ERROR_CODE_DECODER_INIT_FAILED` | `AVError.decoderTemporarilyUnavailable` | Not distinguishable |
 | Same controller in two views | Yes | Yes | No: one `<video>` element, one view at a time |
+| DRM | Widevine, PlayReady, ClearKey (secure `SurfaceView`) | FairPlay (`AVPlayerLayer`) | No |
+| Live streams: window, live edge | Yes | Yes | Yes |
+| Audio only | Video track disabled | Video tracks disabled | Element hidden |
+| Frames for the scrub preview | `MediaMetadataRetriever` (MP4, files) | `AVAssetImageGenerator` (MP4, files) | No |
+| Screen brightness | Window brightness | `UIScreen.brightness` | No |
+| AirPlay | No | `AVRoutePickerView` | No |
+| Chromecast (`playstack_cast`) | Google Cast SDK | Google Cast SDK (CocoaPods) | No |
+| Subtitle files, analytics, ads, cues, series, sleep timer | Yes (Dart) | Yes (Dart) | Yes (Dart) |
 
 `PlayStackPlatformCapabilities` (`manager.capabilities`) reports these at run
 time and never claims a feature the engine does not provide:
@@ -51,6 +59,10 @@ print('${caps.engineName} ${caps.engineVersion}, '
   (API 36) arm64 emulator and an iOS 26.5 simulator, including the
   benchmark. Rendering orientation was checked against ffmpeg reference
   frames.
+- **Features added after 0.1.0-dev.9** (subtitle files, audio only, live
+  edge, VAST ads, brightness, frame reading) pass on an iOS simulator
+  (iPhone 17 Pro Max). DRM, AirPlay and Chromecast need devices and have
+  not been verified.
 - **Not verified on device:** the decoder-shortage retry and audio
   interruptions (unit tests only: emulators do not run out of decoders or
   receive calls on demand); physical-device performance.

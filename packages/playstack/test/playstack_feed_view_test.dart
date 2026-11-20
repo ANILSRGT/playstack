@@ -792,7 +792,7 @@ void main() {
     final bar = find.byType(PlayStackProgressBar);
     expect(bar, findsOneWidget);
     final rect = tester.getRect(bar);
-    expect(rect.height, 24, reason: 'a touch area, not a 2 px line');
+    expect(rect.height, 36, reason: 'a touch area, not a 2 px line');
 
     final gesture = await tester.startGesture(
       Offset(rect.left + 10, rect.center.dy),

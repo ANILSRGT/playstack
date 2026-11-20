@@ -4,12 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
+import '../analytics/playstack_analytics.dart';
 import '../config/playstack_config.dart';
 import '../pool/playstack_player_pool.dart';
 import '../util/async_lock.dart';
 import 'playstack_playback_state.dart';
 import 'playstack_player_metrics.dart';
 import 'playstack_position_stream.dart';
+import 'playstack_sidecar_subtitles.dart';
 import 'playstack_track_state.dart';
 import 'playstack_video_quality.dart';
 
@@ -63,6 +65,9 @@ abstract interface class PlayStackControllerHost {
   /// Whether the device has no network now. Network errors are then not
   /// retried on a timer: the host retries when the network returns.
   bool get isOffline;
+
+  /// Where analytics events go, or null for none.
+  PlayStackAnalytics? get analytics;
 }
 
 /// Plays one video: play, pause, seek, volume, speed, tracks, and its
@@ -118,7 +123,98 @@ class PlayStackPlayerController extends ChangeNotifier
        ) {
     _tracks = PlayStackTrackState(() => _host.platform)
       ..storeQualityLimit(config.videoQualityLimit);
+    _analytics = _host.analytics?.track(this);
+    _sidecar = PlayStackSidecarSubtitles(_source.subtitles);
+    _tracks.tracks.addListener(_mergeTracks);
+    _tracks.subtitles.addListener(_mirrorNativeSubtitles);
   }
+
+  // Subtitle files next to the video (PlayStackSource.subtitles).
+  late PlayStackSidecarSubtitles _sidecar;
+  final ValueNotifier<List<PlayStackTrack>> _allTracks =
+      ValueNotifier<List<PlayStackTrack>>(const <PlayStackTrack>[]);
+  final ValueNotifier<List<String>> _shownSubtitles =
+      ValueNotifier<List<String>>(const <String>[]);
+  Timer? _sidecarTicker;
+  bool _sidecarDefaultApplied = false;
+
+  void _mergeTracks() {
+    final native = _tracks.tracks.value;
+    final sidecar = _sidecar.tracks();
+    if (sidecar.isEmpty) {
+      _allTracks.value = native;
+      return;
+    }
+    final active = _sidecar.isActive;
+    _allTracks.value = List<PlayStackTrack>.unmodifiable([
+      for (final track in native)
+        if (active && track.type == PlayStackTrackType.text && track.isSelected)
+          PlayStackTrack(
+            id: track.id,
+            type: track.type,
+            isSelected: false,
+            label: track.label,
+            language: track.language,
+          )
+        else
+          track,
+      ...sidecar,
+    ]);
+  }
+
+  void _mirrorNativeSubtitles() {
+    if (_sidecar.isActive) return;
+    _shownSubtitles.value = _tracks.subtitles.value;
+  }
+
+  /// Turns on subtitle file [index] (null: off) and follows the position.
+  Future<void> _selectSidecar(int? index) async {
+    _sidecarTicker?.cancel();
+    _sidecarTicker = null;
+    await _sidecar.select(index);
+    _mergeTracks();
+    if (!_sidecar.isActive) {
+      _shownSubtitles.value = _tracks.subtitles.value;
+      return;
+    }
+    _shownSubtitles.value = const <String>[];
+    _sidecarTicker = Timer.periodic(
+      const Duration(milliseconds: 200),
+      (_) => unawaited(_updateSidecar()),
+    );
+    await _updateSidecar();
+  }
+
+  Future<void> _updateSidecar() async {
+    if (_disposed || !_sidecar.isActive) return;
+    if (!_value.isInitialized) return;
+    final position = (await getPosition()).position;
+    if (_disposed || !_sidecar.isActive) return;
+    final lines = _sidecar.at(position);
+    if (!listEquals(lines, _shownSubtitles.value)) {
+      _shownSubtitles.value = lines;
+    }
+  }
+
+  void _resetSidecar() {
+    _sidecarTicker?.cancel();
+    _sidecarTicker = null;
+    _sidecar = PlayStackSidecarSubtitles(_source.subtitles);
+    _sidecarDefaultApplied = false;
+    _shownSubtitles.value = const <String>[];
+    _mergeTracks();
+  }
+
+  /// Whether only the sound plays ([setAudioOnly]).
+  ValueListenable<bool> get audioOnly => _audioOnly;
+  final ValueNotifier<bool> _audioOnly = ValueNotifier<bool>(false);
+
+  PlayStackAnalyticsTracker? _analytics;
+
+  /// Your id for this video, reported in analytics events
+  /// ([PlayStackAnalyticsEvent.contentId]) and shown by
+  /// `PlayStackDebugOverlay`. Feeds set it to the item id.
+  String? contentId;
 
   final PlayStackControllerHost _host;
   final Duration _initializeTimeout;
@@ -197,12 +293,15 @@ class PlayStackPlayerController extends ChangeNotifier
   /// Audio, video and text tracks of the prepared source. Updated by the
   /// engine; empty until the source is prepared and on engines without
   /// track support (see `PlayStackPlatformCapabilities.supportsTrackSelection`).
-  ValueListenable<List<PlayStackTrack>> get tracks => _tracks.tracks;
+  ///
+  /// Subtitle files of the source ([PlayStackSource.subtitles]) are listed
+  /// here too, as text tracks whose id starts with `sidecar:`.
+  ValueListenable<List<PlayStackTrack>> get tracks => _allTracks;
 
   /// Subtitle text to display now, one entry per cue. Empty when no
   /// subtitle track is selected or nothing is to be shown. Render it with
   /// your own widgets.
-  ValueListenable<List<String>> get subtitles => _tracks.subtitles;
+  ValueListenable<List<String>> get subtitles => _shownSubtitles;
 
   /// The current cap on the video quality of adaptive streams (HLS, DASH),
   /// set by `PlayStackPlayerConfig.videoQualityLimit` or
@@ -343,19 +442,27 @@ class PlayStackPlayerController extends ChangeNotifier
   /// Throws [PlayStackErrorCode.notInitialized] before the video is prepared.
   Future<void> seekTo(Duration position) => _command(() async {
     final lease = _requirePrepared('seekTo');
-    await _host.platform.seekTo(lease.playerId, _clampToDuration(position));
+    final target = _clampToDuration(position);
+    await _reportSeek(lease, target);
+    await _host.platform.seekTo(lease.playerId, target);
     _positionChanges.notifyListeners();
   });
+
+  Future<void> _reportSeek(PooledPlayer lease, Duration target) async {
+    final analytics = _analytics;
+    if (analytics == null || !analytics.wanted) return;
+    final from = await _host.platform.getPosition(lease.playerId);
+    analytics.seeking(from.position, target);
+  }
 
   /// Seeks [offset] relative to the current position. Negative offsets seek
   /// backwards.
   Future<void> seekBy(Duration offset) => _command(() async {
     final lease = _requirePrepared('seekBy');
     final current = await _host.platform.getPosition(lease.playerId);
-    await _host.platform.seekTo(
-      lease.playerId,
-      _clampToDuration(current.position + offset),
-    );
+    final target = _clampToDuration(current.position + offset);
+    _analytics?.seeking(current.position, target);
+    await _host.platform.seekTo(lease.playerId, target);
     _positionChanges.notifyListeners();
   });
 
@@ -425,6 +532,7 @@ class PlayStackPlayerController extends ChangeNotifier
     final resume = _value.isPlaying;
     _source = source;
     _tracks.resetForNewSource();
+    _resetSidecar();
     _videoQuality.value = null;
     _update(
       _value.copyWith(
@@ -450,6 +558,16 @@ class PlayStackPlayerController extends ChangeNotifier
   /// The choice is remembered for this source and re-applied if the
   /// controller has to prepare again.
   Future<void> selectTrack(PlayStackTrack track) => _command(() async {
+    final sidecar = PlayStackSidecarSubtitles.indexOf(track.id);
+    if (sidecar != null) {
+      // The stream's own subtitles go off while a file shows.
+      await _tracks.select(_preparedPlayerId, PlayStackTrackType.text, null);
+      await _selectSidecar(sidecar);
+      return;
+    }
+    if (track.type == PlayStackTrackType.text && _sidecar.isActive) {
+      await _selectSidecar(null);
+    }
     await _tracks.select(_preparedPlayerId, track.type, track.id);
     await _refreshTracks();
   });
@@ -459,9 +577,30 @@ class PlayStackPlayerController extends ChangeNotifier
   /// [disableSubtitles].
   Future<void> selectAutomaticTrack(PlayStackTrackType type) =>
       _command(() async {
+        if (type == PlayStackTrackType.text && _sidecar.isActive) {
+          await _selectSidecar(null);
+        }
         await _tracks.select(_preparedPlayerId, type, null);
         await _refreshTracks();
       });
+
+  /// Plays only the sound, for listening with the screen off or to save
+  /// data: the picture is no longer decoded, and adaptive streams load
+  /// their smallest rendition (or audio only). `PlayStackVideoView` shows
+  /// the poster meanwhile. Pass false to bring the picture back.
+  Future<void> setAudioOnly(bool audioOnly) => _command(() async {
+    if (_audioOnly.value == audioOnly) return;
+    _audioOnly.value = audioOnly;
+    await _applySettings();
+  });
+
+  /// Moves a live stream to the live edge, after the user paused or went
+  /// back in the DVR window. See [PlayStackPositionSnapshot.behindLive].
+  Future<void> seekToLiveEdge() => _command(() async {
+    final lease = _requirePrepared('seekToLiveEdge');
+    await _host.platform.seekToLiveEdge(lease.playerId);
+    _positionChanges.notifyListeners();
+  });
 
   /// Turns subtitles off: [subtitles] becomes empty until a text track is selected again.
   Future<void> disableSubtitles() =>
@@ -602,6 +741,7 @@ class PlayStackPlayerController extends ChangeNotifier
 
   Future<void> _releaseNow() async {
     if (_lease == null) return;
+    _analytics?.endVisit();
     _lease = null;
     _endPlaybackRequest();
     _tracks.clear();
@@ -654,6 +794,8 @@ class PlayStackPlayerController extends ChangeNotifier
         'The controller was disposed while preparing.',
       ),
     );
+    _analytics?.dispose();
+    _analytics = null;
     _update(
       _value.copyWith(
         status: PlayStackPlaybackStatus.disposed,
@@ -672,7 +814,13 @@ class PlayStackPlayerController extends ChangeNotifier
       await stream.close();
     }
     _positionStreams.clear();
+    _sidecarTicker?.cancel();
+    _tracks.tracks.removeListener(_mergeTracks);
+    _tracks.subtitles.removeListener(_mirrorNativeSubtitles);
     _tracks.dispose();
+    _allTracks.dispose();
+    _shownSubtitles.dispose();
+    _audioOnly.dispose();
     _videoQuality.dispose();
     _positionChanges.dispose();
     unawaited(_interruptions.close());
@@ -764,6 +912,7 @@ class PlayStackPlayerController extends ChangeNotifier
   @internal
   void onPoolLeaseRevoked() {
     if (_lease == null) return;
+    _analytics?.endVisit();
     _lease = null;
     _playbackRequested = false;
     _failPreparation(
@@ -846,6 +995,18 @@ class PlayStackPlayerController extends ChangeNotifier
         _value.copyWith(status: PlayStackPlaybackStatus.ready, videoInfo: info),
       );
       unawaited(_refreshTracks().catchError(_reportBackgroundError));
+      if (!_sidecarDefaultApplied) {
+        _sidecarDefaultApplied = true;
+        final index = _sidecar.defaultIndex;
+        if (index != null && !_sidecar.isActive) {
+          await _tracks.select(lease.playerId, PlayStackTrackType.text, null);
+          unawaited(_selectSidecar(index));
+        }
+      } else if (_sidecar.isActive) {
+        // A new player: the stream's own subtitles stay off.
+        await _tracks.select(lease.playerId, PlayStackTrackType.text, null);
+      }
+      _mergeTracks();
     } on PlayStackException catch (error) {
       if (_disposed) return;
       _preparationClock.stop();
@@ -1056,6 +1217,16 @@ class PlayStackPlayerController extends ChangeNotifier
     if (applied.preloadBufferLimit != bufferLimit) {
       await platform.setPreloadBufferLimit(lease.playerId, bufferLimit);
       applied.preloadBufferLimit = bufferLimit;
+    }
+    if (applied.videoDisabled != _audioOnly.value) {
+      try {
+        await platform.setVideoDisabled(lease.playerId, _audioOnly.value);
+      } on UnimplementedError {
+        // The engine cannot drop the picture; the view hides it.
+      } on PlayStackException catch (error) {
+        if (error.code != PlayStackErrorCode.notImplemented) rethrow;
+      }
+      applied.videoDisabled = _audioOnly.value;
     }
     if (_managesQualityLimit) {
       final qualityLimit = _desiredQualityLimit;
