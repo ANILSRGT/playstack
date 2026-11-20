@@ -1,4 +1,4 @@
-## 0.1.0-dev.1
+## 0.1.0-dev.10
 
 * First version: `PlayStackCast` (state, device name, remote playback,
   `castController` and `stopCasting` to move a PlayStack video to the

@@ -964,9 +964,7 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
                 _drag ??
                 _seekValue ??
                 position.inMilliseconds / duration.inMilliseconds;
-            final height = _drag != null
-                ? widget.height * 2.5
-                : widget.height;
+            final height = _drag != null ? widget.height * 2.5 : widget.height;
             return SizedBox(
               height: height,
               child: LinearProgressIndicator(
@@ -1005,8 +1003,7 @@ class _PlayStackProgressBarState extends State<PlayStackProgressBar> {
                     clipBehavior: Clip.none,
                     children: [
                       Align(alignment: Alignment.bottomCenter, child: bar),
-                      if (_drag case final value?
-                          when widget.showScrubPreview)
+                      if (_drag case final value? when widget.showScrubPreview)
                         _preview(context, value, width, duration),
                     ],
                   ),

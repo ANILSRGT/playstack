@@ -82,9 +82,7 @@ List<Object> withSuggestions(List<DemoVideo> videos, {int every = 6}) {
 PlayStackThumbnails previewThumbnails(PlayStackSource source) {
   final url = source is PlayStackNetworkSource ? source.url : null;
   if (url != null && url.startsWith('$_cloudinary/')) {
-    final path = url
-        .substring(_cloudinary.length + 1)
-        .replaceAll('.m3u8', '');
+    final path = url.substring(_cloudinary.length + 1).replaceAll('.m3u8', '');
     final id = path
         .split('/')
         .skipWhile((part) => part.startsWith('sp_') || part.contains(','))

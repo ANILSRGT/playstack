@@ -1,6 +1,6 @@
 name: playstack_platform_interface
 description: A common platform interface for the PlayStack video playback plugin.
-version: 0.1.0-dev.8
+version: 0.1.0-dev.10
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack_platform_interface
 issue_tracker: https://github.com/ANILSRGT/playstack/issues

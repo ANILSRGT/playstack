@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.10
 
 * Live streams: window and live edge from `seekable`, `seekToLiveEdge`.
 * `setVideoDisabled` (audio only) hides the video element.

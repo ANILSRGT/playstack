@@ -254,7 +254,8 @@ final class PlayStackFileSource extends PlayStackSource {
       listEquals(other.subtitles, subtitles);
 
   @override
-  int get hashCode => Object.hash(path, formatHint, id, Object.hashAll(subtitles));
+  int get hashCode =>
+      Object.hash(path, formatHint, id, Object.hashAll(subtitles));
 
   @override
   String toString() => 'PlayStackSource.file($path)';
@@ -294,8 +295,13 @@ final class PlayStackAssetSource extends PlayStackSource {
       listEquals(other.subtitles, subtitles);
 
   @override
-  int get hashCode =>
-      Object.hash(assetName, package, formatHint, id, Object.hashAll(subtitles));
+  int get hashCode => Object.hash(
+    assetName,
+    package,
+    formatHint,
+    id,
+    Object.hashAll(subtitles),
+  );
 
   @override
   String toString() => 'PlayStackSource.asset($description)';

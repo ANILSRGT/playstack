@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.10
 
 * Downloads: `PlayStackDownloadRequest`, `PlayStackDownload`,
   `PlayStackDownloadState`, `PlayStackDownloadChange`;

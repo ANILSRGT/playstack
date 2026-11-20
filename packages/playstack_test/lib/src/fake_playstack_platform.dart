@@ -47,10 +47,13 @@ class FakePlayStackPlatform extends PlayStackPlatform {
 
   /// Reported as the recommended player count.
   final int recommendedMaxPlayers;
+
   /// Reported as a low-memory device.
   final bool isLowRamDevice;
+
   /// Whether the network status is reported.
   final bool supportsNetworkStatus;
+
   /// Whether the disk cache is reported as supported.
   final bool supportsDiskCache;
 
@@ -72,6 +75,7 @@ class FakePlayStackPlatform extends PlayStackPlatform {
   /// Every enterFullscreen request, in order.
   final List<PlayStackFullscreenRequest> fullscreenRequests =
       <PlayStackFullscreenRequest>[];
+
   /// Every exitFullscreen request, in order.
   final List<PlayStackFullscreenRestore> fullscreenRestores =
       <PlayStackFullscreenRestore>[];
@@ -108,6 +112,7 @@ class FakePlayStackPlatform extends PlayStackPlatform {
   /// When true, every setSource is answered with an initialized event and a
   /// first-frame event.
   bool autoPrepare;
+
   /// Whether quality limits are reported as supported.
   bool supportsVideoQualityLimit;
 
@@ -139,19 +144,25 @@ class FakePlayStackPlatform extends PlayStackPlatform {
 
   /// Every engine call as text, such as `play(1)` or `seekTo(1, 5000)`.
   final List<String> calls = <String>[];
+
   /// The ids of the players that exist now.
   final Set<int> livePlayers = <int>{};
+
   /// The current source generation per player.
   final Map<int, int> generations = <int, int>{};
+
   /// The live edge per player, for live streams.
   final Map<int, Duration> liveEdges = <int, Duration>{};
 
   /// The playback position per player; set it to move playback.
   final Map<int, Duration> positions = <int, Duration>{};
+
   /// How often initialize was called.
   int initializeCalls = 0;
+
   /// How many players were created.
   int createCalls = 0;
+
   /// The most players that existed at the same time.
   int maxLivePlayers = 0;
   int _nextId = 1;
@@ -479,6 +490,7 @@ class FakePlayStackPlatform extends PlayStackPlatform {
 
   /// Returned by isPictureInPictureSupported.
   bool supportsPictureInPicture = true;
+
   /// How often Picture-in-Picture was started.
   int pictureInPictureStarts = 0;
 

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.10
 
 * Offline viewing: `PlayStackManager.downloads` (`PlayStackDownloads`)
   saves network videos and plays them without a network. Off until the app

@@ -59,7 +59,7 @@ print('${caps.engineName} ${caps.engineVersion}, '
   (API 36) arm64 emulator and an iOS 26.5 simulator, including the
   benchmark. Rendering orientation was checked against ffmpeg reference
   frames.
-- **Features added after 0.1.0-dev.9** (subtitle files, audio only, live
+- **Features added in 0.1.0-dev.10** (subtitle files, audio only, live
   edge, VAST ads, brightness, frame reading) pass on an iOS simulator
   (iPhone 17 Pro Max). DRM, AirPlay and Chromecast need devices and have
   not been verified.

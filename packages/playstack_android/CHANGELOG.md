@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.10
 
 * DRM: Widevine, PlayReady and ClearKey through Media3's
   `DrmConfiguration`; protected players render into a secure

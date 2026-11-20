@@ -132,24 +132,29 @@ void main() {
     expect(end.stalls, 1);
   });
 
-  test('the app-wide stream sees every manager; disabled reports nothing',
-      () async {
-    final all = <PlayStackAnalyticsEvent>[];
-    final subscription = PlayStackAnalytics.all.listen(all.add);
-    final quiet = PlayStackManager(
-      config: const PlayStackConfig(
-        analytics: PlayStackAnalyticsConfig.disabled,
-      ),
-      platform: platform,
-    );
-    await quiet.initialize();
-    await quiet.createController(source).play();
-    await flush();
-    expect(all, isEmpty);
-    await manager.createController(source).play();
-    await flush();
-    expect(all.map((e) => e.name), containsAll(['video_load', 'video_start']));
-    await subscription.cancel();
-    await quiet.dispose();
-  });
+  test(
+    'the app-wide stream sees every manager; disabled reports nothing',
+    () async {
+      final all = <PlayStackAnalyticsEvent>[];
+      final subscription = PlayStackAnalytics.all.listen(all.add);
+      final quiet = PlayStackManager(
+        config: const PlayStackConfig(
+          analytics: PlayStackAnalyticsConfig.disabled,
+        ),
+        platform: platform,
+      );
+      await quiet.initialize();
+      await quiet.createController(source).play();
+      await flush();
+      expect(all, isEmpty);
+      await manager.createController(source).play();
+      await flush();
+      expect(
+        all.map((e) => e.name),
+        containsAll(['video_load', 'video_start']),
+      );
+      await subscription.cancel();
+      await quiet.dispose();
+    },
+  );
 }

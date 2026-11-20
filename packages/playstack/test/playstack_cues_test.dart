@@ -26,7 +26,10 @@ void main() {
 
     tearDown(() => manager.dispose());
 
-    Future<void> playTo(PlayStackPlayerController controller, int seconds) async {
+    Future<void> playTo(
+      PlayStackPlayerController controller,
+      int seconds,
+    ) async {
       final id = controller.nativePlayerId!;
       final from = (platform.positions[id] ?? Duration.zero).inSeconds;
       for (var s = from + 1; s <= seconds; s++) {
@@ -94,9 +97,8 @@ void main() {
         onCue: (cue) => fired.add(cue.id),
       );
       expect(
-        const PlayStackCue.fromEnd(
-          Duration(seconds: 10),
-        ).positionIn(const Duration(seconds: 100)),
+        const PlayStackCue.fromEnd(Duration(seconds: 10))
+            .positionIn(const Duration(seconds: 100)),
         const Duration(seconds: 90),
       );
       await controller.play();

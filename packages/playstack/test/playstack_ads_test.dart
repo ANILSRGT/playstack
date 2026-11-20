@@ -139,11 +139,14 @@ void main() {
       await flush();
       expect(ads.isPlayingAd, isFalse);
       expect(controller.value.isPlaying, isTrue);
-      expect(events, containsAll([
-        PlayStackAdEvent.impression,
-        PlayStackAdEvent.start,
-        PlayStackAdEvent.complete,
-      ]));
+      expect(
+        events,
+        containsAll([
+          PlayStackAdEvent.impression,
+          PlayStackAdEvent.start,
+          PlayStackAdEvent.complete,
+        ]),
+      );
       ads.dispose();
     });
 

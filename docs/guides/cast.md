@@ -24,8 +24,8 @@ not cast do not ship the Google Cast SDK.
 
 ```yaml
 dependencies:
-  playstack: ^0.1.0-dev.9
-  playstack_cast: ^0.1.0-dev.1
+  playstack: ^0.1.0-dev.10
+  playstack_cast: ^0.1.0-dev.10
 ```
 
 ### Setup

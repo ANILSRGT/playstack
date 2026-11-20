@@ -69,16 +69,25 @@ void main() {
     );
     final id = platform.livePlayers.single;
     platform.positions[id] = const Duration(seconds: 30);
-    await tester.tapAt(tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) + const Offset(280, 300));
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) +
+          const Offset(280, 300),
+    );
     await tester.pump(const Duration(milliseconds: 50));
-    await tester.tapAt(tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) + const Offset(280, 300));
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) +
+          const Offset(280, 300),
+    );
     await tester.pump(const Duration(milliseconds: 50));
     await tester.runAsync(flush);
     expect(platform.calls, contains('seekTo($id, 40000)'));
     expect(find.text('+10 s'), findsOneWidget);
 
     // A third tap on the same side jumps again.
-    await tester.tapAt(tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) + const Offset(280, 300));
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(PlayStackFeedView<Object?>)) +
+          const Offset(280, 300),
+    );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.runAsync(flush);
     expect(find.text('+20 s'), findsOneWidget);

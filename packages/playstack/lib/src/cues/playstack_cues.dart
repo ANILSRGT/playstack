@@ -273,13 +273,12 @@ class PlayStackTransition<T> {
 
 /// Builds what a feed shows over a video while a cue is active. Call
 /// `dismiss` to end the cue.
-typedef PlayStackCueBuilder<T> =
-    Widget Function(
-      BuildContext context,
-      PlayStackFeedPage<T> page,
-      PlayStackCue cue,
-      VoidCallback dismiss,
-    );
+typedef PlayStackCueBuilder<T> = Widget Function(
+  BuildContext context,
+  PlayStackFeedPage<T> page,
+  PlayStackCue cue,
+  VoidCallback dismiss,
+);
 
 /// Your moments in the videos of a [PlayStackFeedView]: cues at positions
 /// of each item, and a hook between items. All optional; the feed shows and

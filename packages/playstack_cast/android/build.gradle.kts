@@ -1,5 +1,5 @@
 group = "dev.playstack.cast"
-version = "0.1.0-dev.1"
+version = "0.1.0-dev.10"
 
 buildscript {
     val kotlinVersion = "2.4.0"

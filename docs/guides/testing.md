@@ -6,7 +6,7 @@ without a device, and you can check what they asked the engine to do.
 
 ```yaml
 dev_dependencies:
-  playstack_test: ^0.1.0-dev.1
+  playstack_test: ^0.1.0-dev.10
 ```
 
 ```dart

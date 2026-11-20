@@ -248,10 +248,12 @@ class PlayStackCast {
       final position = _playback.value.position;
       _local = null;
       if (local != null && !local.isDisposed) {
-        unawaited(() async {
-          if (position > Duration.zero) await local.seekTo(position);
-          await local.play();
-        }().catchError((Object _) {}));
+        unawaited(
+          () async {
+            if (position > Duration.zero) await local.seekTo(position);
+            await local.play();
+          }().catchError((Object _) {}),
+        );
       }
     }
   }

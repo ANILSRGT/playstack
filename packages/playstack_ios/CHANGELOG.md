@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.0-dev.10
 
 * FairPlay through `AVContentKeySession`: certificate download, SPC to
   the license server, CKC back. Protected players render into an
