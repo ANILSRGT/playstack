@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:playstack/playstack.dart';
 
 /// One post of the demo feed.
@@ -73,6 +74,43 @@ List<Object> withSuggestions(List<DemoVideo> videos, {int every = 6}) {
       if ((i + 1) % every == 0) SuggestionCard(authors),
     ],
   ];
+}
+
+/// Preview images for the progress bar. Cloudinary and Mux serve a still
+/// at any second of their videos; other sources use frames read from the
+/// video itself (MP4 and files only).
+PlayStackThumbnails previewThumbnails(PlayStackSource source) {
+  final url = source is PlayStackNetworkSource ? source.url : null;
+  if (url != null && url.startsWith('$_cloudinary/')) {
+    final path = url
+        .substring(_cloudinary.length + 1)
+        .replaceAll('.m3u8', '');
+    final id = path
+        .split('/')
+        .skipWhile((part) => part.startsWith('sp_') || part.contains(','))
+        .join('/');
+    final shape = path.contains('ar_9:16') ? 'c_fill,ar_9:16,w_180' : 'w_320';
+    return PlayStackThumbnails.builder(
+      (position) => PlayStackThumbnail(
+        NetworkImage(
+          '$_cloudinary/so_${position.inSeconds ~/ 2 * 2},$shape,q_auto/$id.jpg',
+        ),
+      ),
+    );
+  }
+  const mux = 'https://stream.mux.com/';
+  if (url != null && url.startsWith(mux)) {
+    final id = url.substring(mux.length).replaceAll('.m3u8', '');
+    return PlayStackThumbnails.builder(
+      (position) => PlayStackThumbnail(
+        NetworkImage(
+          'https://image.mux.com/$id/thumbnail.jpg'
+          '?time=${position.inSeconds ~/ 2 * 2}&width=320',
+        ),
+      ),
+    );
+  }
+  return PlayStackThumbnails.frames(source);
 }
 
 /// The vertical 9:16 clips only; the drama demo uses them as episodes.

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:playstack/playstack.dart';
+import 'package:playstack_cast/playstack_cast.dart';
 
+import '../catalog.dart';
 import 'drama_data.dart';
 import 'offline.dart';
 import 'series_page.dart';
@@ -20,7 +22,14 @@ import '../loading_animation.dart';
 /// * keeps playing on the lock screen and in the notification, with skip
 ///   buttons between episodes (`mediaInfo`);
 /// * keeps playing in a small window when the user leaves the app
-///   (`pictureInPicture`).
+///   (`pictureInPicture`);
+/// * continues each episode where it was left, skips the intro and offers
+///   the next episode with a countdown (`series`);
+/// * plays a pre-roll ad before even episodes for users without premium
+///   (`ads`, a sample VAST tag);
+/// * double tap to jump 10 s, drag for brightness and volume in fullscreen;
+/// * sleep timer, audio only, debug panel, Chromecast and AirPlay in the
+///   menu.
 class EpisodePlayerPage extends StatefulWidget {
   const EpisodePlayerPage({
     super.key,
@@ -37,6 +46,42 @@ class EpisodePlayerPage extends StatefulWidget {
 
 class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
   final _view = PlayStackFeedViewController();
+  bool _debugInfo = false;
+
+  /// Google's sample VAST tag: one linear ad, skippable after 5 seconds.
+  static const _sampleVast =
+      'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/'
+      'single_ad_samples&sz=640x480&cust_params=sample_ct%3Dlinear&ciu_szs='
+      '300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&'
+      'env=vp&impl=s&correlator=[CACHEBUSTING]';
+
+  @override
+  void initState() {
+    super.initState();
+    // PlayStack does not open URLs itself; a real app would use
+    // url_launcher here.
+    PlayStackAds.onClick = (ad, url) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Advertiser page: $url')));
+    };
+  }
+
+  Future<void> _showMenu(PlayStackFeedPage<Episode> page) async {
+    final manager = _view.manager;
+    if (manager == null) return;
+    _view.pause();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => _PlayerMenu(
+        controller: page.controller,
+        sleepTimer: manager.sleepTimer,
+        debugInfo: _debugInfo,
+        onDebugInfo: (value) => setState(() => _debugInfo = value),
+      ),
+    );
+    _view.resume();
+  }
 
   @override
   void dispose() {
@@ -62,49 +107,115 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
     return Scaffold(
       // Rebuilt when an episode is unlocked: isLocked is asked again and the
       // episode starts playing.
-      body: ListenableBuilder(
-        listenable: watchProgress,
-        builder: (context, _) => PlayStackFeedView<Episode>(
-          items: series.episodes,
-          source: (episode) => episode.source,
-          posterUrl: (episode) => episode.poster,
-          controller: _view,
-          initialIndex: series.episodes.indexOf(widget.episode),
-          startPosition: watchProgress.positionOf,
-          isLocked: watchProgress.isLocked,
-          lockedBuilder: (context, episode, isActive) =>
-              _Paywall(series: series, episode: episode),
-          autoAdvance: true,
-          onItemViewed: watchProgress.record,
-          cinemaMode: PlayStackCinemaMode.fullscreen,
-          mediaInfo: (episode) => PlayStackMediaInfo(
-            title: 'Episode ${episode.number}: ${episode.title}',
-            artist: series.title,
-            artworkUrl: episode.poster,
-          ),
-          pictureInPicture: true,
-          // The app's own error screen: a message for the user and a way
-          // back to the episode list.
-          errorBuilder: (context, page, error) => _EpisodeError(
-            episode: page.data,
-            error: error,
-            onRetry: page.controller.retry,
-            onEpisodes: () => unawaited(_showEpisodes(page.data)),
-          ),
-          controlsBuilder: (context, page) => PlayStackDefaultControls(
-            page: page,
-            // Hold to watch at 2x, as drama apps do.
-            holdAction: PlayStackHoldAction.speedUp,
-            bufferingIndicator: const LoadingAnimation(),
-            child: page.isFullscreen
-                ? null
-                : _EpisodeOverlay(
-                    series: series,
-                    episode: page.data,
-                    onEpisodes: () => unawaited(_showEpisodes(page.data)),
-                    onPictureInPicture: () =>
-                        unawaited(_view.startPictureInPicture()),
+      body: SafeArea(
+        top: false,
+        child: ListenableBuilder(
+          listenable: watchProgress,
+          builder: (context, _) => PlayStackFeedView<Episode>(
+            items: series.episodes,
+            source: (episode) => episode.source,
+            posterUrl: (episode) => episode.poster,
+            itemId: (episode) => episode.id,
+            controller: _view,
+            initialIndex: series.episodes.indexOf(widget.episode),
+            isLocked: watchProgress.isLocked,
+            lockedBuilder: (context, episode, isActive) =>
+                _Paywall(series: series, episode: episode),
+            autoAdvance: true,
+            series: PlayStackSeries(
+              progress: episodeProgress,
+              skipMarkers: (episode) => [
+                PlayStackSkipMarker.intro(
+                  start: const Duration(milliseconds: 500),
+                  end: episode.introEnd,
+                ),
+              ],
+              nextUp: const PlayStackNextUp(
+                countdown: Duration(seconds: 5),
+                showBefore: Duration(seconds: 8),
+              ),
+              nextUpLabel: (next) => 'Episode ${next.number}: ${next.title}',
+            ),
+            ads: PlayStackFeedAds(
+              breaks: (episode) => [
+                if (!offline.isPremium && episode.number.isEven)
+                  PlayStackAdBreak.preRoll(PlayStackAdSource.vast(_sampleVast)),
+              ],
+            ),
+            // The app's own moments. A poll card a few seconds into odd
+            // episodes, and an interstitial between episodes for free
+            // users: where a real app calls its ad SDK (AdMob and the
+            // like). The next episode waits until it closes.
+            cues: PlayStackFeedCues(
+              cues: (episode) => [
+                if (episode.number.isOdd)
+                  const PlayStackCue(
+                    at: Duration(seconds: 6),
+                    id: 'poll',
+                    showFor: Duration(seconds: 8),
                   ),
+              ],
+              builder: (context, page, cue, dismiss) =>
+                  _PollCard(onClose: dismiss),
+              onTransition: (context, move) async {
+                if (offline.isPremium || !move.isForward) return;
+                if (move.count % 3 != 0) return;
+                await _InterstitialAd.show(context);
+              },
+            ),
+            cinemaMode: PlayStackCinemaMode.fullscreen,
+            mediaInfo: (episode) => PlayStackMediaInfo(
+              title: 'Episode ${episode.number}: ${episode.title}',
+              artist: series.title,
+              artworkUrl: episode.poster,
+            ),
+            pictureInPicture: true,
+            // The app's own error screen: a message for the user and a way
+            // back to the episode list.
+            errorBuilder: (context, page, error) => _EpisodeError(
+              episode: page.data,
+              error: error,
+              onRetry: page.controller.retry,
+              onEpisodes: () => unawaited(_showEpisodes(page.data)),
+            ),
+            controlsBuilder: (context, page) => PlayStackDefaultControls(
+              page: page,
+              // Hold to watch at 2x, as drama apps do.
+              holdAction: PlayStackHoldAction.speedUp,
+              doubleTapToSeek: const Duration(seconds: 10),
+              dragGestures: PlayStackDragGestures.fullscreen,
+              horizontalDragToSeek: true,
+              thumbnails: previewThumbnails(page.data.source),
+              scrubPreviewBuilder: (context, position, thumbnail) =>
+                  PlayStackScrubPreview(
+                    position: position,
+                    thumbnail: thumbnail,
+                    thumbnailSize: const Size(90, 160),
+                  ),
+              showDebugInfo: _debugInfo,
+              bufferingIndicator: const LoadingAnimation(),
+              child: page.isFullscreen
+                  ? null
+                  : _EpisodeOverlay(
+                      series: series,
+                      episode: page.data,
+                      onEpisodes: () => unawaited(_showEpisodes(page.data)),
+                      onPictureInPicture: () =>
+                          unawaited(_view.startPictureInPicture()),
+                      onMenu: () => unawaited(_showMenu(page)),
+                      onCast: () => unawaited(
+                        PlayStackCast.instance.castController(
+                          page.controller,
+                          info: PlayStackMediaInfo(
+                            title:
+                                'Episode ${page.data.number}: ${page.data.title}',
+                            artist: series.title,
+                            artworkUrl: page.data.poster,
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
           ),
         ),
       ),
@@ -257,12 +368,16 @@ class _EpisodeOverlay extends StatelessWidget {
     required this.episode,
     required this.onEpisodes,
     required this.onPictureInPicture,
+    required this.onMenu,
+    required this.onCast,
   });
 
   final Series series;
   final Episode episode;
   final VoidCallback onEpisodes;
   final VoidCallback onPictureInPicture;
+  final VoidCallback onMenu;
+  final VoidCallback onCast;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +405,8 @@ class _EpisodeOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
+                const PlayStackAirPlayButton(size: 36),
+                PlayStackCastButton(onConnected: onCast),
                 IconButton(
                   tooltip: 'Picture-in-Picture',
                   icon: const Icon(
@@ -297,6 +414,11 @@ class _EpisodeOverlay extends StatelessWidget {
                     shadows: shadow,
                   ),
                   onPressed: onPictureInPicture,
+                ),
+                IconButton(
+                  tooltip: 'More',
+                  icon: const Icon(Icons.more_vert_rounded, shadows: shadow),
+                  onPressed: onMenu,
                 ),
               ],
             ),
@@ -380,6 +502,237 @@ class _EpisodeSheet extends StatelessWidget {
                     onTap: () => Navigator.of(context).pop(episode),
                   ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sleep timer, audio only and the debug panel.
+class _PlayerMenu extends StatelessWidget {
+  const _PlayerMenu({
+    required this.controller,
+    required this.sleepTimer,
+    required this.debugInfo,
+    required this.onDebugInfo,
+  });
+
+  final PlayStackPlayerController controller;
+  final PlayStackSleepTimer sleepTimer;
+  final bool debugInfo;
+  final ValueChanged<bool> onDebugInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: ListenableBuilder(
+        listenable: Listenable.merge([sleepTimer, controller.audioOnly]),
+        builder: (context, _) {
+          final remaining = sleepTimer.remaining;
+          final sleepLabel = sleepTimer.isEndOfVideo
+              ? 'At the end of this episode'
+              : remaining == null
+              ? 'Off'
+              : '${formatPosition(remaining)} left';
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.bedtime_outlined),
+                title: const Text('Sleep timer'),
+                subtitle: Text(sleepLabel),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final (label, duration) in const [
+                      ('30 s (demo)', Duration(seconds: 30)),
+                      ('15 min', Duration(minutes: 15)),
+                      ('30 min', Duration(minutes: 30)),
+                    ])
+                      ActionChip(
+                        label: Text(label),
+                        onPressed: () => sleepTimer.start(duration),
+                      ),
+                    ActionChip(
+                      label: const Text('End of episode'),
+                      onPressed: sleepTimer.startEndOfVideo,
+                    ),
+                    if (sleepTimer.isActive)
+                      ActionChip(
+                        label: const Text('Off'),
+                        onPressed: sleepTimer.cancel,
+                      ),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.headphones_rounded),
+                title: const Text('Audio only'),
+                subtitle: const Text('Listen with less data; the poster shows'),
+                value: controller.audioOnly.value,
+                onChanged: (value) => unawaited(controller.setAudioOnly(value)),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.bug_report_outlined),
+                title: const Text('Debug panel'),
+                subtitle: const Text('Bitrate, buffer, timings, pool'),
+                value: debugInfo,
+                onChanged: (value) {
+                  onDebugInfo(value);
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A poll over the playing episode: the app's own widget, shown by a
+/// PlayStack cue and closed with `dismiss`.
+class _PollCard extends StatelessWidget {
+  const _PollCard({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Align(
+        alignment: const Alignment(0, -0.55),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xE6202020),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Will they meet again?',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: onClose,
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  for (final answer in const ['Yes', 'No'])
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilledButton.tonal(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('You voted "$answer"')),
+                            );
+                            onClose();
+                          },
+                          child: Text(answer),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stands in for an interstitial of an ad SDK such as AdMob: full screen,
+/// closable after a few seconds. A real app awaits its SDK's show call in
+/// `onTransition` instead.
+class _InterstitialAd extends StatefulWidget {
+  const _InterstitialAd();
+
+  static Future<void> show(BuildContext context) => showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    pageBuilder: (context, _, _) => const _InterstitialAd(),
+  );
+
+  @override
+  State<_InterstitialAd> createState() => _InterstitialAdState();
+}
+
+class _InterstitialAdState extends State<_InterstitialAd> {
+  int _left = 3;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_left <= 1) timer.cancel();
+      setState(() => _left--);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF101418),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.campaign_rounded, size: 64),
+                  SizedBox(height: 16),
+                  Text(
+                    'Interstitial ad',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Your ad SDK shows its ad here.\n'
+                    'The next episode starts when it closes.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: _left > 0
+                  ? Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text('$_left'),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
             ),
           ],
         ),

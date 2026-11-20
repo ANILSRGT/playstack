@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:playstack/playstack.dart';
 
 import 'drama/offline.dart';
 import 'launcher_page.dart';
@@ -13,6 +14,10 @@ Future<void> main() async {
   // Downloads are off until the user is premium (the switch on the
   // downloads page of the drama app).
   await offline.initialize();
+  // Every video event of the app, ready for an analytics service.
+  PlayStackAnalytics.all.listen(
+    (event) => debugPrint('[analytics] ${event.name} ${event.parameters}'),
+  );
   runApp(const DemoApp());
 }
 

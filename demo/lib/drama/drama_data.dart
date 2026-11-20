@@ -17,6 +17,12 @@ class Episode {
   final String title;
   final PlayStackSource source;
   final String? poster;
+
+  /// The id PlayStack saves the position under.
+  String get id => 'coastline-$number';
+
+  /// The opening titles, skipped with "Skip intro". Made up for the demo.
+  Duration get introEnd => const Duration(seconds: 4);
 }
 
 /// A short vertical drama: a series of episodes watched in order.
@@ -42,19 +48,52 @@ final Series demoSeries = Series(
       Episode(
         number: i + 1,
         title: video.title,
-        source: video.source,
+        source: i == 0 ? _withSubtitles(video.source) : video.source,
         poster: video.poster,
       ),
   ],
 );
 
-/// Where the user is in each episode. A real app would save this on the
-/// device or its backend.
+/// Adds subtitle files to a source. A real app would point
+/// `PlayStackSubtitleSource.network` at its `.vtt` or `.srt` files.
+PlayStackSource _withSubtitles(PlayStackSource source) {
+  if (source is! PlayStackNetworkSource) return source;
+  return PlayStackSource.network(
+    source.url,
+    cacheKey: source.cacheKey,
+    subtitles: const [
+      PlayStackSubtitleSource.text(
+        'WEBVTT\n\n00:00.500 --> 00:03.000\nPrevious summer, on the coast…\n\n'
+        '00:03.500 --> 00:07.000\nThe waves had not changed.\n\n'
+        '00:07.500 --> 00:12.000\nBut we had.',
+        language: 'en',
+        label: 'English',
+      ),
+      PlayStackSubtitleSource.text(
+        'WEBVTT\n\n00:00.500 --> 00:03.000\nGeçen yaz, sahilde…\n\n'
+        '00:03.500 --> 00:07.000\nDalgalar değişmemişti.\n\n'
+        '00:07.500 --> 00:12.000\nAma biz değişmiştik.',
+        language: 'tr',
+        label: 'Türkçe',
+      ),
+    ],
+  );
+}
+
+/// Where the user is in each episode, and which episodes are unlocked.
+///
+/// Positions are kept by PlayStack's `PlayStackWatchProgress`
+/// ([episodeProgress]), which the episode feed fills by itself
+/// (`PlayStackSeries.progress`). A real app would give it a storage, for
+/// example shared_preferences.
 class WatchProgress extends ChangeNotifier {
+  WatchProgress() {
+    episodeProgress.addListener(notifyListeners);
+  }
+
   /// Episodes after this one need unlocking, as in short-drama apps.
   static const freeEpisodes = 5;
 
-  final Map<int, Duration> _positions = {};
   final Set<int> _unlocked = {};
 
   /// Whether [episode] is still locked for this user.
@@ -67,42 +106,32 @@ class WatchProgress extends ChangeNotifier {
     if (_unlocked.add(episode.number)) notifyListeners();
   }
 
-  final Set<int> _finished = {};
-  int? _lastEpisode;
-
   /// Where to continue [episode], or null to start at the beginning.
-  Duration? positionOf(Episode episode) => _positions[episode.number];
+  Duration? positionOf(Episode episode) =>
+      episodeProgress.resumePosition(episode.id);
 
-  bool isFinished(Episode episode) => _finished.contains(episode.number);
+  bool isFinished(Episode episode) =>
+      episodeProgress[episode.id]?.finished ?? false;
 
   /// The episode to continue with: the last one left unfinished, or the one
   /// after the last finished one.
   Episode? continueWith(Series series) {
-    final last = _lastEpisode;
-    if (last == null) return null;
-    final index = series.episodes.indexWhere((e) => e.number == last);
-    if (index < 0) return null;
-    final episode = series.episodes[index];
-    if (!isFinished(episode)) return episode;
-    return index + 1 < series.episodes.length
-        ? series.episodes[index + 1]
-        : null;
-  }
-
-  /// Records a visit reported by `PlayStackFeedView.onItemViewed`.
-  void record(PlayStackItemView<Episode> view) {
-    final episode = view.data;
-    if (view.position == null && !view.completed) return; // never played
-    _lastEpisode = episode.number;
-    if (view.completed) {
-      _finished.add(episode.number);
-      _positions.remove(episode.number);
-    } else {
-      _positions[episode.number] = view.position!;
+    for (final entry in episodeProgress.entries) {
+      final index = series.episodes.indexWhere((e) => e.id == entry.id);
+      if (index < 0) continue;
+      if (!entry.finished) return series.episodes[index];
+      return index + 1 < series.episodes.length
+          ? series.episodes[index + 1]
+          : null;
     }
-    notifyListeners();
+    return null;
   }
 }
+
+/// Saves where the user stopped each episode. Without a storage it lives
+/// while the app runs; pass `PlayStackProgressStorage.keyValue(...)` to keep
+/// it.
+final episodeProgress = PlayStackWatchProgress();
 
 final watchProgress = WatchProgress();
 

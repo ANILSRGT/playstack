@@ -46,6 +46,18 @@ class _PostControlsState extends State<PostControls>
       page: page,
       onDoubleTap: _onDoubleTap,
       bufferingIndicator: const LoadingAnimation(),
+      // Drag sideways anywhere on the video to move in it; the thin bar at
+      // the bottom edge is hard to hit next to the home gesture.
+      horizontalDragToSeek: true,
+      thumbnails: previewThumbnails(page.data.source),
+      scrubPreviewBuilder: (context, position, thumbnail) =>
+          PlayStackScrubPreview(
+            position: position,
+            thumbnail: thumbnail,
+            thumbnailSize: page.data.isVertical
+                ? const Size(90, 160)
+                : const Size(160, 90),
+          ),
       child: Stack(
         fit: StackFit.expand,
         children: [

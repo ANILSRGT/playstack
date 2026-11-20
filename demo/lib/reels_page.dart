@@ -106,43 +106,46 @@ class _ReelsPageState extends State<ReelsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (widget.preload case final preload?)
-            // Prepared on the launcher: the first video plays at once.
-            PlayStackFeedView<Object>.preloaded(
-              preload,
-              controller: _view,
-              transition: PlayStackFeedTransition.stack,
-              onLoadMore: _loadMore,
-              onRefresh: _refresh,
-              onItemViewed: demoState.recordView,
-              controlsBuilder: _controls,
-              pageBuilder: _suggestion,
-              // Lock screen controls, and a small window on leaving the app.
-              mediaInfo: _mediaInfoOf,
-              pictureInPicture: true,
-            )
-          else
-            PlayStackFeedView<Object>(
-              items: _items,
-              source: _videoOf,
-              posterUrl: _posterOf,
-              controller: _view,
-              initialIndex: widget.initialIndex,
-              transition: PlayStackFeedTransition.stack,
-              onLoadMore: _isHomeFeed ? _loadMore : null,
-              onRefresh: _isHomeFeed ? _refresh : null,
-              onItemViewed: demoState.recordView,
-              controlsBuilder: _controls,
-              pageBuilder: _suggestion,
-              // Lock screen controls, and a small window on leaving the app.
-              mediaInfo: _mediaInfoOf,
-              pictureInPicture: true,
-            ),
-          _TopBar(view: _view, title: widget.title, onStats: _showStats),
-        ],
+      body: SafeArea(
+        top: false,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (widget.preload case final preload?)
+              // Prepared on the launcher: the first video plays at once.
+              PlayStackFeedView<Object>.preloaded(
+                preload,
+                controller: _view,
+                transition: PlayStackFeedTransition.stack,
+                onLoadMore: _loadMore,
+                onRefresh: _refresh,
+                onItemViewed: demoState.recordView,
+                controlsBuilder: _controls,
+                pageBuilder: _suggestion,
+                // Lock screen controls, and a small window on leaving the app.
+                mediaInfo: _mediaInfoOf,
+                pictureInPicture: true,
+              )
+            else
+              PlayStackFeedView<Object>(
+                items: _items,
+                source: _videoOf,
+                posterUrl: _posterOf,
+                controller: _view,
+                initialIndex: widget.initialIndex,
+                transition: PlayStackFeedTransition.stack,
+                onLoadMore: _isHomeFeed ? _loadMore : null,
+                onRefresh: _isHomeFeed ? _refresh : null,
+                onItemViewed: demoState.recordView,
+                controlsBuilder: _controls,
+                pageBuilder: _suggestion,
+                // Lock screen controls, and a small window on leaving the app.
+                mediaInfo: _mediaInfoOf,
+                pictureInPicture: true,
+              ),
+            _TopBar(view: _view, title: widget.title, onStats: _showStats),
+          ],
+        ),
       ),
     );
   }

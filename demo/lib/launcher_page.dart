@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:playstack/playstack.dart';
 
+import 'live_page.dart';
 import 'drama/drama_data.dart';
 import 'drama/series_page.dart';
 import 'home_page.dart';
@@ -82,6 +83,15 @@ class _LauncherPageState extends State<LauncherPage> {
                   MaterialPageRoute<void>(
                     builder: (_) => SeriesPage(series: demoSeries),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _DemoButton(
+                icon: Icons.sensors_rounded,
+                title: 'Live',
+                subtitle: 'Live streams with a LIVE badge and back-to-live',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const LivePage()),
                 ),
               ),
               const Spacer(),
