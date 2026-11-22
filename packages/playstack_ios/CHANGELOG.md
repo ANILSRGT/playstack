@@ -1,3 +1,13 @@
+## 0.1.0
+
+* First stable release. The integration suite and the benchmark pass on a
+  physical Android phone (Android 16) and an iPhone (iOS 26.6.1).
+* Picture-in-Picture starts on devices: the player layer is held by a
+  view, so that AVKit finds the window's scene (it refused to start with
+  "The UIScene for the content source has an activation state other than
+  foreground active"). A stop asked for while the window is still opening
+  is applied once it opened, instead of being ignored.
+
 ## 0.1.0-dev.10
 
 * FairPlay through `AVContentKeySession`: certificate download, SPC to

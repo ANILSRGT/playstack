@@ -1,24 +1,22 @@
 # Releasing
 
-PlayStack is five packages released together with the same version. The
-first preview, 0.1.0-dev.8, was published before the remaining items below;
-they stay open for the first stable release.
+PlayStack is seven packages released together with the same version.
+0.1.0, the first stable release, closed the items below.
 
-## Open before 0.1.0
+## Done before 0.1.0
 
 - [x] **License.** MIT, in the root `LICENSE` and in every package
       (`packages/*/LICENSE`, identical copies).
-- [ ] **Physical devices.** Run the integration suite and the benchmark on
-      at least one physical Android phone and one iPhone, and record the
-      benchmark in [BENCHMARKS.md](BENCHMARKS.md).
+- [x] **Physical devices.** The integration suite and the benchmark pass
+      on a Redmi Note 17 Pro Max 5G (Android 16) and an iPhone 11
+      (iOS 26.6.1); the benchmark is in [BENCHMARKS.md](BENCHMARKS.md).
 - [x] **Web in a browser.** The integration suite passes in headless
       Chromium (see [Examples](guides/examples.md#on-the-web)). Still open:
       HLS.js, Safari and Firefox.
 
 ## Checklist for every release
 
-1. Choose the version (`0.1.0-dev.N` while in preview, then semantic
-   versioning) and set it in:
+1. Choose the version (semantic versioning) and set it in:
    - `packages/*/pubspec.yaml` (`version:`)
    - the internal dependency constraints (`playstack_*: ^<version>` in
      `playstack`, `playstack_android`, `playstack_ios`, `playstack_web` and the

@@ -9,7 +9,7 @@ check what they asked the engine to do.
 
 ```yaml
 dev_dependencies:
-  playstack_test: ^0.1.0-dev.10
+  playstack_test: ^0.1.0
 ```
 
 ## Use

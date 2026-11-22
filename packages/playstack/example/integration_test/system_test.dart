@@ -61,11 +61,14 @@ void main() {
     );
     expect(controller.value.isPlaying, isTrue);
 
-    await pictureInPicture.stop();
-    await waitUntil(
-      () => !pictureInPicture.isActive.value,
-      reason: 'Picture-in-Picture stopped',
-    );
+    // Only iOS lets an app close the window; on Android the user does.
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await pictureInPicture.stop();
+      await waitUntil(
+        () => !pictureInPicture.isActive.value,
+        reason: 'Picture-in-Picture stopped',
+      );
+    }
     await pictureInPicture.disable();
   });
 

@@ -74,6 +74,31 @@ Across three runs on the same setup, memory growth over the 60 cycles was
 of this size, not a per-cycle leak. A leaked 1080p decoder or surface would
 add megabytes per cycle, hundreds of megabytes over the run.
 
+### Physical devices (2026-11-22, PlayStack 0.1.0)
+
+Profile builds, connected over wireless debugging.
+
+| | Redmi Note 17 Pro Max 5G (Android 16) | iPhone 11 (iOS 26.6.1) |
+| --- | --- | --- |
+| Engine | Media3 ExoPlayer 1.11.1 | AVFoundation AVPlayer |
+| First start (creates the player) | 618 ms | 318 ms |
+| Cold start, median (p90) | 356 ms (386 ms) | 276 ms (294 ms) |
+| Preparation, median | 184 ms | 136 ms |
+| Preparation to first frame, median | 175 ms | 146 ms |
+| Preloaded start, median (p90) | 177 ms (211 ms) | 127 ms (135 ms) |
+| Swipe start, median (p90) | 159 ms (203 ms) | 205 ms (224 ms) |
+| Swipe preload hit rate | 20 of 20 swipes | 20 of 20 swipes |
+| Rapid scroll: peak native players (limit 3) | 3 | 2 |
+| Rapid scroll: players created / leases reused | 3 / 497 | 2 / 498 |
+| Rapid scroll: last item moving after the scroll stopped | 370 ms | 244 ms |
+| Memory: RSS after warm-up, after 60 cycles | 262.6 MB, 271.7 MB (+9.1 MB) | 78.7 MB, 78.0 MB (−0.7 MB) |
+| Memory: cycle duration | – | 67 ms |
+
+The phones are slower than the emulator and simulator on the M4 Pro host,
+but the shape is the same: preloading halves the start and the pool never
+exceeded its limit. A debug run on the Android phone measured −14.8 MB over
+the 60 cycles, so its +9.1 MB is noise, not a leak.
+
 ### Web (headless Chromium)
 
 Brave 157 (Chromium 157) in headless mode, driven by chromedriver, debug

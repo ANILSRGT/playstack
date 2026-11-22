@@ -221,5 +221,5 @@ your controls from it.
 - [Benchmarks](https://github.com/ANILSRGT/playstack/blob/main/docs/BENCHMARKS.md)
 - [Issues](https://github.com/ANILSRGT/playstack/issues)
 
-Development preview: verified on an Android emulator, an iOS simulator
-and headless Chromium; not yet on physical devices.
+Verified on an Android phone and emulator, an iPhone and an iOS
+simulator, and headless Chromium.

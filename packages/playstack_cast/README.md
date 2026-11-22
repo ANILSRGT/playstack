@@ -11,8 +11,8 @@ SDK. AirPlay is in `playstack` itself (`PlayStackAirPlayButton`).
 
 ```yaml
 dependencies:
-  playstack: ^0.1.0-dev.10
-  playstack_cast: ^0.1.0-dev.10
+  playstack: ^0.1.0
+  playstack_cast: ^0.1.0
 ```
 
 | | Minimum |

@@ -52,7 +52,7 @@ final class PlayerLayerView: NSObject, FlutterPlatformView {
   }
 }
 
-private final class LayerHostView: UIView {
+final class LayerHostView: UIView {
   override class var layerClass: AnyClass { AVPlayerLayer.self }
   var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
 }

@@ -59,13 +59,12 @@ print('${caps.engineName} ${caps.engineVersion}, '
   (API 36) arm64 emulator and an iOS 26.5 simulator, including the
   benchmark. Rendering orientation was checked against ffmpeg reference
   frames.
-- **Features added in 0.1.0-dev.10** (subtitle files, audio only, live
-  edge, VAST ads, brightness, frame reading) pass on an iOS simulator
-  (iPhone 17 Pro Max). DRM, AirPlay and Chromecast need devices and have
-  not been verified.
-- **Not verified on device:** the decoder-shortage retry and audio
-  interruptions (unit tests only: emulators do not run out of decoders or
-  receive calls on demand); physical-device performance.
+- **Physical devices:** the integration suite (Picture-in-Picture included)
+  and the benchmark pass on a Redmi Note 17 Pro Max 5G (Android 16) and an
+  iPhone 11 (iOS 26.6.1).
+- **Not verified:** DRM, AirPlay and Chromecast (they need licenses and
+  receivers); the decoder-shortage retry and audio interruptions (unit
+  tests only).
 - **Web:** the integration suite passes in headless Chromium 157 (Brave,
   driven by chromedriver), including the benchmark, blocked autoplay with
   sound and fullscreen outside a user gesture. Tests that need a local

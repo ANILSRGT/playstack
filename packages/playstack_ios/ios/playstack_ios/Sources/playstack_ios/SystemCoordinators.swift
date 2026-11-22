@@ -153,11 +153,17 @@ final class MediaSessionCoordinator {
 final class PictureInPictureCoordinator: NSObject, AVPictureInPictureControllerDelegate {
   private let events: SystemEvents
   private weak var player: NativePlayer?
-  private var layer: AVPlayerLayer?
+  /// Holds the player layer. A view, not a bare layer, so that AVKit finds
+  /// the window's scene; it refuses to start for a layer without one.
+  private var hostView: LayerHostView?
+  private var layer: AVPlayerLayer? { hostView?.playerLayer }
   private var controller: AVPictureInPictureController?
   private var possibleObservation: NSKeyValueObservation?
   private var autoEnter = false
   private var startWhenPossible = false
+  /// Stop asked for while the window was still opening; AVKit ignores a stop
+  /// before it finished starting.
+  private var stopWhenStarted = false
   private var reportedActive = false
   /// Reported as started on resigning active, before the system starts it.
   private var provisional = false
@@ -202,13 +208,16 @@ final class PictureInPictureCoordinator: NSObject, AVPictureInPictureControllerD
     else { return }
     AudioSessionCoordinator.requireBackgroundPlayback()
     self.player = player
-    let layer = AVPlayerLayer(player: player.avPlayer)
+    let hostView = LayerHostView(frame: window.bounds)
+    hostView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    hostView.isUserInteractionEnabled = false
+    let layer = hostView.playerLayer
+    layer.player = player.avPlayer
     layer.videoGravity = .resizeAspect
-    layer.frame = window.bounds
     // Behind the Flutter view: in the window, so that the system can use
     // it, but never seen.
-    window.layer.insertSublayer(layer, at: 0)
-    self.layer = layer
+    window.insertSubview(hostView, at: 0)
+    self.hostView = hostView
     guard let controller = AVPictureInPictureController(playerLayer: layer) else {
       teardown()
       return
@@ -243,7 +252,12 @@ final class PictureInPictureCoordinator: NSObject, AVPictureInPictureControllerD
 
   func stop() {
     startWhenPossible = false
-    controller?.stopPictureInPicture()
+    guard let controller else { return }
+    if controller.isPictureInPictureActive {
+      controller.stopPictureInPicture()
+    } else if reportedActive {
+      stopWhenStarted = true
+    }
   }
 
   func playerReleased(_ released: NativePlayer) {
@@ -271,15 +285,16 @@ final class PictureInPictureCoordinator: NSObject, AVPictureInPictureControllerD
 
   private func teardown() {
     startWhenPossible = false
+    stopWhenStarted = false
     provisional = false
     possibleObservation?.invalidate()
     possibleObservation = nil
     if let controller, controller.isPictureInPictureActive { controller.stopPictureInPicture() }
     controller?.delegate = nil
     controller = nil
-    layer?.player = nil
-    layer?.removeFromSuperlayer()
-    layer = nil
+    hostView?.playerLayer.player = nil
+    hostView?.removeFromSuperview()
+    hostView = nil
     player = nil
     report(active: false)
   }
@@ -306,11 +321,20 @@ final class PictureInPictureCoordinator: NSObject, AVPictureInPictureControllerD
     report(active: true)
   }
 
+  func pictureInPictureControllerDidStartPictureInPicture(
+    _ pictureInPictureController: AVPictureInPictureController
+  ) {
+    guard stopWhenStarted else { return }
+    stopWhenStarted = false
+    pictureInPictureController.stopPictureInPicture()
+  }
+
   func pictureInPictureController(
     _ pictureInPictureController: AVPictureInPictureController,
     failedToStartPictureInPictureWithError error: Error
   ) {
     provisional = false
+    stopWhenStarted = false
     report(active: false)
   }
 
