@@ -11,8 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   lottie: ^3.8.2
-  playstack: ^0.1.0-dev.10
-  playstack_cast: ^0.1.0-dev.10
+  playstack: ^0.1.0
+  playstack_cast: ^0.1.0
 
 dev_dependencies:
   flutter_test:
