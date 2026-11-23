@@ -1,6 +1,6 @@
 name: playstack_web
 description: Web implementation of PlayStack, the Flutter video feed and playback plugin, built on HTMLVideoElement.
-version: 0.1.0
+version: 0.1.0+1
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack_web
 issue_tracker: https://github.com/ANILSRGT/playstack/issues
@@ -23,7 +23,7 @@ dependencies:
     sdk: flutter
   flutter_web_plugins:
     sdk: flutter
-  playstack_platform_interface: ^0.1.0
+  playstack_platform_interface: ^0.1.0+1
   web: ^1.1.1
 
 dev_dependencies:

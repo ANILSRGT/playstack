@@ -2,7 +2,7 @@ name: playstack_test
 description: >-
   Test helpers for apps that use PlayStack: a fake video engine that runs
   in widget and unit tests without a device.
-version: 0.1.0
+version: 0.1.0+1
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack_test
 issue_tracker: https://github.com/ANILSRGT/playstack/issues
@@ -20,8 +20,8 @@ dependencies:
     sdk: flutter
   flutter_test:
     sdk: flutter
-  playstack_platform_interface: ^0.1.0
+  playstack_platform_interface: ^0.1.0+1
 
 dev_dependencies:
   flutter_lints: ^6.0.0
-  playstack: ^0.1.0
+  playstack: ^0.1.0+1

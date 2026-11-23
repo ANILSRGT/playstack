@@ -1,3 +1,8 @@
+## 0.1.0+1
+
+* A new recording of the demo app on pub.dev and in the README: drag-to-seek
+  previews, skip intro, a poll, ads and a live stream. No code changes.
+
 ## 0.1.0
 
 * First stable release. The integration suite and the benchmark pass on a

@@ -1,3 +1,8 @@
+## 0.1.0+1
+
+* Released with playstack 0.1.0+1 to keep every package on the same
+  version. No code changes.
+
 ## 0.1.0
 
 * First stable release. The integration suite and the benchmark pass on a

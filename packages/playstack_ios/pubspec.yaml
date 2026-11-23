@@ -1,6 +1,6 @@
 name: playstack_ios
 description: iOS implementation of PlayStack, built on AVFoundation AVPlayer.
-version: 0.1.0
+version: 0.1.0+1
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack_ios
 issue_tracker: https://github.com/ANILSRGT/playstack/issues
@@ -22,7 +22,7 @@ dependencies:
   flutter:
     sdk: flutter
   meta: ^1.16.0
-  playstack_platform_interface: ^0.1.0
+  playstack_platform_interface: ^0.1.0+1
 
 dev_dependencies:
   flutter_test:
