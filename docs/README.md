@@ -19,17 +19,18 @@ Guides:
 15. [Series](guides/series.md): continue watching, skip intro, next episode
 16. [Cues and transitions](guides/cues.md): your own moments, ad SDK interstitials
 17. [Ads](guides/ads.md): VAST pre-, mid- and post-rolls
-18. [Analytics](guides/analytics.md)
-19. [Live streams](guides/live.md)
-20. [Protected content (DRM)](guides/drm.md)
-21. [Chromecast and AirPlay](guides/cast.md)
-22. [Sleep timer and audio only](guides/sleep-timer.md)
-23. [Testing your app](guides/testing.md)
-24. [Errors and retry](guides/errors.md)
-25. [Platform support](guides/platforms.md)
-26. [Performance tuning](guides/performance.md)
-27. [API reference](guides/api-reference.md)
-28. [Examples](guides/examples.md)
+18. [Layouts, rules and events](guides/placement-and-rules.md): where ads and cues show, whether they show, what happened
+19. [Analytics](guides/analytics.md)
+20. [Live streams](guides/live.md)
+21. [Protected content (DRM)](guides/drm.md)
+22. [Chromecast and AirPlay](guides/cast.md)
+23. [Sleep timer and audio only](guides/sleep-timer.md)
+24. [Testing your app](guides/testing.md)
+25. [Errors and retry](guides/errors.md)
+26. [Platform support](guides/platforms.md)
+27. [Performance tuning](guides/performance.md)
+28. [API reference](guides/api-reference.md)
+29. [Examples](guides/examples.md)
 
 Reference:
 

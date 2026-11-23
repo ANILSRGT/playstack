@@ -437,6 +437,7 @@ class PlayStackPlayerConfig {
     this.videoQualityLimit = PlayStackVideoQualityLimit.none,
     this.startupQualityLimit,
     this.retry = const PlayStackRetryConfig(),
+    this.exclusive = true,
   }) : assert(volume >= 0 && volume <= 1),
        assert(playbackSpeed > 0);
 
@@ -502,6 +503,13 @@ class PlayStackPlayerConfig {
   /// after 1 s and 2 s. [PlayStackRetryConfig.none] turns them off.
   final PlayStackRetryConfig retry;
 
+  /// Whether the video takes part in the manager's exclusive playback
+  /// (`PlayStackConfig.exclusivePlayback`): starting it pauses the others,
+  /// and starting another pauses it. True by default. False plays it
+  /// alongside, for example a muted preview or an ad next to a playing
+  /// video.
+  final bool exclusive;
+
   /// Returns a copy with the given fields replaced.
   PlayStackPlayerConfig copyWith({
     bool? looping,
@@ -513,6 +521,7 @@ class PlayStackPlayerConfig {
     PlayStackVideoQualityLimit? videoQualityLimit,
     PlayStackVideoQualityLimit? startupQualityLimit,
     PlayStackRetryConfig? retry,
+    bool? exclusive,
   }) {
     return PlayStackPlayerConfig(
       looping: looping ?? this.looping,
@@ -525,6 +534,7 @@ class PlayStackPlayerConfig {
       videoQualityLimit: videoQualityLimit ?? this.videoQualityLimit,
       startupQualityLimit: startupQualityLimit ?? this.startupQualityLimit,
       retry: retry ?? this.retry,
+      exclusive: exclusive ?? this.exclusive,
     );
   }
 
@@ -539,7 +549,8 @@ class PlayStackPlayerConfig {
       other.preloadBufferDuration == preloadBufferDuration &&
       other.videoQualityLimit == videoQualityLimit &&
       other.startupQualityLimit == startupQualityLimit &&
-      other.retry == retry;
+      other.retry == retry &&
+      other.exclusive == exclusive;
 
   @override
   int get hashCode => Object.hash(
@@ -552,5 +563,6 @@ class PlayStackPlayerConfig {
     videoQualityLimit,
     startupQualityLimit,
     retry,
+    exclusive,
   );
 }

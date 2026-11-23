@@ -112,6 +112,7 @@ class PlayStackPlayerController extends ChangeNotifier
     required this._source,
     required PlayStackPlayerConfig config,
   }) : _initializeTimeout = config.initializeTimeout,
+       isExclusive = config.exclusive,
        _preloadBufferDuration = config.preloadBufferDuration,
        _startupQualityLimit = config.startupQualityLimit,
        _retry = config.retry,
@@ -218,6 +219,10 @@ class PlayStackPlayerController extends ChangeNotifier
 
   final PlayStackControllerHost _host;
   final Duration _initializeTimeout;
+
+  /// Whether it takes part in the manager's exclusive playback
+  /// ([PlayStackPlayerConfig.exclusive]).
+  final bool isExclusive;
   final Duration? _preloadBufferDuration;
   final PlayStackVideoQualityLimit? _startupQualityLimit;
   final PlayStackRetryConfig _retry;

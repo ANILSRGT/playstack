@@ -31,7 +31,55 @@ PlayStackFeedView<Episode>(
 At each break the video pauses, the ads play in their own player, and the
 video resumes. The overlay shows "Ad 1 of 2", a skip button once the ad
 allows it, and "Learn more". Seeking past several mid-rolls plays only the
-last one. Breaks play once while the page lives.
+last one. A break plays once per visit; seeking back does not bring it
+back (`repeatOnSeekBack: true` does).
+
+### Each break its own way
+
+Every break has its own settings, so a full-screen pre-roll and a small
+banner over the playing video can be in the same episode:
+
+```dart
+PlayStackAdBreak.midRoll(
+  at: const Duration(minutes: 2),
+  source: PlayStackAdSource.vast(bannerTag),
+  id: 'banner',
+  layout: const PlayStackSlotLayout.below(height: 90), // the video shrinks
+  pauseContent: false,  // the video keeps playing
+  muteAd: true,
+)
+```
+
+| | |
+| --- | --- |
+| `id` | Your name for the break, for `shouldShow`, `onEvent` and rule keys |
+| `layout` | Where the ad shows: over the video (default), full screen, a box, a strip above or below that shrinks the video, or your own. See [Layouts](placement-and-rules.md#layouts) |
+| `pauseContent` | Whether the video pauses while the ads play. True by default; false plays the ad next to the playing video |
+| `muteContent` | Mutes the video while the ad plays next to it; its sound comes back after |
+| `muteAd` | Plays the ads without sound |
+| `skipAfter` | When the user may skip, replacing the ad's own `skipoffset` |
+| `skippable` | False hides the skip button even when the ad allows skipping |
+| `repeatOnSeekBack` | Plays a mid-roll again when the user seeks back before it |
+| `data` | Anything you want to attach |
+
+### Show or skip, and what happened
+
+`shouldShow` decides each break, on the device or on your server;
+`onEvent` tells what happened (declined, started, each ad completed or
+skipped, ended):
+
+```dart
+ads: PlayStackFeedAds(
+  breaks: ...,
+  shouldShow: (episode, adBreak) => api.canShowAd(episode.id, adBreak.id),
+  onEvent: (episode, adBreak, event) => api.recordAd(episode.id, adBreak.id, event.type),
+),
+```
+
+"At most once a day", "never again", "every time" and your own rules are
+built on these two. [Layouts, rules and events](placement-and-rules.md)
+has the details and ready-made rules kept on the device
+(`PlayStackShowRules`).
 
 ### Ad sources
 
@@ -74,15 +122,21 @@ final ads = PlayStackAdController(
   manager: manager,
   content: controller,
   breaks: [PlayStackAdBreak.preRoll(PlayStackAdSource.vast(tag))],
+  shouldShow: (adBreak) => ...,   // optional
+  onEvent: (adBreak, event) => ..., // optional
 );
 
-Stack(children: [
-  PlayStackVideoView(controller: controller),
-  PlayStackAdOverlay(ads: ads),
-]);
+PlayStackSlotFrame(                 // places each break by its layout
+  child: Stack(children: [
+    PlayStackVideoView(controller: controller),
+    PlayStackAdOverlay(ads: ads),
+  ]),
+);
 
 ads.dispose(); // when done
 ```
+
+`ads.breakEvents` streams the same events as `onEvent`.
 
 `PlayStackVast.load(url)` and `PlayStackVast.parse(xml)` read VAST
 responses on their own.
@@ -90,7 +144,11 @@ responses on their own.
 ### Notes
 
 - A pre-roll starts when the video is first played; the video may show
-  for a moment before it pauses.
+  for a moment before it pauses. Its `shouldShow` is asked as soon as the
+  item comes into view, so the answer is usually there by then.
+- An ad that plays next to the video (`pauseContent: false`) does not take
+  part in exclusive playback (`PlayStackPlayerConfig.exclusive`): both
+  play at once.
 - Ad videos are regular PlayStack players, so they work on every platform,
   including the web.
 - VPAID, companion banners and VMAP are not supported.

@@ -32,15 +32,38 @@ A `PlayStackCue` is a point in a video:
 | `id` | Your name for it, to tell cues apart |
 | `pause` | Pause the video while the cue is active, play again after. False by default |
 | `showFor` | End the cue on its own after this long |
+| `layout` | Where its widget shows: over the video (default), full screen, a box, a strip above or below that shrinks the video, or your own. See [Layouts](placement-and-rules.md#layouts) |
+| `repeatOnSeekBack` | Fire again when the user seeks back before it |
 | `data` | Anything you attach: a poll question, an ad unit id |
 
 A cue fires once per page, when playback reaches it. Seeking past a cue
 does not fire it. When the user swipes away, an active cue ends.
 
+## Show or skip, and what happened
+
+```dart
+cues: PlayStackFeedCues(
+  cues: (episode) => [
+    const PlayStackCue(at: Duration(minutes: 5), id: 'interstitial', pause: true),
+  ],
+  // Decide each cue yourself: on the device or on your server.
+  shouldShow: (episode, cue) => api.canShow(episode.id, cue.id),
+  // shown, dismissed, expired, handled, declined
+  onEvent: (episode, cue, event) => api.record(episode.id, cue.id, event),
+  onCue: ...,
+),
+```
+
+`shouldShow` is asked a few seconds ahead (`decisionLead`); a missing
+answer skips the cue. [Layouts, rules and events](placement-and-rules.md)
+has the details and ready-made rules kept on the device
+(`PlayStackShowRules`): "once a day", "never again", "three times a day".
+`onTransition` is your own code already: decide and record there.
+
 ## Showing a widget
 
-`builder` draws the active cue above the controls. Call `dismiss` to end
-it:
+`builder` draws the active cue where its `layout` says (over the video,
+above the controls, by default). Call `dismiss` to end it:
 
 ```dart
 cues: PlayStackFeedCues(
@@ -59,6 +82,20 @@ cues: PlayStackFeedCues(
 
 With a `builder`, a cue lasts until `dismiss` is called or `showFor` runs
 out.
+
+An ad SDK's banner in a strip below the video, which shrinks for it and
+keeps playing:
+
+```dart
+const PlayStackCue(
+  at: Duration(minutes: 2),
+  id: 'banner',
+  showFor: Duration(seconds: 30),
+  layout: PlayStackSlotLayout.below(height: 50),
+),
+// in builder:
+'banner' => AdWidget(ad: bannerAd), // google_mobile_ads
+```
 
 ## Running code: ad SDKs
 
@@ -198,9 +235,10 @@ cues.cues;      // Stream of cues as they fire
 cues.dispose();
 ```
 
-Pass `endWhenHandled: false` when you draw the cue yourself (listen to
-the controller, show a widget while `active` is set) and end it with
-`dismiss`.
+Pass `endWhenHandled: false` when you draw the cue yourself and end it
+with `dismiss`. `PlayStackCueOverlay` draws it by its layout inside a
+`PlayStackSlotFrame` (see [With your own player](placement-and-rules.md#with-your-own-player)).
+`shouldShow`, `onEvent` and `events` work as in a feed.
 
 For video ads served by an ad server (VAST), see [Ads](ads.md): those
 play inside the player instead of through an SDK.

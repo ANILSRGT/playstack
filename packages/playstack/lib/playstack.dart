@@ -43,6 +43,8 @@ export 'package:playstack_platform_interface/playstack_platform_interface.dart'
 export 'src/ads/playstack_ad.dart';
 export 'src/ads/playstack_ad_controller.dart' hide PlayStackFeedAdLayer;
 export 'src/cues/playstack_cues.dart' hide PlayStackFeedCueLayer;
+export 'src/slots/playstack_show_rules.dart';
+export 'src/slots/playstack_slot_layout.dart';
 export 'src/analytics/playstack_analytics.dart' hide PlayStackAnalyticsTracker;
 export 'src/cache/playstack_cache_manager.dart';
 export 'src/config/playstack_config.dart';

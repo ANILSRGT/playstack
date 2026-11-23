@@ -24,6 +24,7 @@ import '../feed/playstack_feed_config.dart';
 import '../feed/playstack_feed_item.dart';
 import '../feed/playstack_feed_manager.dart';
 import '../fullscreen/playstack_fullscreen_manager.dart';
+import '../slots/playstack_slot_layout.dart';
 import '../manager/playstack_manager.dart';
 import '../pool/playstack_player_pool.dart';
 import '../series/playstack_series.dart';
@@ -2933,40 +2934,44 @@ class _PageContent<T> extends StatelessWidget {
             },
           );
         }
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            videoBuilder?.call(context, page) ?? _video(controller),
-            ?controls,
-            if (isScreenLocked)
-              // Above the controls: every touch ends here.
-              screenLockBuilder?.call(context, page) ??
-                  PlayStackScreenLockOverlay(page: page)
-            else if (isCinemaMode)
-              // The next tap brings the hidden controls back instead of
-              // reaching them. Swipes still move the feed.
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: view.exitCinemaMode,
-                child: const SizedBox.expand(),
-              ),
-            if (series case final series? when controlsBuilder != null)
-              PlayStackSeriesLayer<T>(
-                page: page,
-                series: series,
-                autoAdvance: autoAdvance,
-              ),
-            if (ads case final ads?)
-              PlayStackFeedAdLayer<T>(
-                ads: ads,
-                item: page.data,
-                controller: controller,
-                manager: feed.manager,
-                isActive: page.isActive,
-              ),
-            if (cues case final cues?)
-              PlayStackFeedCueLayer<T>(cues: cues, page: page),
-          ],
+        // Ads and cues show where their layout says: over the video, in a
+        // strip that shrinks it, over the whole screen.
+        return PlayStackSlotFrame(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              videoBuilder?.call(context, page) ?? _video(controller),
+              ?controls,
+              if (isScreenLocked)
+                // Above the controls: every touch ends here.
+                screenLockBuilder?.call(context, page) ??
+                    PlayStackScreenLockOverlay(page: page)
+              else if (isCinemaMode)
+                // The next tap brings the hidden controls back instead of
+                // reaching them. Swipes still move the feed.
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: view.exitCinemaMode,
+                  child: const SizedBox.expand(),
+                ),
+              if (series case final series? when controlsBuilder != null)
+                PlayStackSeriesLayer<T>(
+                  page: page,
+                  series: series,
+                  autoAdvance: autoAdvance,
+                ),
+              if (ads case final ads?)
+                PlayStackFeedAdLayer<T>(
+                  ads: ads,
+                  item: page.data,
+                  controller: controller,
+                  manager: feed.manager,
+                  isActive: page.isActive,
+                ),
+              if (cues case final cues?)
+                PlayStackFeedCueLayer<T>(cues: cues, page: page),
+            ],
+          ),
         );
       },
     );

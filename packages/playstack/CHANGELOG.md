@@ -1,3 +1,31 @@
+## 0.2.0
+
+* Layouts for ad breaks and cues (`PlayStackSlotLayout`): over the video
+  (the default, as before), over the whole screen, a box over the video,
+  a strip above or below that shrinks the video, or your own arrangement.
+  Set per break (`PlayStackAdBreak.layout`) and per cue
+  (`PlayStackCue.layout`). `PlayStackSlotFrame` lays them out around your
+  own player; every `PlayStackFeedView` page has one.
+* Per-break ad settings: `id`, `pauseContent` (false plays the ad next to
+  the playing video), `muteContent`, `muteAd`, `skipAfter`, `skippable`,
+  `repeatOnSeekBack`, `data`.
+* Rules and events for ad breaks and cues: `shouldShow` decides each one
+  (on the device or on a server), asked `decisionLead` ahead and waited
+  for up to `decisionTimeout`; `onEvent` reports what happened
+  (`PlayStackAdBreakEvent`: declined, started, empty, each ad's start,
+  completion, skip, click and failure, ended; `PlayStackCueEvent`:
+  declined, shown, dismissed, expired, handled). In `PlayStackFeedAds`,
+  `PlayStackFeedCues`, `PlayStackAdController` and `PlayStackCueController`.
+* `PlayStackShowRules`: optional ready-made rules kept on the device
+  (always, once, every period, at most N times per period) in memory, a
+  file or your own store (`PlayStackShowStore`).
+* `PlayStackCueOverlay` draws the active cue of a `PlayStackCueController`.
+* `PlayStackPlayerConfig.exclusive`: false lets a video play alongside the
+  others under exclusive playback (used for ads next to the video).
+* `repeatOnSeekBack` for cues.
+* No change for existing code: without the new settings, ads and cues
+  behave as before.
+
 ## 0.1.0+1
 
 * A new recording of the demo app on pub.dev and in the README: drag-to-seek

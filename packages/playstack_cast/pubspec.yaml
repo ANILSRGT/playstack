@@ -2,7 +2,7 @@ name: playstack_cast
 description: >-
   Chromecast for PlayStack: a cast button, device picker and remote
   playback of PlayStack videos on Google Cast receivers.
-version: 0.1.0+1
+version: 0.2.0
 homepage: https://github.com/ANILSRGT/playstack
 repository: https://github.com/ANILSRGT/playstack/tree/main/packages/playstack_cast
 issue_tracker: https://github.com/ANILSRGT/playstack/issues
@@ -28,7 +28,7 @@ flutter:
 dependencies:
   flutter:
     sdk: flutter
-  playstack: ^0.1.0+1
+  playstack: ^0.2.0
 
 dev_dependencies:
   flutter_test:

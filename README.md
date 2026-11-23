@@ -5,7 +5,7 @@ feeds and for single players. It handles native players, pooling, preloading,
 lifecycle and errors. A complete reels feed is one widget with replaceable
 controls; for anything else you build the UI on its players.
 
-> **Status: 0.1.0, on pub.dev.**
+> **Status: 0.2.0, on pub.dev.**
 > Playback, pooling, feeds with preloading, disk cache, fullscreen, audio
 > handling, media controls, Picture-in-Picture and retry work on Android
 > (Media3), iOS (AVPlayer) and web (`<video>`). The integration suite
@@ -245,6 +245,11 @@ PlayStackFeedView<Post>(
   waits for the `Future` you return ([guide](docs/guides/cues.md)).
 - **VAST ads.** `ads:` plays pre-, mid- and post-rolls with skip, "Learn
   more" and tracking ([guide](docs/guides/ads.md)).
+- **Where and when.** Every ad break and cue has its own layout (full
+  screen, over the video, a banner box, a strip that shrinks the video, or
+  your own), pauses the video or not, and shows only when your
+  `shouldShow` says so, decided on the device or on your server; `onEvent`
+  tells what happened ([guide](docs/guides/placement-and-rules.md)).
 - **Analytics.** Typed events for start time, progress, rebuffers, errors
   and watch time, ready for Firebase and others
   ([guide](docs/guides/analytics.md)).

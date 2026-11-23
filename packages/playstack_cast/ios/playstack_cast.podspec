@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'playstack_cast'
-  s.version          = '0.1.0'
+  s.version          = '0.2.0'
   s.summary          = 'Chromecast for PlayStack.'
   s.description      = 'Google Cast device picker and remote playback for PlayStack.'
   s.homepage         = 'https://pub.dev/packages/playstack_cast'

@@ -34,17 +34,22 @@ class PlayStackPlaybackCoordinator {
     PlayStackPlayerController controller,
     Iterable<PlayStackPlayerController> all,
   ) {
-    if (!exclusive) return;
+    // A video that plays alongside neither pauses others nor is paused.
+    if (!exclusive || !controller.isExclusive) return;
     _latestRequest = controller;
     for (final other in List<PlayStackPlayerController>.of(all)) {
-      if (identical(other, controller) || !other.wantsPlayback) continue;
+      if (identical(other, controller) ||
+          !other.isExclusive ||
+          !other.wantsPlayback) {
+        continue;
+      }
       unawaited(other.yieldPlayback().catchError(_reportError));
     }
   }
 
   /// Whether [controller] may start playback now.
   bool mayStartPlayback(PlayStackPlayerController controller) {
-    if (!exclusive) return true;
+    if (!exclusive || !controller.isExclusive) return true;
     final latest = _latestRequest;
     return latest == null || identical(latest, controller);
   }

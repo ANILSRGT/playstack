@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 import 'package:xml/xml.dart';
 
+import '../slots/playstack_slot_layout.dart';
+
 /// Moments of an ad that ad servers count, sent to the
 /// [PlayStackAd.tracking] URLs.
 enum PlayStackAdEvent {
@@ -136,27 +138,83 @@ class _VastSource extends PlayStackAdSource {
   Future<List<PlayStackAd>> load() => PlayStackVast.load(url, headers: headers);
 }
 
-/// A point in a video where ads play.
+/// A point in a video where ads play, and how they play there. Each break
+/// has its own settings: a full-screen pre-roll that pauses the video and a
+/// small banner mid-roll over the playing video can sit in the same video.
+///
+/// ```dart
+/// PlayStackAdBreak.preRoll(PlayStackAdSource.vast(tag), id: 'pre')
+/// PlayStackAdBreak.midRoll(
+///   at: const Duration(minutes: 2),
+///   id: 'banner',
+///   source: PlayStackAdSource.vast(bannerTag),
+///   layout: const PlayStackSlotLayout.below(height: 90), // the video shrinks
+///   pauseContent: false,                                 // and keeps playing
+///   muteAd: true,
+/// )
+/// ```
 @immutable
 class PlayStackAdBreak {
   /// Ads at [offset] into the video.
-  const PlayStackAdBreak({required Duration this.offset, required this.source})
-    : isPostRoll = false;
+  const PlayStackAdBreak({
+    required Duration this.offset,
+    required this.source,
+    this.id,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.pauseContent = true,
+    this.muteContent = false,
+    this.muteAd = false,
+    this.skipAfter,
+    this.skippable = true,
+    this.repeatOnSeekBack = false,
+    this.data,
+  }) : isPostRoll = false;
 
   /// Ads before the video starts.
-  const PlayStackAdBreak.preRoll(this.source)
-    : offset = Duration.zero,
-      isPostRoll = false;
+  const PlayStackAdBreak.preRoll(
+    this.source, {
+    this.id,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.pauseContent = true,
+    this.muteContent = false,
+    this.muteAd = false,
+    this.skipAfter,
+    this.skippable = true,
+    this.data,
+  }) : offset = Duration.zero,
+       isPostRoll = false,
+       repeatOnSeekBack = false;
 
   /// Ads when playback passes [at].
-  const PlayStackAdBreak.midRoll({required Duration at, required this.source})
-    : offset = at,
-      isPostRoll = false;
+  const PlayStackAdBreak.midRoll({
+    required Duration at,
+    required this.source,
+    this.id,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.pauseContent = true,
+    this.muteContent = false,
+    this.muteAd = false,
+    this.skipAfter,
+    this.skippable = true,
+    this.repeatOnSeekBack = false,
+    this.data,
+  }) : offset = at,
+       isPostRoll = false;
 
   /// Ads after the video ends.
-  const PlayStackAdBreak.postRoll(this.source)
-    : offset = null,
-      isPostRoll = true;
+  const PlayStackAdBreak.postRoll(
+    this.source, {
+    this.id,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.muteAd = false,
+    this.skipAfter,
+    this.skippable = true,
+    this.data,
+  }) : offset = null,
+       isPostRoll = true,
+       pauseContent = true,
+       muteContent = false,
+       repeatOnSeekBack = false;
 
   /// Where the break is; null for a post-roll.
   final Duration? offset;
@@ -167,8 +225,50 @@ class PlayStackAdBreak {
   /// The ads.
   final PlayStackAdSource source;
 
+  /// Your name for the break, for `shouldShow`, `onEvent` and
+  /// [PlayStackShowRules] keys.
+  final String? id;
+
+  /// Where the ad shows: over the video (the default), over the whole
+  /// screen, in a box, in a strip that shrinks the video, or your own.
+  final PlayStackSlotLayout layout;
+
+  /// Whether the video pauses while the ads play. True by default; false
+  /// for a banner or strip next to the playing video.
+  final bool pauseContent;
+
+  /// Whether the video is muted while the ads play, when it keeps playing
+  /// ([pauseContent] false). Its sound comes back after.
+  final bool muteContent;
+
+  /// Whether the ads play without sound.
+  final bool muteAd;
+
+  /// When the user may skip, replacing the ad's own (VAST `skipoffset`).
+  /// Null keeps the ad's.
+  final Duration? skipAfter;
+
+  /// Whether the user may skip at all. False hides the skip button even
+  /// when the ad allows skipping.
+  final bool skippable;
+
+  /// Whether a mid-roll plays again when the user seeks back before it.
+  /// False by default: a break plays once per visit, like on YouTube.
+  final bool repeatOnSeekBack;
+
+  /// Anything you want to attach: an ad unit id, a campaign.
+  final Object? data;
+
   /// Whether it plays before the video.
   bool get isPreRoll => !isPostRoll && offset == Duration.zero;
+
+  @override
+  String toString() =>
+      'PlayStackAdBreak(${id ?? ''} ${isPostRoll
+          ? 'post-roll'
+          : isPreRoll
+          ? 'pre-roll'
+          : 'at $offset'})';
 }
 
 /// Reads VAST ad responses.

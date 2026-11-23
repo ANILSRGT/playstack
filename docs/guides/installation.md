@@ -18,7 +18,7 @@ added automatically.
 
 ```yaml
 dependencies:
-  playstack: ^0.1.0
+  playstack: ^0.2.0
 ```
 
 or `flutter pub add playstack`. To follow unreleased changes, depend on

@@ -33,9 +33,11 @@ Engines: AndroidX Media3 ExoPlayer (Android), AVFoundation (iOS) and
   next-episode countdown.
 - **Your own moments.** Polls, banners or your ad SDK's interstitials at
   points of a video and between items; the video waits for your `Future`.
-- **Ads and analytics.** VAST pre-, mid- and post-rolls; typed playback
-  events (start time, progress, rebuffers, watch time) for any analytics
-  service.
+- **Ads and analytics.** VAST pre-, mid- and post-rolls, each with its own
+  layout (full screen, over the video, a banner box, a strip that shrinks
+  the video, or your own), its own rules (`shouldShow`, on the device or
+  your server) and events; typed playback events (start time, progress,
+  rebuffers, watch time) for any analytics service.
 - **Gestures and scrub preview.** Double tap to jump, drag sideways to
   seek, brightness and volume, thumbnails above the bar. Off until you
   turn them on.

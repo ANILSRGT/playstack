@@ -49,8 +49,9 @@ Library: `package:playstack/playstack.dart` (re-exports the types of
 | `PlayStackException`, `PlayStackErrorCode` | Errors | [Errors](errors.md) |
 | `PlayStackAnalytics`, `PlayStackAnalyticsConfig`, `PlayStackAnalyticsEvent` and its subtypes | Typed playback events for analytics (`manager.analytics`, `PlayStackAnalytics.all`) | [Analytics](analytics.md) |
 | `PlayStackSeries`, `PlayStackWatchProgress`, `PlayStackProgressStorage`, `PlayStackSkipMarker`, `PlayStackNextUp` | Continue watching, skip intro, next episode | [Series](series.md) |
-| `PlayStackFeedCues`, `PlayStackCue`, `PlayStackCueController`, `PlayStackTransition` | Your own moments in a video and between items | [Cues and transitions](cues.md) |
-| `PlayStackFeedAds`, `PlayStackAdBreak`, `PlayStackAdSource`, `PlayStackAd`, `PlayStackAdController`, `PlayStackAdOverlay`, `PlayStackVast`, `PlayStackAds` | VAST video ads | [Ads](ads.md) |
+| `PlayStackFeedCues`, `PlayStackCue`, `PlayStackCueController`, `PlayStackCueOverlay`, `PlayStackCueEvent`, `PlayStackTransition` | Your own moments in a video and between items | [Cues and transitions](cues.md) |
+| `PlayStackFeedAds`, `PlayStackAdBreak`, `PlayStackAdSource`, `PlayStackAd`, `PlayStackAdController`, `PlayStackAdOverlay`, `PlayStackAdBreakEvent`, `PlayStackAdBreakEventType`, `PlayStackVast`, `PlayStackAds` | VAST video ads | [Ads](ads.md) |
+| `PlayStackSlotLayout`, `PlayStackSlotFrame`, `PlayStackShowRules`, `PlayStackShowRule`, `PlayStackShowStore` | Where ads and cues show, whether they show again | [Layouts, rules and events](placement-and-rules.md) |
 | `PlayStackDrm`, `PlayStackDrmType` | Widevine, PlayReady, ClearKey, FairPlay | [DRM](drm.md) |
 | `PlayStackSubtitleSource`, `PlayStackSubtitleFormat` | Subtitle files | [Tracks and subtitles](subtitles.md#subtitle-files) |
 | `PlayStackLiveBadge` | Live streams | [Live streams](live.md) |

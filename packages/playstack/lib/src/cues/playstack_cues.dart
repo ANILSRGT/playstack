@@ -6,6 +6,7 @@ import 'package:playstack_platform_interface/playstack_platform_interface.dart';
 
 import '../controller/playstack_player_controller.dart';
 import '../feed_view/playstack_feed_view.dart';
+import '../slots/playstack_slot_layout.dart';
 
 /// A moment in a video where the app shows something of its own: a poll,
 /// a "rate this episode" card, a banner, an interstitial ad of your ad
@@ -15,6 +16,8 @@ import '../feed_view/playstack_feed_view.dart';
 /// PlayStackCue(at: Duration(seconds: 30), id: 'poll')
 /// PlayStackCue.fromEnd(Duration(seconds: 15), id: 'rate', pause: false)
 /// PlayStackCue(at: Duration(minutes: 5), id: 'admob', pause: true)
+/// PlayStackCue(at: Duration(minutes: 2), id: 'banner',
+///     layout: PlayStackSlotLayout.below(height: 60), showFor: Duration(seconds: 30))
 /// ```
 ///
 /// A cue fires once per visit, when playback reaches it. Seeking past a
@@ -29,6 +32,8 @@ class PlayStackCue {
     this.id,
     this.pause = false,
     this.showFor,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.repeatOnSeekBack = false,
     this.data,
   }) : fromEnd = null;
 
@@ -39,6 +44,8 @@ class PlayStackCue {
     this.id,
     this.pause = false,
     this.showFor,
+    this.layout = const PlayStackSlotLayout.videoArea(),
+    this.repeatOnSeekBack = false,
     this.data,
   }) : at = null;
 
@@ -59,6 +66,16 @@ class PlayStackCue {
   /// the handler or for `dismiss`.
   final Duration? showFor;
 
+  /// Where the widget of the cue ([PlayStackFeedCues.builder],
+  /// [PlayStackCueOverlay]) shows: over the video (the default), over the
+  /// whole screen, in a box, in a strip that shrinks the video, or your
+  /// own. Cues handled by an ad SDK's own screen ignore it.
+  final PlayStackSlotLayout layout;
+
+  /// Whether the cue fires again when the user seeks back before it.
+  /// False by default: once per visit.
+  final bool repeatOnSeekBack;
+
   /// Anything you want to attach: the poll's question, an ad unit id.
   final Object? data;
 
@@ -74,6 +91,24 @@ class PlayStackCue {
   @override
   String toString() =>
       'PlayStackCue(${id ?? ''} ${at != null ? 'at $at' : '$fromEnd before end'})';
+}
+
+/// What happened to a cue, for `onEvent`.
+enum PlayStackCueEvent {
+  /// `shouldShow` said no (or did not answer in time); nothing showed.
+  declined,
+
+  /// The cue fired and shows.
+  shown,
+
+  /// Ended by `dismiss`: the user closed it, or your code did.
+  dismissed,
+
+  /// Ended by [PlayStackCue.showFor].
+  expired,
+
+  /// Ended because `onCue`'s future completed (an ad SDK's ad closed).
+  handled,
 }
 
 /// Runs [PlayStackCue]s on one video: notices when playback reaches each,
@@ -103,6 +138,10 @@ class PlayStackCueController extends ChangeNotifier {
     required List<PlayStackCue> cues,
     this.onCue,
     this.endWhenHandled = true,
+    this.shouldShow,
+    this.onEvent,
+    this.decisionLead = const Duration(seconds: 5),
+    this.decisionTimeout = const Duration(seconds: 3),
     bool Function()? canResume,
   }) : _pending = List<PlayStackCue>.of(cues),
        // ignore: prefer_initializing_formals, a private named parameter
@@ -124,6 +163,27 @@ class PlayStackCueController extends ChangeNotifier {
   /// Whether a cue ends when [onCue] completes. True by default.
   final bool endWhenHandled;
 
+  /// Asked before a cue fires: true shows it, false skips it. Decide in
+  /// your code, on the device or on your server; [PlayStackShowRules] has
+  /// ready-made rules. Null shows every cue.
+  final FutureOr<bool> Function(PlayStackCue cue)? shouldShow;
+
+  /// Called for every [PlayStackCueEvent]: to record what was shown.
+  final void Function(PlayStackCue cue, PlayStackCueEvent event)? onEvent;
+
+  /// How long before a cue [shouldShow] is asked. Five seconds by default.
+  final Duration decisionLead;
+
+  /// How long a late [shouldShow] answer is waited for (the video waits
+  /// only for cues that pause it); then the cue is skipped.
+  final Duration decisionTimeout;
+
+  final List<PlayStackCue> _fired = [];
+  final Map<PlayStackCue, Future<bool>> _decisions = {};
+  final Map<PlayStackCue, bool> _answers = {};
+  PlayStackCueEvent _endReason = PlayStackCueEvent.dismissed;
+  bool _deciding = false;
+
   final bool Function()? _canResume;
   final List<PlayStackCue> _pending;
   StreamSubscription<PlayStackPositionSnapshot>? _positions;
@@ -144,17 +204,63 @@ class PlayStackCueController extends ChangeNotifier {
   final StreamController<PlayStackCue> _cues =
       StreamController<PlayStackCue>.broadcast();
 
+  /// Fires with every cue event, like [onEvent].
+  Stream<(PlayStackCue, PlayStackCueEvent)> get events => _events.stream;
+  final StreamController<(PlayStackCue, PlayStackCueEvent)> _events =
+      StreamController<(PlayStackCue, PlayStackCueEvent)>.broadcast();
+
   /// Ends the [active] cue; the video plays again if the cue paused it.
-  void dismiss() {
+  void dismiss() => _end(PlayStackCueEvent.dismissed);
+
+  void _end(PlayStackCueEvent reason) {
     final done = _done;
-    if (done != null && !done.isCompleted) done.complete();
+    if (done == null || done.isCompleted) return;
+    _endReason = reason;
+    done.complete();
+  }
+
+  Future<bool> _decide(PlayStackCue cue) {
+    return _decisions[cue] ??= () async {
+      final ask = shouldShow;
+      if (ask == null) return _answers[cue] = true;
+      try {
+        return _answers[cue] = await ask(cue);
+      } on Object catch (error, stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'playstack',
+            context: ErrorDescription('in shouldShow for $cue'),
+          ),
+        );
+        return false;
+      }
+    }();
+  }
+
+  void _event(PlayStackCue cue, PlayStackCueEvent event) {
+    if (_disposed) return;
+    try {
+      onEvent?.call(cue, event);
+    } on Object catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'playstack',
+          context: ErrorDescription('in onEvent for $cue'),
+        ),
+      );
+    }
+    if (!_events.isClosed) _events.add((cue, event));
   }
 
   /// Fires [cue] now, whatever the position.
   Future<void> fire(PlayStackCue cue) => _fire(cue);
 
   void _onState() {
-    if (_disposed || _active != null) return;
+    if (_disposed || _active != null || _deciding) return;
     if (!controller.value.isPlaying) return;
     final start = _pending.where((cue) => cue.at == Duration.zero).firstOrNull;
     if (start != null) unawaited(_fire(start));
@@ -163,15 +269,36 @@ class PlayStackCueController extends ChangeNotifier {
   void _onPosition(PlayStackPositionSnapshot snapshot) {
     if (_disposed) return;
     final position = snapshot.position;
+    final duration = controller.value.duration;
+    // Seeking back before a fired cue that repeats brings it back.
+    for (final cue in List<PlayStackCue>.of(_fired)) {
+      final at = cue.positionIn(duration);
+      if (!cue.repeatOnSeekBack || at == null || at == Duration.zero) continue;
+      if (position + const Duration(seconds: 1) < at) {
+        _fired.remove(cue);
+        _decisions.remove(cue)?.ignore();
+        _answers.remove(cue);
+        _pending.add(cue);
+      }
+    }
+    // Ask ahead of time.
+    for (final cue in _pending) {
+      final at = cue.positionIn(duration);
+      if (at != null && position + decisionLead >= at && position <= at) {
+        unawaited(_decide(cue));
+      }
+    }
     final last = _last;
     _last = position;
-    if (last == null || _active != null || !controller.value.isPlaying) {
+    if (last == null ||
+        _active != null ||
+        _deciding ||
+        !controller.value.isPlaying) {
       return;
     }
     // A jump (seek, or a new visit) does not fire the cues it passes.
     final step = position - last;
     if (step.isNegative || step > const Duration(seconds: 2)) return;
-    final duration = controller.value.duration;
     for (final cue in _pending) {
       final at = cue.positionIn(duration);
       if (at == null || at == Duration.zero) continue;
@@ -183,16 +310,53 @@ class PlayStackCueController extends ChangeNotifier {
   }
 
   Future<void> _fire(PlayStackCue cue) async {
-    if (_disposed || _active != null) return;
+    if (_disposed || _active != null || _deciding) return;
     _pending.remove(cue);
-    _active = cue;
-    final done = _done = Completer<void>();
+    _fired.add(cue);
     final wasPlaying = controller.value.isPlaying;
-    if (cue.pause) unawaited(controller.pause().catchError(_ignore));
+    var paused = false;
+    var allowed = _answers[cue];
+    if (allowed == null) {
+      // A late answer: only a cue that pauses the video makes it wait.
+      _deciding = true;
+      if (cue.pause) {
+        paused = true;
+        unawaited(controller.pause().catchError(_ignore));
+      }
+      try {
+        allowed = await _decide(cue)
+            .timeout(decisionTimeout, onTimeout: () => false);
+      } on Object {
+        allowed = false;
+      } finally {
+        _deciding = false;
+      }
+    }
+    if (_disposed) return;
+    _decisions.remove(cue)?.ignore();
+    _answers.remove(cue);
+    if (!allowed) {
+      _event(cue, PlayStackCueEvent.declined);
+      _last = null;
+      if (paused && wasPlaying && (_canResume?.call() ?? true)) {
+        unawaited(controller.play().catchError(_ignore));
+      }
+      return;
+    }
+    _active = cue;
+    _endReason = PlayStackCueEvent.dismissed;
+    final done = _done = Completer<void>();
+    if (cue.pause && !paused) {
+      paused = true;
+      unawaited(controller.pause().catchError(_ignore));
+    }
     notifyListeners();
     _cues.add(cue);
+    _event(cue, PlayStackCueEvent.shown);
     final showFor = cue.showFor;
-    if (showFor != null) _timer = Timer(showFor, dismiss);
+    if (showFor != null) {
+      _timer = Timer(showFor, () => _end(PlayStackCueEvent.expired));
+    }
     try {
       final handled = onCue?.call(cue);
       if (handled is Future<void>) await handled;
@@ -206,17 +370,18 @@ class PlayStackCueController extends ChangeNotifier {
         ),
       );
     }
-    if (endWhenHandled) dismiss();
+    if (endWhenHandled) _end(PlayStackCueEvent.handled);
     await done.future;
     _timer?.cancel();
     _timer = null;
     if (_disposed) return;
+    _event(cue, _endReason);
     _active = null;
     _done = null;
     // Positions read while the cue showed are not steps of playback.
     _last = null;
     notifyListeners();
-    if (cue.pause &&
+    if (paused &&
         wasPlaying &&
         !controller.isDisposed &&
         (_canResume?.call() ?? true)) {
@@ -234,6 +399,7 @@ class PlayStackCueController extends ChangeNotifier {
     controller.removeListener(_onState);
     unawaited(_positions?.cancel());
     unawaited(_cues.close());
+    unawaited(_events.close());
     super.dispose();
   }
 }
@@ -309,6 +475,10 @@ class PlayStackFeedCues<T> {
     this.onCue,
     this.builder,
     this.onTransition,
+    this.shouldShow,
+    this.onEvent,
+    this.decisionLead = const Duration(seconds: 5),
+    this.decisionTimeout = const Duration(seconds: 3),
   });
 
   /// The cues of an item. Null or an empty list for none.
@@ -323,9 +493,26 @@ class PlayStackFeedCues<T> {
   )?
   onCue;
 
-  /// Draws the active cue over the video, above the controls. The cue ends
-  /// when it calls `dismiss` (or after [PlayStackCue.showFor]).
+  /// Draws the active cue where its [PlayStackCue.layout] says (over the
+  /// video by default). The cue ends when it calls `dismiss` (or after
+  /// [PlayStackCue.showFor]).
   final PlayStackCueBuilder<T>? builder;
+
+  /// Asked before a cue fires: true shows it, false skips it. Decide
+  /// however you like: [PlayStackShowRules] on the device, or your server.
+  /// Null shows every cue.
+  final FutureOr<bool> Function(T item, PlayStackCue cue)? shouldShow;
+
+  /// Called for every [PlayStackCueEvent], to record what was shown.
+  final void Function(T item, PlayStackCue cue, PlayStackCueEvent event)?
+  onEvent;
+
+  /// How long before a cue [shouldShow] is asked.
+  final Duration decisionLead;
+
+  /// How long a late [shouldShow] answer is waited for; then the cue is
+  /// skipped.
+  final Duration decisionTimeout;
 
   /// Called when the user moves to another item (or the feed advances on
   /// its own). The new item waits, paused, until the returned future
@@ -385,13 +572,23 @@ class _PlayStackFeedCueLayerState<T> extends State<PlayStackFeedCueLayer<T>> {
     if (!widget.page.isActive || _cues != null) return;
     final cues = widget.cues.cues?.call(widget.page.data) ?? const [];
     if (cues.isEmpty) return;
-    final onCue = widget.cues.onCue;
+    final options = widget.cues;
+    final item = widget.page.data;
+    final onCue = options.onCue;
+    final shouldShow = options.shouldShow;
+    final onEvent = options.onEvent;
     _cues = PlayStackCueController(
       controller: widget.page.controller,
       cues: cues,
-      endWhenHandled: widget.cues.builder == null,
+      endWhenHandled: options.builder == null,
       canResume: () => mounted && widget.page.isActive,
       onCue: onCue == null ? null : (cue) => onCue(context, widget.page, cue),
+      shouldShow: shouldShow == null ? null : (cue) => shouldShow(item, cue),
+      onEvent: onEvent == null
+          ? null
+          : (cue, event) => onEvent(item, cue, event),
+      decisionLead: options.decisionLead,
+      decisionTimeout: options.decisionTimeout,
     )..addListener(_changed);
   }
 
@@ -408,11 +605,122 @@ class _PlayStackFeedCueLayerState<T> extends State<PlayStackFeedCueLayer<T>> {
   @override
   Widget build(BuildContext context) {
     final cues = _cues;
-    final cue = cues?.active;
     final builder = widget.cues.builder;
-    if (cues == null || cue == null || builder == null) {
+    if (cues == null || builder == null) return const SizedBox.shrink();
+    return PlayStackCueOverlay(
+      cues: cues,
+      builder: (context, cue, dismiss) =>
+          builder(context, widget.page, cue, dismiss),
+    );
+  }
+}
+
+/// Shows the active cue of a [PlayStackCueController] with [builder].
+/// Draws nothing while no cue is active.
+///
+/// Inside a [PlayStackSlotFrame] (every `PlayStackFeedView` page has one),
+/// each cue shows where its [PlayStackCue.layout] says. Without a frame, it
+/// fills the space it is given.
+///
+/// ```dart
+/// PlayStackSlotFrame(
+///   child: Stack(children: [
+///     PlayStackVideoView(controller: controller),
+///     PlayStackCueOverlay(
+///       cues: cues,
+///       builder: (context, cue, dismiss) => PollCard(onClose: dismiss),
+///     ),
+///   ]),
+/// )
+/// ```
+class PlayStackCueOverlay extends StatefulWidget {
+  /// Creates the overlay of [cues].
+  const PlayStackCueOverlay({
+    super.key,
+    required this.cues,
+    required this.builder,
+  });
+
+  /// The cues.
+  final PlayStackCueController cues;
+
+  /// Builds the active cue; call `dismiss` to end it.
+  final Widget Function(
+    BuildContext context,
+    PlayStackCue cue,
+    VoidCallback dismiss,
+  )
+  builder;
+
+  @override
+  State<PlayStackCueOverlay> createState() => _PlayStackCueOverlayState();
+}
+
+class _PlayStackCueOverlayState extends State<PlayStackCueOverlay> {
+  PlayStackSlotFrameState? _frame;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.cues.addListener(_sync);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final frame = PlayStackSlotFrame.maybeOf(context);
+    if (!identical(frame, _frame)) {
+      _frame?.show(this, null, null);
+      _frame = frame;
+    }
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(PlayStackCueOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.cues, widget.cues)) {
+      oldWidget.cues.removeListener(_sync);
+      widget.cues.addListener(_sync);
+    }
+    _sync();
+  }
+
+  void _sync() {
+    final frame = _frame;
+    if (frame == null) {
+      if (mounted) setState(() {});
+      return;
+    }
+    final cue = widget.cues.active;
+    if (cue != null) {
+      frame.show(this, cue.layout, _content);
+    } else {
+      frame.show(this, null, null);
+    }
+  }
+
+  Widget _content(BuildContext context) => ListenableBuilder(
+    listenable: widget.cues,
+    builder: (context, _) {
+      final cue = widget.cues.active;
+      if (cue == null) return const SizedBox.shrink();
+      return widget.builder(context, cue, widget.cues.dismiss);
+    },
+  );
+
+  @override
+  void dispose() {
+    widget.cues.removeListener(_sync);
+    _frame?.show(this, null, null);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_frame != null || widget.cues.active == null) {
       return const SizedBox.shrink();
     }
-    return builder(context, widget.page, cue, cues.dismiss);
+    return _content(context);
   }
 }
