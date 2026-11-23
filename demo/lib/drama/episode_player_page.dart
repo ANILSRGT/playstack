@@ -26,7 +26,10 @@ import '../loading_animation.dart';
 /// * continues each episode where it was left, skips the intro and offers
 ///   the next episode with a countdown (`series`);
 /// * plays a pre-roll ad before even episodes for users without premium
-///   (`ads`, a sample VAST tag);
+///   (`ads`, a sample VAST tag), at most once a day per episode
+///   (`shouldShow` with [PlayStackShowRules]);
+/// * shows a banner in a strip below the video, which shrinks for it, at
+///   most once a minute (a cue with `PlayStackSlotLayout.below`);
 /// * double tap to jump 10 s, drag for brightness and volume in fullscreen;
 /// * sleep timer, audio only, debug panel, Chromecast and AirPlay in the
 ///   menu.
@@ -43,6 +46,12 @@ class EpisodePlayerPage extends StatefulWidget {
   @override
   State<EpisodePlayerPage> createState() => _EpisodePlayerPageState();
 }
+
+/// When ads and banners were shown, for the rules below. In memory for the
+/// demo; a real app keeps it in a file (`PlayStackShowStore.file`), in
+/// SharedPreferences (`PlayStackShowStore.custom`), or asks its server in
+/// `shouldShow` instead.
+final _shows = PlayStackShowRules();
 
 class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
   final _view = PlayStackFeedViewController();
@@ -139,8 +148,25 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
             ads: PlayStackFeedAds(
               breaks: (episode) => [
                 if (!offline.isPremium && episode.number.isEven)
-                  PlayStackAdBreak.preRoll(PlayStackAdSource.vast(_sampleVast)),
+                  PlayStackAdBreak.preRoll(
+                    PlayStackAdSource.vast(_sampleVast),
+                    id: 'pre',
+                  ),
               ],
+              // Each episode's pre-roll at most once a day: coming back to
+              // an episode does not show it again.
+              shouldShow: (episode, adBreak) => _shows.allows(
+                '${episode.id}/${adBreak.id}',
+                const PlayStackShowRule.every(Duration(days: 1)),
+              ),
+              onEvent: (episode, adBreak, event) {
+                debugPrint(
+                  '[ads] ${episode.id} ${adBreak.id} ${event.type.name}',
+                );
+                if (event.type == PlayStackAdBreakEventType.started) {
+                  unawaited(_shows.record('${episode.id}/${adBreak.id}'));
+                }
+              },
             ),
             // The app's own moments. A poll card a few seconds into odd
             // episodes, and an interstitial between episodes for free
@@ -154,9 +180,35 @@ class _EpisodePlayerPageState extends State<EpisodePlayerPage> {
                     id: 'poll',
                     showFor: Duration(seconds: 8),
                   ),
+                // A banner in a strip below the video, which shrinks for
+                // it and keeps playing. Where an app puts its ad SDK's
+                // banner (AdMob's AdWidget, for example).
+                if (!offline.isPremium)
+                  const PlayStackCue(
+                    at: Duration(seconds: 2),
+                    id: 'banner',
+                    showFor: Duration(seconds: 6),
+                    layout: PlayStackSlotLayout.below(height: 64),
+                  ),
               ],
-              builder: (context, page, cue, dismiss) =>
-                  _PollCard(onClose: dismiss),
+              // The banner at most once a minute, whatever the episode; the
+              // poll every time.
+              shouldShow: (episode, cue) => cue.id == 'banner'
+                  ? _shows.allows(
+                      'banner',
+                      const PlayStackShowRule.every(Duration(minutes: 1)),
+                    )
+                  : true,
+              onEvent: (episode, cue, event) {
+                debugPrint('[cues] ${episode.id} ${cue.id} ${event.name}');
+                if (cue.id == 'banner' && event == PlayStackCueEvent.shown) {
+                  unawaited(_shows.record('banner'));
+                }
+              },
+              builder: (context, page, cue, dismiss) => switch (cue.id) {
+                'banner' => _BannerAd(onClose: dismiss),
+                _ => _PollCard(onClose: dismiss),
+              },
               onTransition: (context, move) async {
                 if (offline.isPremium || !move.isForward) return;
                 if (move.count % 3 != 0) return;
@@ -597,6 +649,61 @@ class _PlayerMenu extends StatelessWidget {
 
 /// A poll over the playing episode: the app's own widget, shown by a
 /// PlayStack cue and closed with `dismiss`.
+/// A stand-in for an ad SDK's banner, in the strip below the video.
+class _BannerAd extends StatelessWidget {
+  const _BannerAd({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ColoredBox(
+      color: const Color(0xFF1C1C1E),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFC107),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'Ad',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Banner ad', style: theme.textTheme.titleSmall),
+                Text(
+                  'Your ad SDK\'s banner shows here; the video makes room.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 20),
+            onPressed: onClose,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PollCard extends StatelessWidget {
   const _PollCard({required this.onClose});
 
