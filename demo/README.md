@@ -33,3 +33,20 @@ cd demo
 flutter run                 # Android or iOS device/simulator
 flutter run -d chrome       # web (starts muted: browsers block autoplay with sound)
 ```
+
+## Recording the README video
+
+`integration_test/record_demo_test.dart` walks through the app at a
+viewer's pace. Record a simulator that is not signed in to an Apple
+account (system prompts would cover the app) while it runs:
+
+```bash
+xcrun simctl io <simulator> recordVideo --codec=h264 tour.mp4 &
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/record_demo_test.dart -d <simulator>
+kill -INT %1
+ffmpeg -i tour.mp4 -vf "fps=12,scale=300:-2:flags=lanczos" -c:v libwebp_anim \
+  -quality 72 -loop 0 ../packages/playstack/doc/demo.webp
+```
+
+Trim the build and launch from the start with `-ss` before `-i`.
